@@ -47,6 +47,7 @@ end
 # after selecting which ones you want to keep.
 function parcel(calls; blacklist=UTF8String[])
     pc = Dict{UTF8String,Vector{UTF8String}}()
+    discards = UTF8String[]
     for c in calls
         contains(c, "#") && continue
         contains(c, "<:") && continue
@@ -59,7 +60,12 @@ function parcel(calls; blacklist=UTF8String[])
         end
         # Make sure this is a generic function
         fpath = filter(x->!isempty(x), split(fargs[1], "."))
-        mod = eval(Main, parse(join(fpath[1:end-1], ".")))
+        local mod
+        try
+            mod = eval(Main, parse(join(fpath[1:end-1], ".")))
+        catch
+            continue
+        end
         if !isdefined(mod, symbol(fpath[end]))
             println("skipping ", fargs[1])
             continue
@@ -78,20 +84,21 @@ function parcel(calls; blacklist=UTF8String[])
         else
             args = "()"
         end
+        pcstring = string("    precompile(", fname, ", ", args, ")")
         # Add to the appropriate dictionary
         modname = fpath[1]
         try
             eval(Main.eval(symbol(modname)), parse(args))
         catch
-            println("skipping ", c, " (cannot be evaluated in module $modname)")
+            push!(discards, pcstring)
             continue
         end
         if !haskey(pc, modname)
             pc[modname] = UTF8String[]
         end
-        push!(pc[modname], string("    precompile(", fname, ", ", args, ")"))
+        push!(pc[modname], pcstring)
     end
-    pc
+    pc, discards
 end
 
 # Write each modules' precompiles to a separate file

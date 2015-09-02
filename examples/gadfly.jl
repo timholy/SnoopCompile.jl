@@ -20,5 +20,5 @@ SnoopCompile.@snoop "/tmp/gadfly_compiles.csv" begin
 snoop_off()
 
 data = SnoopCompile.read("/tmp/gadfly_compiles.csv")
-pc = SnoopCompile.parcel(data[end:-1:1,2])
+pc, discards = SnoopCompile.parcel(data[end:-1:1,2])
 SnoopCompile.write(pc, "/tmp/precompile")
