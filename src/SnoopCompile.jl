@@ -6,6 +6,12 @@ export
     @snoop,
     @snoop1
 
+
+# If we don't have a JULIAHOME environment variable, set it here.
+if !haskey(ENV, "JULIAHOME")
+    ENV["JULIAHOME"] = dirname(dirname(JULIA_HOME))
+end
+
 function snoop_path()
     snoopdir = Base.find_in_path("SnoopCompile.jl")
     isempty(snoopdir) && error("SnoopCompile is not your path, please fix (e.g., push!(LOAD_PATH, \"/path/to/SnoopCompile\"))")
@@ -55,7 +61,7 @@ macro snoop(filename, commands)
     println("Turning on compiler logging")
     snoop_on()
     try
-        print("Launching new julia process to run commands...")
+        println("Launching new julia process to run commands...")
         # addprocs will run the unmodified version of julia, so we
         # launch it as a command.
         code_object = """
