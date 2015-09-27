@@ -140,12 +140,14 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
         println(c, " is blacklisted")
         return false, c, fpath, args
     end
-    fargs = split(c, '(')
-    if length(fargs) != 2
-        error("c is ", c, ", fargs is ", fargs)
+    argsidx = findfirst(c, '(')
+    if argsidx == 0
+        error("No function call syntax found, c is ", c)
     end
+    fstr, args = c[1:argsidx-1], c[argsidx+1:end-1]
+    ## Parse and validate the function
     # Make sure this is a generic function
-    fpath = filter(x->!isempty(x), split(fargs[1], "."))
+    fpath = filter(x->!isempty(x), split(fstr, "."))
     if !isempty(search(c, "anonymous"))
         return false, c, fpath, args
     end
@@ -157,7 +159,7 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
         return false, c, fpath, args
     end
     if !isdefined(mod, symbol(fpath[end]))
-        println("skipping ", fargs[1])
+        println("skipping ", fstr)
         return false, c, fpath, args
     end
     fname = convert(UTF8String, fpath[end])
@@ -167,10 +169,10 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
         return false, c, fpath, args
     end
     fname = string(mod, ".", fname)
-    args = fargs[2]
-    if length(args) > 1
+    ## Parse the arguments
+    if !isempty(args)
         # we insert a comma to ensure tuples for single-argument functions
-        args = string("(", args[1:end-1], ",)")
+        args = string("(", args, ",)")
     else
         args = "()"
     end
