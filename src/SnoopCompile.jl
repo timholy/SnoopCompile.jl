@@ -1,5 +1,7 @@
 module SnoopCompile
 
+using Compat
+
 export
     snoop_on,
     snoop_off,
