@@ -134,7 +134,6 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
     fpath = [""]
     args = ""
     contains(c, "#") && return false, c, fpath, args    # skip gensyms
-    contains(c, "<:") && return false, c, fpath, args   # skip TypeVar types
     for (k,v) in subst
         c = replace(c, k, v)
     end
@@ -172,6 +171,15 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
     end
     fname = string(mod, ".", fname)
     ## Parse the arguments
+    # If the last argument is a Vararg, remove it
+    varg = search(args, "Vararg")
+    if !isempty(varg)
+        args = strip(args[1:first(varg)-1])
+        if !isempty(args) && last(args) == ','
+            args = args[1:end-1]
+        end
+    end
+    contains(args, "<:") && return false, c, fpath, args   # skip TypeVar types
     if !isempty(args)
         # we insert a comma to ensure tuples for single-argument functions
         args = string("(", args, ",)")
