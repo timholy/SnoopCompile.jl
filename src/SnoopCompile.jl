@@ -27,8 +27,11 @@ then use `@snoop1`. When finished, restore the compiler to its
 original state with `snoop_off()`.
 """
 function snoop_on()
-    cd(snoop_path()) do
-        run(`sh snoop.sh ""`)
+    if VERSION < v"0.5.0-dev+210"
+        println("Turning on compiler logging")
+        cd(snoop_path()) do
+            run(`sh snoop.sh ""`)
+        end
     end
 end
 
@@ -38,11 +41,13 @@ state. Alternatively, you can just use `git checkout src/codegen.cpp
 && make` from the julia source folder.
 """
 function snoop_off()
-    cd(snoop_path()) do
-        run(`sh snoop.sh "--reverse"`)
+    if VERSION < v"0.5.0-dev+210"
+        println("Restoring compiler to original state")
+        cd(snoop_path()) do
+            run(`sh snoop.sh "--reverse"`)
+        end
     end
 end
-
 """
 ```
 @snoop "compiledata.csv" begin
@@ -60,7 +65,6 @@ manually with `snoop_on()` and `snoop_off()`, use `@snoop1` in a fresh
 julia session instead.
 """
 macro snoop(filename, commands)
-    println("Turning on compiler logging")
     snoop_on()
     try
         println("Launching new julia process to run commands...")
@@ -84,7 +88,6 @@ macro snoop(filename, commands)
         wait(pobj)
         println("done.")
     finally
-        println("Restoring compiler to original state")
         snoop_off()
     end
     nothing
