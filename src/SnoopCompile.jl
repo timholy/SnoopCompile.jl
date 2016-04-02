@@ -136,7 +136,17 @@ end
 function parse_call(c; subst = Dict(), blacklist=UTF8String[])
     fpath = [""]
     args = ""
-    contains(c, "#") && return false, c, fpath, args    # skip gensyms
+    hash_handled = match(r"#[0-9]", c) == nothing  # gensyms and anonymous functions on 0.5
+    if hash_handled && contains(c, ".#") && VERSION >= v"0.5.0-dev"
+        csplit = split_keepdelim(c, ('(',',',')'))
+        csplit = map(csplit) do s
+            contains(s, "#") ? string("typeof(", replace(s, r"#", ""), ')') : s
+        end
+        c = string(csplit...)
+    end
+    if !hash_handled || contains(c, "#")
+        return false, c, fpath, args    # skip gensyms
+    end
     for (k,v) in subst
         c = replace(c, k, v)
     end
@@ -152,7 +162,7 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
     ## Parse and validate the function
     # Make sure this is a generic function
     fpath = filter(x->!isempty(x), split(fstr, "."))
-    if !isempty(search(c, "anonymous"))
+    if !isempty(search(c, "anonymous")) # anonymous function on 0.4
         return false, c, fpath, args
     end
     # Make sure the module is defined
@@ -270,6 +280,30 @@ function write(prefix::AbstractString, pc::Dict)
             println(io, "end")
         end
     end
+end
+
+# copied from split
+function split_keepdelim{T<:AbstractString,U<:Array}(str::T, splitter, limit::Integer=0, keep_empty::Bool=true, strs::U=[])
+    i = start(str)
+    n = endof(str)
+    r = search(str,splitter,i)
+    j, k = first(r), nextind(str,last(r))
+    while 0 < j <= n && length(strs) != limit-1
+        if i < k
+            if keep_empty || i < j
+                push!(strs, SubString(str,i,prevind(str,j)))
+                push!(strs, SubString(str,j,j))
+            end
+            i = k
+        end
+        if k <= j; k = nextind(str,j) end
+        r = search(str,splitter,k)
+        j, k = first(r), nextind(str,last(r))
+    end
+    if keep_empty || !done(str,i)
+        push!(strs, SubString(str,i))
+    end
+    return strs
 end
 
 end # module
