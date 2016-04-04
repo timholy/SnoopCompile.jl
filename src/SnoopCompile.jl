@@ -138,11 +138,28 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
     args = ""
     hash_handled = match(r"#[0-9]", c) == nothing  # gensyms and anonymous functions on 0.5
     if hash_handled && contains(c, ".#") && VERSION >= v"0.5.0-dev"
-        csplit = split_keepdelim(c, ('(',',',')'))
-        csplit = map(csplit) do s
-            contains(s, "#") ? string("typeof(", replace(s, r"#", ""), ')') : s
+        cold = c
+        csplit = split_keepdelim(c, ('(',',',')','{','}'))
+        fname = split(csplit[1], ".")[end]
+        csplit = map(1:length(csplit)) do idx
+            s = csplit[idx]
+            if contains(s, ".#")
+                snew = replace(s, r"#", "")
+                sname = split(snew, ".")[end]
+                if idx == 3 && sname == fname
+                    # Omit the first argument, which is just the
+                    # function name all over again
+                    return ""
+                else
+                    return string("typeof(", snew, ')')
+                end
+            else
+                return s
+            end
         end
         c = string(csplit...)
+        c = replace(c, "(, ", "(")
+        c = replace(c, "(,", "(")
     end
     if !hash_handled || contains(c, "#")
         return false, c, fpath, args    # skip gensyms
@@ -154,7 +171,7 @@ function parse_call(c; subst = Dict(), blacklist=UTF8String[])
         println(c, " is blacklisted")
         return false, c, fpath, args
     end
-    argsidx = findfirst(c, '(')
+    argsidx = search(c, '(')
     if argsidx == 0
         error("No function call syntax found, c is ", c)
     end
@@ -217,8 +234,14 @@ Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory 
 function parcel(calls; subst=Dict(), blacklist=UTF8String[])
     pc = Dict{UTF8String,Vector{UTF8String}}()
     discards = UTF8String[]
+    local keep, pcstring, fpath, args
     for c in calls
-        keep, pcstring, fpath, args = parse_call(c, blacklist=blacklist)
+        try
+            keep, pcstring, fpath, args = parse_call(c, blacklist=blacklist)
+        catch
+            println("error processing ", c)
+            rethrow()
+        end
         keep || continue
         # Add to the appropriate dictionary
         modname = fpath[1]
