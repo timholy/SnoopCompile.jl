@@ -130,15 +130,20 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     end
     if any(b -> contains(line, b), blacklist)
         println(line, " contains a blacklisted substring")
-        return false, line, :Main
+        return false, line, :unknown
     end
 
     argsidx = search(line, '(') + 1
-    argsidx == 1 && error("no function call syntax found in line: ", line)
-    endswith(line, ")") || error("unexpected characters at end of line: ", line)
+    if argsidx == 1 || !endswith(line, ")")
+        warn("unexpected characters at end of line: ", line)
+        return false, line, :unknown
+    end
     line = "Tuple{$(line[argsidx:prevind(line, endof(line))])}"
     curly = parse(line, raise=false)
-    Meta.isexpr(curly, :curly) || error("failed parse of line: ", line)
+    if !Meta.isexpr(curly, :curly)
+        warn("failed parse of line: ", line)
+        return false, line, :unknown
+    end
     func = curly.args[2]
     topmod = (func isa Expr ? extract_topmod(func) : :Main)
 
