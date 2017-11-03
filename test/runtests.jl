@@ -1,21 +1,47 @@
 using SnoopCompile
 using Base.Test
 
-if VERSION >= v"0.5.0-dev"
-    # Function as argument
-    str = "Base.any($(typeof(identity)), Array{Bool, 1})"
-    keep, pcstring, fpath, args = SnoopCompile.parse_call(str)
+# Simple call
+let str = "sum"
+    keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str)")
     @test keep
-    @test pcstring == "    precompile(Base.any, (typeof(Base.identity), Array{Bool, 1},))"
-    # Anonymous function as argument
-    str = "Base.any($(typeof(x->x>0)), Array{Float32, 1})"
-    keep, pcstring, fpath, args = SnoopCompile.parse_call(str)
-    @test !keep
-    # Function as a type
-    str = "Base.Sort.sort!(Base.#sort!, Array{Any, 1}, Base.Sort.MergeSortAlg, Base.Order.By{Base.#string})"
-    keep, pcstring, fpath, args = SnoopCompile.parse_call(str)
+    @test pcstring == "Tuple{$str}"
+    @test topmod == :Main
+end
+
+# Operator
+let str = "Base.:*, Int, Int"
+    keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str)")
     @test keep
-    @test pcstring == "    precompile(Base.Sort.sort!, (Array{Any, 1}, Base.Sort.MergeSortAlg, Base.Order.By{typeof(Base.string)},))"
+    @test pcstring == "Tuple{$str}"
+    @test topmod == :Base
+end
+
+# Function as argument
+let str = "typeof(Base.identity), Array{Bool, 1}"
+    keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str, Vararg{Any, N} where N)")
+    @test keep
+    @test pcstring == "Tuple{$str, Int}"
+    @test topmod == :Base
+end
+
+# Anonymous function closure in a new module as argument
+let func = (@eval Main module SnoopTestTemp
+            func = () -> (y = 2; (x -> x > y))
+        end).func
+    str = "getfield(SnoopTestTemp, Symbol(\"$(typeof(func()))\")), Array{Float32, 1}"
+    keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str)")
+    @test keep
+    @test pcstring == "Tuple{$str}"
+    @test topmod == :SnoopTestTemp
+end
+
+# Function as a type
+let str = "typeof(Base.Sort.sort!), Array{Any, 1}, Base.Sort.MergeSortAlg, Base.Order.By{typeof(Base.string)}"
+    keep, pcstring, topmod = SnoopCompile.parse_call("Foo.Bar.sort!($str)")
+    @test keep
+    @test pcstring == "Tuple{$str}"
+    @test topmod == :Base
 end
 
 include("colortypes.jl")
