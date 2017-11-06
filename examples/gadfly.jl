@@ -7,5 +7,5 @@ SnoopCompile.@snoop1 "/tmp/gadfly_compiles.csv" begin
 end
 
 data = SnoopCompile.read("/tmp/gadfly_compiles.csv")
-pc, discards = SnoopCompile.parcel(reverse!(data[2]))
+pc = SnoopCompile.parcel(reverse!(data[2]))
 SnoopCompile.write("/tmp/precompile", pc)

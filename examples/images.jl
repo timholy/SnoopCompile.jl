@@ -12,18 +12,17 @@ end
 
 data = SnoopCompile.read("/tmp/images_compiles.csv")
 
-# The Images tests are run inside a module ImagesTest, so all
-# the precompiles get credited to ImagesTest. Credit them to Images instead.
+# Old versions of Images ran the tests inside a module ImagesTest, so all
+# the precompiles would get credited to ImagesTest. Credit them to Images instead:
 subst = ["ImagesTests"=>"Images", ]
 
-# Blacklist helps fix problems:
-# - MIME uses type-parameters with symbols like :image/png, which is
-#   not parseable
+# Blacklist can be used to help fix problems.
+# For example, old versions of Julia output would MIME types with invalid syntax:
 blacklist = ["MIME", ]
 
 # Use these two lines if you want to create precompile functions for
 # individual packages
-pc, discards = SnoopCompile.parcel(reverse!(data[2]), subst=subst, blacklist=blacklist)
+pc = SnoopCompile.parcel(reverse!(data[2]), subst=subst, blacklist=blacklist)
 SnoopCompile.write("/tmp/precompile", pc)
 
 # Use these two lines if you want to add to your userimg.jl

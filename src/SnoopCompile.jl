@@ -181,16 +181,15 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
 end
 
 """
-`pc, discards = parcel(calls; subst=[], blacklist=[])` assigns each compile statement to the module that owns the function. Perform string substitution via `subst=["Module1"=>"Module2"]`, and omit functions in particular modules with `blacklist=["Module3"]`. On output, `pc[:Module2]` contains all the precompiles assigned to `Module2`.
+`pc = parcel(calls; subst=[], blacklist=[])` assigns each compile statement to the module that owns the function. Perform string substitution via `subst=["Module1"=>"Module2"]`, and omit functions in particular modules with `blacklist=["Module3"]`. On output, `pc[:Module2]` contains all the precompiles assigned to `Module2`.
 
 Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory `prefix`, one file per module.
 """
 function parcel(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()
-    discards = String[]
     for c in calls
         local keep, pcstring, topmod
-        keep, pcstring, topmod = parse_call(c, blacklist=blacklist)
+        keep, pcstring, topmod = parse_call(c, subst=subst, blacklist=blacklist)
         keep || continue
         # Add to the appropriate dictionary
         if !haskey(pc, topmod)
@@ -207,7 +206,7 @@ end
 function format_userimg(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Vector{String}()
     for c in calls
-        keep, pcstring, topmod = parse_call(c, blacklist=blacklist)
+        keep, pcstring, topmod = parse_call(c, subst=subst, blacklist=blacklist)
         keep || continue
         push!(pc, "precompile($pcstring)")
     end
