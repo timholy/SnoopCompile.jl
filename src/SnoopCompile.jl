@@ -2,6 +2,8 @@ __precompile__()
 
 module SnoopCompile
 
+using Nullables
+
 export
     @snoop,
     @snoop1
@@ -100,8 +102,8 @@ function read(filename)
             continue
         end
         tm = tryparse(UInt64, time)
-        isnull(tm) && continue
-        push!(times, get(tm))
+        tm == nothing && continue
+        push!(times, tm)
         push!(data, str[2:prevind(str, endof(str))])
     end
     # Save the most costly for last
@@ -110,6 +112,7 @@ function read(filename)
 end
 
 # pattern match on the known output of jl_static_show
+extract_topmod(e::QuoteNode) = extract_topmod(e.value)
 function extract_topmod(e)
     Meta.isexpr(e, :.) &&
         return extract_topmod(e.args[1])
@@ -117,6 +120,9 @@ function extract_topmod(e)
         return extract_topmod(e.args[2])
     Meta.isexpr(e, :call) && length(e.args) == 2 && e.args[1] == :typeof &&
         return extract_topmod(e.args[2])
+    # parametrized anonymous functions
+    Meta.isexpr(e, :curly) && e.args[1].args[1] == :getfield &&
+        return extract_topmod(e.args[1].args[2].args[2])
     #Meta.isexpr(e, :call) && length(e.args) == 2 && e.args[1] == :Symbol &&
     #    return Symbol(e.args[2])
     isa(e, Symbol) &&
@@ -135,13 +141,13 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
 
     argsidx = search(line, '(') + 1
     if argsidx == 1 || !endswith(line, ")")
-        warn("unexpected characters at end of line: ", line)
+        @warn("line doesn't end with )", line)
         return false, line, :unknown
     end
     line = "Tuple{$(line[argsidx:prevind(line, endof(line))])}"
     curly = parse(line, raise=false)
     if !Meta.isexpr(curly, :curly)
-        warn("failed parse of line: ", line)
+        @warn("failed parse of line: ", line)
         return false, line, :unknown
     end
     func = curly.args[2]
@@ -237,6 +243,7 @@ function write(prefix::AbstractString, pc::Dict)
         mkpath(prefix)
     end
     for (k, v) in pc
+        @show k
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
             println(io, "function _precompile_()")
             println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")

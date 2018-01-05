@@ -1,6 +1,6 @@
 using SnoopCompile
 using Base.Test
-
+import Logging; Logging.global_logger(Logging.SimpleLogger(STDERR, Logging.Error))
 # Simple call
 let str = "sum"
     keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str)")
@@ -29,7 +29,8 @@ end
 let func = (@eval Main module SnoopTestTemp
             func = () -> (y = 2; (x -> x > y))
         end).func
-    str = "getfield(SnoopTestTemp, Symbol(\"$(typeof(func()))\")), Array{Float32, 1}"
+    sym = typeof(func())
+    str = "$sym, Array{Float32, 1}"
     keep, pcstring, topmod = SnoopCompile.parse_call("Foo.any($str)")
     @test keep
     @test pcstring == "Tuple{$str}"
