@@ -27,7 +27,7 @@ mktempdir() do tmpdir
         @test length(readlines(filename)) >= minlength
         nothing
     end
-
+    @show readdir(tmpdir2)
     notisempty(joinpath(tmpdir2, "precompile_ColorTypes.jl"), 100)
     notisempty(joinpath(tmpdir2, "precompile_FixedPointNumbers.jl"), 2)
     notisempty(tmpfile2, 100)
