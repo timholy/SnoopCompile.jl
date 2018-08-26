@@ -52,7 +52,7 @@ end
 function split2(str, on)
     i = something(findfirst(isequal(on), str), 0)
     first(i) == 0 && return str, ""
-    return (SubString(str, start(str), prevind(str, first(i))),
+    return (SubString(str, firstindex(str), prevind(str, first(i))),
             SubString(str, nextind(str, last(i))))
 end
 
