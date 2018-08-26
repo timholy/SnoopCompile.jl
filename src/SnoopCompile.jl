@@ -2,6 +2,8 @@ __precompile__()
 
 module SnoopCompile
 
+using Serialization
+
 export
     @snoop,
     @snoop1
@@ -25,27 +27,30 @@ function snoop(filename, commands)
     # addprocs will run the unmodified version of julia, so we
     # launch it as a command.
     code_object = """
-        while !eof(STDIN)
-            eval(Main, deserialize(STDIN))
-        end
-        """
-    in, io = open(`$(Base.julia_cmd()) --eval $code_object`, "w", STDOUT)
-    serialize(in, quote
-        import SnoopCompile
+            using Serialization
+            using Pkg
+            Pkg.activate(abspath("."))
+            while !eof(stdin)
+                Core.eval(Main, deserialize(stdin))
+            end
+            """
+    in_ = open(`$(Base.julia_cmd()) --eval $code_object`, stdout, write=true)
+    serialize(in_, quote
+              import SnoopCompile
     end)
     # Now that the new process knows about SnoopCompile, it can
     # expand the macro in this next expression
-    serialize(in, quote
+    serialize(in_, quote
           SnoopCompile.@snoop1 $filename $commands
     end)
-    close(in)
-    wait(io)
+    # close(in_)
+    # wait(in_)
     println("done.")
     nothing
 end
 
 function split2(str, on)
-    i = search(str, on)
+    i = something(findfirst(isequal(on), str), 0)
     first(i) == 0 && return str, ""
     return (SubString(str, start(str), prevind(str, first(i))),
             SubString(str, nextind(str, last(i))))
@@ -66,11 +71,11 @@ macro snoop1(filename, commands)
     commands = esc(commands)
     return quote
         let io = open($filename, "w")
-            ccall(:jl_dump_compiles, Void, (Ptr{Void},), io.handle)
+            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
             try
                 $commands
             finally
-                ccall(:jl_dump_compiles, Void, (Ptr{Void},), C_NULL)
+                ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
                 close(io)
             end
         end
@@ -85,6 +90,7 @@ function read(filename)
     data = Vector{String}()
     toplevel = false # workaround for Julia#22538
     for line in eachline(filename)
+        println(line)
         if toplevel
             if endswith(line, '"')
                 toplevel = false
@@ -94,15 +100,15 @@ function read(filename)
         time, str = split2(line, '\t')
         length(str) < 2 && continue
         (str[1] == '"' && str[end] == '"') || continue
-        if startswith(str, "\"<toplevel thunk> -> ")
+        if startswith(str, """"<toplevel thunk> -> """)
             # consume lines until we find the terminating " character
             toplevel = true
             continue
         end
         tm = tryparse(UInt64, time)
-        isnull(tm) && continue
-        push!(times, get(tm))
-        push!(data, str[2:prevind(str, endof(str))])
+        tm === nothing && continue
+        push!(times, tm)
+        push!(data, str[2:prevind(str, lastindex(str))])
     end
     # Save the most costly for last
     p = sortperm(times)
@@ -110,6 +116,7 @@ function read(filename)
 end
 
 # pattern match on the known output of jl_static_show
+extract_topmod(e::QuoteNode) = extract_topmod(e.value)
 function extract_topmod(e)
     Meta.isexpr(e, :.) &&
         return extract_topmod(e.args[1])
@@ -119,6 +126,9 @@ function extract_topmod(e)
         return extract_topmod(e.args[2])
     #Meta.isexpr(e, :call) && length(e.args) == 2 && e.args[1] == :Symbol &&
     #    return Symbol(e.args[2])
+    # parametrized anonymous functions
+    Meta.isexpr(e, :call) && e.args[1].args[1] == :getfield &&
+        return extract_topmod(e.args[1].args[2].args[2])
     isa(e, Symbol) &&
         return e
     return :unknown
@@ -133,15 +143,15 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
         return false, line, :unknown
     end
 
-    argsidx = search(line, '(') + 1
-    if argsidx == 1 || !endswith(line, ")")
-        warn("unexpected characters at end of line: ", line)
+    argsidx = something(findfirst(isequal('{'), line), 0) + 1
+    if argsidx == 1 || !endswith(line, "}")
+        @warn("unexpected characters at end of line: ", line)
         return false, line, :unknown
     end
-    line = "Tuple{$(line[argsidx:prevind(line, endof(line))])}"
-    curly = parse(line, raise=false)
+    line = "Tuple{$(line[argsidx:prevind(line, lastindex(line))])}"
+    curly = Meta.parse(line, raise=false)
     if !Meta.isexpr(curly, :curly)
-        warn("failed parse of line: ", line)
+        @warn("failed parse of line: ", line)
         return false, line, :unknown
     end
     func = curly.args[2]
@@ -239,7 +249,7 @@ function write(prefix::AbstractString, pc::Dict)
     for (k, v) in pc
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
             println(io, "function _precompile_()")
-            println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
+            println(io, "    ccall(:jl_generating_output, Cint, ()) == 0 || return nothing")
             for ln in v
                 println(io, "    ", ln)
             end
