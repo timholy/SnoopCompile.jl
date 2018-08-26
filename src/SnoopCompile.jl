@@ -1,12 +1,9 @@
-__precompile__()
-
 module SnoopCompile
 
 using Serialization
 
 export
-    @snoop,
-    @snoop1
+    @snoop
 
 """
 ```
@@ -28,48 +25,12 @@ function snoop(filename, commands)
     # launch it as a command.
     code_object = """
             using Serialization
-            using Pkg
-            Pkg.activate(abspath("."))
             while !eof(stdin)
                 Core.eval(Main, deserialize(stdin))
             end
             """
-    in_ = open(`$(Base.julia_cmd()) --eval $code_object`, stdout, write=true)
-    serialize(in_, quote
-              import SnoopCompile
-    end)
-    # Now that the new process knows about SnoopCompile, it can
-    # expand the macro in this next expression
-    serialize(in_, quote
-          SnoopCompile.@snoop1 $filename $commands
-    end)
-    # close(in_)
-    wait(in_)
-    println("done.")
-    nothing
-end
-
-function split2(str, on)
-    i = findfirst(isequal(on), str)
-    i === nothing && return str, ""
-    return (SubString(str, firstindex(str), prevind(str, first(i))),
-            SubString(str, nextind(str, last(i))))
-end
-
-"""
-```
-@snoop1 "compiledata.csv" begin
-    # Commands to execute
-end
-```
-causes the julia compiler to log all functions compiled in the course
-of executing the commands to the file "compiledata.csv". This file
-can be used for the input to `SnoopCompile.read`.
-"""
-macro snoop1(filename, commands)
-    filename = esc(filename)
-    commands = esc(commands)
-    return quote
+    process = open(`$(Base.julia_cmd()) --eval $code_object`, stdout, write=true)
+    serialize(process, quote
         let io = open($filename, "w")
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
             try
@@ -79,7 +40,18 @@ macro snoop1(filename, commands)
                 close(io)
             end
         end
-    end
+        exit()
+    end)
+    wait(process)
+    println("done.")
+    nothing
+end
+
+function split2(str, on)
+    i = findfirst(isequal(on), str)
+    i === nothing && return str, ""
+    return (SubString(str, firstindex(str), prevind(str, first(i))),
+            SubString(str, nextind(str, last(i))))
 end
 
 """
@@ -142,12 +114,6 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
         return false, line, :unknown
     end
 
-    argsidx = something(findfirst(isequal('{'), line), 0) + 1
-    if argsidx == 1 || !endswith(line, "}")
-        @warn("unexpected characters at end of line: ", line)
-        return false, line, :unknown
-    end
-    line = "Tuple{$(line[argsidx:prevind(line, lastindex(line))])}"
     curly = Meta.parse(line, raise=false)
     if !Meta.isexpr(curly, :curly)
         @warn("failed parse of line: ", line)
