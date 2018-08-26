@@ -44,14 +44,14 @@ function snoop(filename, commands)
           SnoopCompile.@snoop1 $filename $commands
     end)
     # close(in_)
-    # wait(in_)
+    wait(in_)
     println("done.")
     nothing
 end
 
 function split2(str, on)
-    i = something(findfirst(isequal(on), str), 0)
-    first(i) == 0 && return str, ""
+    i = findfirst(isequal(on), str)
+    i === nothing && return str, ""
     return (SubString(str, firstindex(str), prevind(str, first(i))),
             SubString(str, nextind(str, last(i))))
 end
@@ -90,7 +90,6 @@ function read(filename)
     data = Vector{String}()
     toplevel = false # workaround for Julia#22538
     for line in eachline(filename)
-        println(line)
         if toplevel
             if endswith(line, '"')
                 toplevel = false
@@ -241,15 +240,22 @@ function write(filename::AbstractString, pc::Vector)
     nothing
 end
 
-# Write each modules' precompiles to a separate file
-function write(prefix::AbstractString, pc::Dict)
+"""
+    write(prefix::AbstractString, pc::Dict; always::Bool = false)
+
+Write each modules' precompiles to a separate file.  If `always` is
+true, the generated function will always run the precompile statements
+when called, otherwise the statements will only be called during
+package precompilation.
+"""
+function write(prefix::AbstractString, pc::Dict; always::Bool = false)
     if !isdir(prefix)
         mkpath(prefix)
     end
     for (k, v) in pc
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
             println(io, "function _precompile_()")
-            println(io, "    ccall(:jl_generating_output, Cint, ()) == 0 || return nothing")
+            !always && println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
             for ln in v
                 println(io, "    ", ln)
             end
