@@ -15,11 +15,14 @@ causes the julia compiler to log all functions compiled in the course
 of executing the commands to the file "compiledata.csv". This file
 can be used for the input to `SnoopCompile.read`.
 """
+macro snoop(flags, filename, commands)
+    return :(snoop($(esc(flags)), $(esc(filename)), $(QuoteNode(commands))))
+end
 macro snoop(filename, commands)
-    return :(snoop($(esc(filename)), $(QuoteNode(commands))))
+    return :(snoop(String[], $(esc(filename)), $(QuoteNode(commands))))
 end
 
-function snoop(filename, commands)
+function snoop(flags, filename, commands)
     println("Launching new julia process to run commands...")
     # addprocs will run the unmodified version of julia, so we
     # launch it as a command.
@@ -29,7 +32,7 @@ function snoop(filename, commands)
                 Core.eval(Main, deserialize(stdin))
             end
             """
-    process = open(`$(Base.julia_cmd()) --eval $code_object`, stdout, write=true)
+    process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
     serialize(process, quote
         let io = open($filename, "w")
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
