@@ -15,28 +15,31 @@ scripts that work.
 
 ## Usage
 
-The easiest way to describe SnoopCompile is to show a snoop script, in this case for the `Images` package:
+The easiest way to describe SnoopCompile is to show a snoop script, in this case for the `ColorTypes` package:
 
-```jl
+```julia
 using SnoopCompile
 
 ### Log the compiles
-# This only needs to be run once (to generate "/tmp/images_compiles.csv")
+# This only needs to be run once (to generate "/tmp/colortypes_compiles.csv")
 
-SnoopCompile.@snoop "/tmp/images_compiles.csv" begin
-    include(Pkg.dir("Images", "test","runtests.jl"))
+SnoopCompile.@snoop "/tmp/colortypes_compiles.csv" begin
+    using ColorTypes, Pkg
+    include(joinpath(dirname(dirname(pathof(ColorTypes))), "test", "runtests.jl"))
 end
 
 ### Parse the compiles and generate precompilation scripts
 # This can be run repeatedly to tweak the scripts
 
-data = SnoopCompile.read("/tmp/images_compiles.csv")
+data = SnoopCompile.read("/tmp/colortypes_compiles.csv")
 
 pc = SnoopCompile.parcel(reverse!(data[2]))
 SnoopCompile.write("/tmp/precompile", pc)
 ```
 
-After the conclusion of this script, the `"/tmp/precompile"` folder will contain a number of `*.jl` files, organized by package.  These files could be added to a package like this:
+After the conclusion of this script, the `"/tmp/precompile"` folder will contain a number of `*.jl` files, organized by package.
+For each package, you could copy its corresponding `*.jl` file into the package's `src/` directory
+and `include` it into the package:
 
 ```jl
 module SomeModule

@@ -110,9 +110,9 @@ end
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
     for (k, v) in subst
-        line = replace(line, k, v)
+        line = replace(line, k=>v)
     end
-    if any(b -> contains(line, b), blacklist)
+    if any(b -> occursin(b, line), blacklist)
         println(line, " contains a blacklisted substring")
         return false, line, :unknown
     end

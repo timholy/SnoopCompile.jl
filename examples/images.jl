@@ -1,10 +1,16 @@
+# For this to work, you need to be able to run
+#     using Images
+#     include(joinpath(dirname(dirname(pathof(Images))), "test", "runtests.jl"))
+# successfully. Even if you have the Images package, you may need to add packages.
+
 using SnoopCompile
 
 ### Log the compiles
 # This only needs to be run once (to generate "/tmp/images_compiles.csv")
 
 SnoopCompile.@snoop "/tmp/images_compiles.csv" begin
-    include(Pkg.dir("Images", "test", "runtests.jl"))
+    using Images, Pkg
+    include(joinpath(dirname(dirname(pathof(Images))), "test", "runtests.jl"))
 end
 
 ### Parse the compiles and generate precompilation scripts
