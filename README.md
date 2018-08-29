@@ -56,6 +56,22 @@ end # module SomeModule
 
 There's a more complete example illustrating potential options in the `examples/` directory.
 
+### Additional flags
+
+When calling the `@snoop` macro, a new julia process is spawned using the function `Base.julia_cmd()`.
+Advanced users may want to tweak the flags passed to this process to suit specific needs.
+This can be done by passing an array of flags of the form `["--flag1", "--flag2"]` as the first argument to the `@snoop` macro.
+For instance, if you want to pass the `--project=/path/to/dir` flag to the process, to cause the julia process to load the project specified by the path, a snoop script may look like:
+```julia
+using SnoopCompile
+
+SnoopCompile.@snoop ["--project=/path/to/dir"] "/tmp/compiles.csv" begin
+    # ... statement to snoop on
+end
+
+# ... processing the precompile statements
+```
+
 ## `userimg.jl`
 
 Currently, precompilation does not cache functions from other modules; as a consequence, your speedup in execution time might be smaller than you'd like. In such cases, one strategy is to generate a script for your `base/userimg.jl` file and build the packages (with precompiles) into julia itself.  Simply append/replace the last two lines of the above script with
