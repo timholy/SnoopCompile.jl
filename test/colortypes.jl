@@ -1,4 +1,4 @@
-using SnoopCompile
+using SnoopCompile, Test, Pkg
 
 mktempdir() do tmpdir
     tmpfile = joinpath(tmpdir, "colortypes_compiles.csv")
@@ -7,7 +7,8 @@ mktempdir() do tmpdir
 
     ### Log the compiles (in a separate process)
     SnoopCompile.@snoop tmpfile begin
-        include(Pkg.dir("ColorTypes", "test", "runtests.jl"))
+        using ColorTypes, Pkg
+        include(joinpath(dirname(dirname(pathof(ColorTypes))), "test", "runtests.jl"))
     end
 
     ### Parse the compiles and generate precompilation scripts

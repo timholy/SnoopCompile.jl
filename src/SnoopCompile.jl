@@ -1,10 +1,9 @@
-__precompile__()
-
 module SnoopCompile
 
+using Serialization
+
 export
-    @snoop,
-    @snoop1
+    @snoop
 
 """
 ```
@@ -16,65 +15,46 @@ causes the julia compiler to log all functions compiled in the course
 of executing the commands to the file "compiledata.csv". This file
 can be used for the input to `SnoopCompile.read`.
 """
+macro snoop(flags, filename, commands)
+    return :(snoop($(esc(flags)), $(esc(filename)), $(QuoteNode(commands))))
+end
 macro snoop(filename, commands)
-    return :(snoop($(esc(filename)), $(QuoteNode(commands))))
+    return :(snoop(String[], $(esc(filename)), $(QuoteNode(commands))))
 end
 
-function snoop(filename, commands)
+function snoop(flags, filename, commands)
     println("Launching new julia process to run commands...")
     # addprocs will run the unmodified version of julia, so we
     # launch it as a command.
     code_object = """
-        while !eof(STDIN)
-            eval(Main, deserialize(STDIN))
+            using Serialization
+            while !eof(stdin)
+                Core.eval(Main, deserialize(stdin))
+            end
+            """
+    process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
+    serialize(process, quote
+        let io = open($filename, "w")
+            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
+            try
+                $commands
+            finally
+                ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
+                close(io)
+            end
         end
-        """
-    in, io = open(`$(Base.julia_cmd()) --eval $code_object`, "w", STDOUT)
-    serialize(in, quote
-        import SnoopCompile
+        exit()
     end)
-    # Now that the new process knows about SnoopCompile, it can
-    # expand the macro in this next expression
-    serialize(in, quote
-          SnoopCompile.@snoop1 $filename $commands
-    end)
-    close(in)
-    wait(io)
+    wait(process)
     println("done.")
     nothing
 end
 
 function split2(str, on)
-    i = search(str, on)
-    first(i) == 0 && return str, ""
-    return (SubString(str, start(str), prevind(str, first(i))),
+    i = findfirst(isequal(on), str)
+    i === nothing && return str, ""
+    return (SubString(str, firstindex(str), prevind(str, first(i))),
             SubString(str, nextind(str, last(i))))
-end
-
-"""
-```
-@snoop1 "compiledata.csv" begin
-    # Commands to execute
-end
-```
-causes the julia compiler to log all functions compiled in the course
-of executing the commands to the file "compiledata.csv". This file
-can be used for the input to `SnoopCompile.read`.
-"""
-macro snoop1(filename, commands)
-    filename = esc(filename)
-    commands = esc(commands)
-    return quote
-        let io = open($filename, "w")
-            ccall(:jl_dump_compiles, Void, (Ptr{Void},), io.handle)
-            try
-                $commands
-            finally
-                ccall(:jl_dump_compiles, Void, (Ptr{Void},), C_NULL)
-                close(io)
-            end
-        end
-    end
 end
 
 """
@@ -94,15 +74,15 @@ function read(filename)
         time, str = split2(line, '\t')
         length(str) < 2 && continue
         (str[1] == '"' && str[end] == '"') || continue
-        if startswith(str, "\"<toplevel thunk> -> ")
+        if startswith(str, """"<toplevel thunk> -> """)
             # consume lines until we find the terminating " character
             toplevel = true
             continue
         end
         tm = tryparse(UInt64, time)
-        isnull(tm) && continue
-        push!(times, get(tm))
-        push!(data, str[2:prevind(str, endof(str))])
+        tm === nothing && continue
+        push!(times, tm)
+        push!(data, str[2:prevind(str, lastindex(str))])
     end
     # Save the most costly for last
     p = sortperm(times)
@@ -110,6 +90,7 @@ function read(filename)
 end
 
 # pattern match on the known output of jl_static_show
+extract_topmod(e::QuoteNode) = extract_topmod(e.value)
 function extract_topmod(e)
     Meta.isexpr(e, :.) &&
         return extract_topmod(e.args[1])
@@ -119,6 +100,9 @@ function extract_topmod(e)
         return extract_topmod(e.args[2])
     #Meta.isexpr(e, :call) && length(e.args) == 2 && e.args[1] == :Symbol &&
     #    return Symbol(e.args[2])
+    # parametrized anonymous functions
+    Meta.isexpr(e, :call) && e.args[1].args[1] == :getfield &&
+        return extract_topmod(e.args[1].args[2].args[2])
     isa(e, Symbol) &&
         return e
     return :unknown
@@ -126,22 +110,16 @@ end
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
     for (k, v) in subst
-        line = replace(line, k, v)
+        line = replace(line, k=>v)
     end
-    if any(b -> contains(line, b), blacklist)
+    if any(b -> occursin(b, line), blacklist)
         println(line, " contains a blacklisted substring")
         return false, line, :unknown
     end
 
-    argsidx = search(line, '(') + 1
-    if argsidx == 1 || !endswith(line, ")")
-        warn("unexpected characters at end of line: ", line)
-        return false, line, :unknown
-    end
-    line = "Tuple{$(line[argsidx:prevind(line, endof(line))])}"
-    curly = parse(line, raise=false)
+    curly = Meta.parse(line, raise=false)
     if !Meta.isexpr(curly, :curly)
-        warn("failed parse of line: ", line)
+        @warn("failed parse of line: ", line)
         return false, line, :unknown
     end
     func = curly.args[2]
@@ -231,15 +209,22 @@ function write(filename::AbstractString, pc::Vector)
     nothing
 end
 
-# Write each modules' precompiles to a separate file
-function write(prefix::AbstractString, pc::Dict)
+"""
+    write(prefix::AbstractString, pc::Dict; always::Bool = false)
+
+Write each modules' precompiles to a separate file.  If `always` is
+true, the generated function will always run the precompile statements
+when called, otherwise the statements will only be called during
+package precompilation.
+"""
+function write(prefix::AbstractString, pc::Dict; always::Bool = false)
     if !isdir(prefix)
         mkpath(prefix)
     end
     for (k, v) in pc
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
             println(io, "function _precompile_()")
-            println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
+            !always && println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
             for ln in v
                 println(io, "    ", ln)
             end
