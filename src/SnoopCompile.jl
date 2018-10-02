@@ -117,7 +117,10 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
         return false, line, :unknown
     end
 
-    curly = Meta.parse(line, raise=false)
+    curly = ex = Meta.parse(line, raise=false)
+    while Meta.isexpr(curly, :where)
+        curly = curly.args[1]
+    end
     if !Meta.isexpr(curly, :curly)
         @warn("failed parse of line: ", line)
         return false, line, :unknown
@@ -153,7 +156,7 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     # In Julia 0.6, functions with symbolic names like `Base.:(+)` don't output correctly.
     # So if we didn't change the arg list above, use the original string.
     if changed
-        line = string(curly)
+        line = string(ex)
     end
     return true, line, topmod
 end
