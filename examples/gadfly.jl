@@ -7,7 +7,7 @@
 
 using SnoopCompile
 
-SnoopCompile.@snoop "/tmp/gadfly_compiles.csv" begin
+SnoopCompile.@snoopc "/tmp/gadfly_compiles.csv" begin
     using Gadfly, Pkg
     include(joinpath(dirname(dirname(pathof(Gadfly))), "test", "runtests.jl"))
 end
