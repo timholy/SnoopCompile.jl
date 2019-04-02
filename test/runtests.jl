@@ -1,6 +1,20 @@
 using SnoopCompile
 using Test
 
+uncompiled(x) = x + 1
+if VERSION >= v"1.2.0-DEV.573"
+    include_string(Main, """
+    @testset "snoopi" begin
+        timing_data = @snoopi uncompiled(2)
+        @test any(td->td[2].def.name == :uncompiled, timing_data)
+        # Ensure older methods can be tested
+        a = rand(Float16, 5)
+        timing_data = @snoopi sum(a)
+        @test any(td->td[2].def.name == :sum, timing_data)
+    end
+    """)
+end
+
 #=
 # Simple call
 let str = "sum"

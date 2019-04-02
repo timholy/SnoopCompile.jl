@@ -8,7 +8,7 @@ using SnoopCompile
 ### Log the compiles
 # This only needs to be run once (to generate "/tmp/images_compiles.csv")
 
-SnoopCompile.@snoop "/tmp/images_compiles.csv" begin
+SnoopCompile.@snoopc "/tmp/images_compiles.csv" begin
     using Images, Pkg
     include(joinpath(dirname(dirname(pathof(Images))), "test", "runtests.jl"))
 end

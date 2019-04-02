@@ -9,11 +9,22 @@ each one takes to compile.  You can use the package to generate
 "precompile lists" that reduce the amount of time needed for JIT
 compilation in packages.
 
-SnoopCompile is not recommended for Julia beginners, and even
-experienced users may need several iterations to generate precompile
-scripts that work.
-
 ## Usage
+
+### Snooping on inference
+
+Currently precompilation only saves inferred code; consequently, the time spent on type inference
+is probably the most relevant concern. To learn how much time is spent on each method instance
+when executing a command `cmd`, do something like the following (note: requires Julia 1.2 or higher):
+
+```julia
+using SnoopCompile
+
+a = rand(Float16, 5)
+inf_timing = @snoopi tmin=0.01 sum(a)
+```
+
+### Snooping on the compiler
 
 The easiest way to describe SnoopCompile is to show a snoop script, in this case for the `ColorTypes` package:
 
@@ -21,9 +32,9 @@ The easiest way to describe SnoopCompile is to show a snoop script, in this case
 using SnoopCompile
 
 ### Log the compiles
-# This only needs to be run once (to generate "/tmp/colortypes_compiles.csv")
+# This only needs to be run once (to generate "/tmp/colortypes_compiles.log")
 
-SnoopCompile.@snoop "/tmp/colortypes_compiles.csv" begin
+SnoopCompile.@snoopc "/tmp/colortypes_compiles.log" begin
     using ColorTypes, Pkg
     include(joinpath(dirname(dirname(pathof(ColorTypes))), "test", "runtests.jl"))
 end
@@ -31,7 +42,7 @@ end
 ### Parse the compiles and generate precompilation scripts
 # This can be run repeatedly to tweak the scripts
 
-data = SnoopCompile.read("/tmp/colortypes_compiles.csv")
+data = SnoopCompile.read("/tmp/colortypes_compiles.log")
 
 pc = SnoopCompile.parcel(reverse!(data[2]))
 SnoopCompile.write("/tmp/precompile", pc)
@@ -58,14 +69,14 @@ There's a more complete example illustrating potential options in the `examples/
 
 ### Additional flags
 
-When calling the `@snoop` macro, a new julia process is spawned using the function `Base.julia_cmd()`.
+When calling the `@snoopc` macro, a new julia process is spawned using the function `Base.julia_cmd()`.
 Advanced users may want to tweak the flags passed to this process to suit specific needs.
 This can be done by passing an array of flags of the form `["--flag1", "--flag2"]` as the first argument to the `@snoop` macro.
 For instance, if you want to pass the `--project=/path/to/dir` flag to the process, to cause the julia process to load the project specified by the path, a snoop script may look like:
 ```julia
 using SnoopCompile
 
-SnoopCompile.@snoop ["--project=/path/to/dir"] "/tmp/compiles.csv" begin
+SnoopCompile.@snoopc ["--project=/path/to/dir"] "/tmp/compiles.csv" begin
     # ... statement to snoop on
 end
 

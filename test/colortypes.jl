@@ -11,7 +11,7 @@ using SnoopCompile, Test, Pkg
         tmpfile2 = joinpath(tmpdir, "userimg_ColorTypes.jl")
 
         ### Log the compiles (in a separate process)
-        SnoopCompile.@snoop tmpfile begin
+        SnoopCompile.@snoopc tmpfile begin
             using ColorTypes, Pkg
             include(joinpath(dirname(dirname(pathof(ColorTypes))), "test", "runtests.jl"))
         end
