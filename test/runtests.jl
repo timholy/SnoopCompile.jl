@@ -15,6 +15,14 @@ if VERSION >= v"1.2.0-DEV.573"
     """)
 end
 
+# issue #26
+@snoopc "/tmp/anon.log" begin
+    map(x->x^2, [1,2,3])
+end
+data = SnoopCompile.read("/tmp/anon.log")
+pc = SnoopCompile.parcel(reverse!(data[2]))
+@test length(pc[:Base]) <= 1
+
 #=
 # Simple call
 let str = "sum"
