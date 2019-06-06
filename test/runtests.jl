@@ -1,4 +1,6 @@
 using SnoopCompile
+using JLD
+using SparseArrays
 using Test
 
 uncompiled(x) = x + 1
@@ -22,6 +24,21 @@ end
 data = SnoopCompile.read("/tmp/anon.log")
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test length(pc[:Base]) <= 1
+
+# issue #29
+keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symbol(\"##s27#8\")), Any, Any, Any, Any, Any}")
+@test keep == true
+@test pcstring == "Tuple{getfield(JLD, Symbol(\"##s27#8\")), Int, Int, Int, Int, Int}"
+@test topmod == :JLD
+@test name == "##s27#8"
+# save("/tmp/mat.jld", "mat", sprand(10, 10, 0.1))
+# @snoopc "/tmp/jldanon.log" begin
+#     using JLD, SparseArrays
+#     mat = load("/tmp/mat.jld", "mat")
+# end
+# data = SnoopCompile.read("/tmp/jldanon.log")
+# pc = SnoopCompile.parcel(reverse!(data[2]))
+# pc[:JLD]
 
 #=
 # Simple call
