@@ -245,7 +245,7 @@ function parcel(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
         if !haskey(pc, topmod)
             pc[topmod] = String[]
         end
-        prefix = (isempty(name) ? "" : "isdefined($topmod, :$name) && ")
+        prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
         push!(pc[topmod], prefix * "precompile($pcstring)")
     end
     return pc
@@ -259,8 +259,8 @@ function format_userimg(calls; subst=Vector{Pair{String, String}}(), blacklist=S
     for c in calls
         keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
         keep || continue
-        prefix = (isempty(name) ? "" : "isdefined($topmod, :$name) && ")
-        push!(pc[topmod], prefix * "precompile($pcstring)")
+        prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
+        push!(pc, prefix * "precompile($pcstring)")
     end
     return pc
 end
