@@ -180,7 +180,7 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     end
     if any(b -> occursin(b, line), blacklist)
         println(line, " contains a blacklisted substring")
-        return false, line, :unknown
+        return false, line, :unknown, ""
     end
 
     curly = ex = Meta.parse(line, raise=false)
@@ -189,7 +189,7 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     end
     if !Meta.isexpr(curly, :curly)
         @warn("failed parse of line: ", line)
-        return false, line, :unknown
+        return false, line, :unknown, ""
     end
     func = curly.args[2]
     topmod = (func isa Expr ? extract_topmod(func) : :Main)
