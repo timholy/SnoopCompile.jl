@@ -31,14 +31,14 @@ keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symb
 @test pcstring == "Tuple{getfield(JLD, Symbol(\"##s27#8\")), Int, Int, Int, Int, Int}"
 @test topmod == :JLD
 @test name == "##s27#8"
-# save("/tmp/mat.jld", "mat", sprand(10, 10, 0.1))
-# @snoopc "/tmp/jldanon.log" begin
-#     using JLD, SparseArrays
-#     mat = load("/tmp/mat.jld", "mat")
-# end
-# data = SnoopCompile.read("/tmp/jldanon.log")
-# pc = SnoopCompile.parcel(reverse!(data[2]))
-# pc[:JLD]
+save("/tmp/mat.jld", "mat", sprand(10, 10, 0.1))
+@snoopc "/tmp/jldanon.log" begin
+    using JLD, SparseArrays
+    mat = load("/tmp/mat.jld", "mat")
+end
+data = SnoopCompile.read("/tmp/jldanon.log")
+pc = SnoopCompile.parcel(reverse!(data[2]))
+@test any(startswith.(pc[:JLD], "isdefined"))
 
 #=
 # Simple call
