@@ -174,13 +174,13 @@ end
 const anonrex = r"##\d*#{1,2}\d*"   # detect anonymous functions
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
-    match(anonrex, line) === nothing || return false, line, :unknown
+    match(anonrex, line) === nothing || return false, line, :unknown, ""
     for (k, v) in subst
         line = replace(line, k=>v)
     end
     if any(b -> occursin(b, line), blacklist)
         println(line, " contains a blacklisted substring")
-        return false, line, :unknown
+        return false, line, :unknown, ""
     end
 
     curly = ex = Meta.parse(line, raise=false)
@@ -189,10 +189,13 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     end
     if !Meta.isexpr(curly, :curly)
         @warn("failed parse of line: ", line)
-        return false, line, :unknown
+        return false, line, :unknown, ""
     end
     func = curly.args[2]
     topmod = (func isa Expr ? extract_topmod(func) : :Main)
+
+    check = Meta.isexpr(func, :call) && length(func.args) == 3 && func.args[1] == :getfield
+    name = (check ? func.args[3].args[2] : "")
 
     # make some substitutions to try to form a leaf types tuple
     changed = false
@@ -224,7 +227,7 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     if changed
         line = string(ex)
     end
-    return true, line, topmod
+    return true, line, topmod, name
 end
 
 """
@@ -236,13 +239,14 @@ function parcel(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()
     for c in calls
         local keep, pcstring, topmod
-        keep, pcstring, topmod = parse_call(c, subst=subst, blacklist=blacklist)
+        keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
         keep || continue
         # Add to the appropriate dictionary
         if !haskey(pc, topmod)
             pc[topmod] = String[]
         end
-        push!(pc[topmod], "precompile($pcstring)")
+        prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
+        push!(pc[topmod], prefix * "precompile($pcstring)")
     end
     return pc
 end
@@ -253,9 +257,10 @@ end
 function format_userimg(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Vector{String}()
     for c in calls
-        keep, pcstring, topmod = parse_call(c, subst=subst, blacklist=blacklist)
+        keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
         keep || continue
-        push!(pc, "precompile($pcstring)")
+        prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
+        push!(pc, prefix * "precompile($pcstring)")
     end
     return pc
 end
