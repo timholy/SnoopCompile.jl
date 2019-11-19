@@ -27,7 +27,7 @@ pc = SnoopCompile.parcel(reverse!(data[2]))
 
 # issue #29
 keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symbol(\"##s27#8\")), Any, Any, Any, Any, Any}")
-@test keep == true
+@test keep
 @test pcstring == "Tuple{getfield(JLD, Symbol(\"##s27#8\")), Int, Int, Int, Int, Int}"
 @test topmod == :JLD
 @test name == "##s27#8"
