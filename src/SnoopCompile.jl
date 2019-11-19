@@ -171,7 +171,7 @@ function extract_topmod(e)
     return :unknown
 end
 
-const anonrex = r"##\d*#{1,2}\d*"   # detect anonymous functions
+const anonrex = r"#{1,2}\d+#{1,2}\d+"   # detect anonymous functions
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
     match(anonrex, line) === nothing || return false, line, :unknown, ""
