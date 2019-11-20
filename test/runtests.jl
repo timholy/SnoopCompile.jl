@@ -15,6 +15,10 @@ if VERSION >= v"1.2.0-DEV.573"
         @test any(td->td[2].def.name == :sum, timing_data)
     end
     """)
+
+    # docstring is present (weird Docs bug)
+    dct = Docs.meta(SnoopCompile)
+    @test haskey(dct, Docs.Binding(SnoopCompile, Symbol("@snoopi")))
 end
 
 # issue #26
