@@ -15,8 +15,10 @@ julia> inf_timing = @snoopi sum(a)
 
 We defined the argument `a`, and then called `sum(a)` while "snooping" on inference.
 (The `i` in `@snoopi` means "inference.")
-The return is a list of "top level" methods that got compiled, in this case just a single
-method.  (Inferring `sum` required inferring all the methods that it calls, but these are
+The return is a list of "top level" methods that got compiled, together with the amount of
+time spent on inference.
+In this case it was just a single method, which required approximately 11ms of inference time.
+(Inferring `sum` required inferring all the methods that it calls, but these are
 subsumed into the top level inference of `sum` itself.)
 Note that the method that got called,
 
