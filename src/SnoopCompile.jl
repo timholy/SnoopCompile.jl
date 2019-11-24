@@ -31,15 +31,6 @@ if VERSION >= v"1.2.0-DEV.573"
         return sort(data; by=tl->tl[1])
     end
 
-    """
-        inf_timing = @snoopi commands
-        inf_timing = @snoopi tmin=0.0 commands
-
-    Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
-    tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
-
-    Methods that take less time than `tmin` will not be reported.
-    """
     macro snoopi(args...)
         tmin = 0.0
         if length(args) == 1
@@ -66,6 +57,18 @@ if VERSION >= v"1.2.0-DEV.573"
             $sort_timed_inf($tmin)
         end
     end
+
+    @doc """
+        inf_timing = @snoopi commands
+        inf_timing = @snoopi tmin=0.0 commands
+
+    Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
+    tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
+
+    Methods that take less time than `tmin` will not be reported.
+    """
+    :(SnoopCompile.@snoopi)
+
 end
 
 """
