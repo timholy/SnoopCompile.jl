@@ -3,6 +3,26 @@ using JLD
 using SparseArrays
 using Test
 
+module A
+    module B
+        module C
+        end
+        module D
+        end
+    end
+end
+
+@testset "topmodule" begin
+    # topmod is called on moduleroots but nevertheless this is a useful test
+    @test SnoopCompile.topmodule([A, A.B]) === A
+    @test SnoopCompile.topmodule([A, A.B.C]) === A
+    @test SnoopCompile.topmodule([A.B, A]) === A
+    @test SnoopCompile.topmodule([A.B.C, A]) === A
+    @test SnoopCompile.topmodule([A.B.C, A.B.D]) === nothing
+    @test SnoopCompile.topmodule([A, Base]) === A
+    @test SnoopCompile.topmodule([Base, A]) === A
+end
+
 uncompiled(x) = x + 1
 if VERSION >= v"1.2.0-DEV.573"
     include_string(Main, """
@@ -13,8 +33,14 @@ if VERSION >= v"1.2.0-DEV.573"
         a = rand(Float16, 5)
         timing_data = @snoopi sum(a)
         @test any(td->td[2].def.name == :sum, timing_data)
+        pc = SnoopCompile.parcel(timing_data)
+        @test isa(pc, Dict)
     end
     """)
+
+    # docstring is present (weird Docs bug)
+    dct = Docs.meta(SnoopCompile)
+    @test haskey(dct, Docs.Binding(SnoopCompile, Symbol("@snoopi")))
 end
 
 # issue #26

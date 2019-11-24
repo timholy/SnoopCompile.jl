@@ -31,15 +31,6 @@ if VERSION >= v"1.2.0-DEV.573"
         return sort(data; by=tl->tl[1])
     end
 
-    """
-        inf_timing = @snoopi commands
-        inf_timing = @snoopi tmin=0.0 commands
-
-    Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
-    tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
-
-    Methods that take less time than `tmin` will not be reported.
-    """
     macro snoopi(args...)
         tmin = 0.0
         if length(args) == 1
@@ -66,6 +57,18 @@ if VERSION >= v"1.2.0-DEV.573"
             $sort_timed_inf($tmin)
         end
     end
+
+    @doc """
+        inf_timing = @snoopi commands
+        inf_timing = @snoopi tmin=0.0 commands
+
+    Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
+    tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
+
+    Methods that take less time than `tmin` will not be reported.
+    """
+    :(SnoopCompile.@snoopi)
+
 end
 
 """
@@ -230,12 +233,77 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
     return true, line, topmod, name
 end
 
+function topmodule(mods)
+    function ischild(c, mod)
+        ok = false
+        pc = parentmodule(c)
+        while pc !== c
+            pc === Main && return false  # mostly important for passing the tests
+            if isdefined(mod, nameof(pc))
+                ok = true
+                break
+            end
+            c = pc
+        end
+        return ok
+    end
+
+    mods = collect(mods)
+    mod = first(mods)
+    for m in Iterators.drop(mods, 1)
+        # Easy cases
+        if isdefined(mod, nameof(m))
+        elseif isdefined(m, nameof(mod))
+            mod = m
+        else
+            # Check parents of each
+            if ischild(m, mod)
+            elseif ischild(mod, m)
+                mod = m
+            else
+                return nothing
+            end
+        end
+    end
+    return mod
+end
+
+function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
+    pc = Dict{Symbol, Vector{String}}()
+    mods = Set{Module}()
+    for (t, mi) in tinf
+        isdefined(mi, :specTypes) || continue
+        tt = mi.specTypes
+        empty!(mods)
+        push!(mods, Base.moduleroot(mi.def.module))
+        ok = true
+        for p in tt.parameters
+            if isa(p, DataType)
+                if match(anonrex, String(p.name.name)) !== nothing
+                    ok = false
+                    break
+                end
+                push!(mods, Base.moduleroot(p.name.module))
+            end
+        end
+        ok || continue
+        topmod = topmodule(mods)
+        topmod === nothing && continue
+        topmodname = nameof(topmod)
+        if !haskey(pc, topmodname)
+            pc[topmodname] = String[]
+        end
+        push!(pc[topmodname], "precompile(" * repr(tt) * ')')
+    end
+    return pc
+end
+
 """
 `pc = parcel(calls; subst=[], blacklist=[])` assigns each compile statement to the module that owns the function. Perform string substitution via `subst=["Module1"=>"Module2"]`, and omit functions in particular modules with `blacklist=["Module3"]`. On output, `pc[:Module2]` contains all the precompiles assigned to `Module2`.
 
 Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory `prefix`, one file per module.
 """
-function parcel(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parcel(calls::AbstractVector{String}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()
     for c in calls
         local keep, pcstring, topmod
