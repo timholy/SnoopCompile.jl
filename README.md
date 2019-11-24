@@ -65,7 +65,7 @@ _precompile_()
 end # module SomeModule
 ```
 
-There's a more complete example illustrating potential options in the `examples/` directory.
+There's a more complete example illustrating potential options in the `examples/` directory. You can also see a full working example in MatLang repository ([SnoopFile Folder](https://github.com/juliamatlab/MatLang/tree/master/SnoopCompile) and [source file](https://github.com/juliamatlab/MatLang/blob/85640e269e902b6fb68ad254f0b939e1ffb47e7d/src/MatLang.jl#L26)).
 
 ### Additional flags
 
