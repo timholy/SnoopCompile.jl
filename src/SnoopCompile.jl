@@ -271,7 +271,7 @@ end
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()
     mods = Set{Module}()
-    for (t, mi) in tinf
+    for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
         empty!(mods)

@@ -163,6 +163,14 @@ inference on those methods, because it used the inference results from the cache
     Note that this forces you to update your precompile directives as you modify your package,
     which may or may not be desirable.
 
+The statements appear in the precompile file in order of inference time,
+with the first methods taking the longest to precompile.
+If you find that some precompile directives are
+ineffective (they appear in a new `@snoopi` despite being precompiled) and their
+inference time is substantial, sometimes a bit of manual investigation of the callees
+can lead to insights. For example, you might be able to introduce a precompile in a
+dependent package) that can mitigate the total time.
+
 ## Producing precompile directives manually
 
 While this "automated" approach is often useful, sometimes it makes more sense to
