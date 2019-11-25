@@ -3,14 +3,10 @@ using JLD
 using SparseArrays
 using Test
 
-module A
-    module B
-        module C
-        end
-        module D
-        end
-    end
-end
+push!(LOAD_PATH, @__DIR__)
+using A
+using E
+pop!(LOAD_PATH)
 
 @testset "topmodule" begin
     # topmod is called on moduleroots but nevertheless this is a useful test
@@ -33,8 +29,19 @@ if VERSION >= v"1.2.0-DEV.573"
         a = rand(Float16, 5)
         timing_data = @snoopi sum(a)
         @test any(td->td[2].def.name == :sum, timing_data)
+
+        a = [E.ET(1)]
+        c = [A.B.C.CT(1)]
+        timing_data = @snoopi (A.f(a); A.f(c))
+        @test length(timing_data) == 2
+
         pc = SnoopCompile.parcel(timing_data)
         @test isa(pc, Dict)
+        @test length(pc) == 1
+        @test length(pc[:A]) == 1
+        directive = pc[:A][1]
+        @test occursin("C.CT", directive)
+        @test !occursin("E.ET", directive)
     end
     """)
 
