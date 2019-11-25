@@ -274,8 +274,10 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
     for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
+        m = mi.def
+        isa(m, Method) || continue
         empty!(mods)
-        push!(mods, Base.moduleroot(mi.def.module))
+        push!(mods, Base.moduleroot(m.module))
         ok = true
         for p in tt.parameters
             if isa(p, DataType)
@@ -289,6 +291,13 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         ok || continue
         topmod = topmodule(mods)
         topmod === nothing && continue
+        ttrepr = repr(tt)
+        ttexpr = Meta.parse(ttrepr)
+        try
+            Core.eval(topmod, ttexpr)
+        catch
+            continue
+        end
         topmodname = nameof(topmod)
         if !haskey(pc, topmodname)
             pc[topmodname] = String[]
