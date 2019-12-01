@@ -77,6 +77,18 @@ end
 Calculates and prints the total time measured by a snoop macro
 
 # Examples
+To benchmark the loadTime and RunTime of a package:
+- dev your package
+
+- comment the precompile part of your package (`include()` and `_precompile_()`)
+- run the following benchmark
+- restart Julia
+
+- uncomment the precompile part of your package (`include()` and `_precompile_()`)
+- run the following benchmark
+- restart Julia
+
+## Benchmark
 ```julia
 using SnoopCompile
 
