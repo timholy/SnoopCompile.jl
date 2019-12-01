@@ -72,6 +72,24 @@ if VERSION >= v"1.2.0-DEV.573"
 end
 
 """
+    timesum(snoop)
+
+Calculates and prints the total time measured by a snoop macro
+"""
+export timesum
+function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
+
+    timeSum = 0
+    for x in snoop
+        timeSum+=x[1]
+    end
+
+    println(timeSum)
+
+    return timeSum
+end
+
+"""
 ```
 @snoopc "compiledata.csv" begin
     # Commands to execute, in a new process
