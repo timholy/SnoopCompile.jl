@@ -75,17 +75,32 @@ end
     timesum(snoop)
 
 Calculates and prints the total time measured by a snoop macro
+
+# Examples
+```julia
+using SnoopCompile
+
+println("Package load time:")
+loadSnoop = @snoopi using ColorTypes
+
+timesum(loadSnoop)
+
+println("Running Examples/Tests:")
+runSnoop = @snoopi begin
+    using ColorTypes
+    include(joinpath(dirname(dirname(pathof(ColorTypes))),"test","runtests.jl"))
+end
+
+timesum(runSnoop)
+```
 """
 export timesum
 function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
-
     timeSum = 0
     for x in snoop
         timeSum+=x[1]
     end
-
     println(timeSum)
-
     return timeSum
 end
 
