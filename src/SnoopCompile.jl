@@ -112,7 +112,6 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
     for x in snoop
         timeSum+=x[1]
     end
-    println(timeSum)
     return timeSum
 end
 
