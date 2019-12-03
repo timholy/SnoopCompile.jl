@@ -119,18 +119,8 @@ end
 =#
 if VERSION >= v"1.2.0-DEV.573"
     @testset "timesum" begin
-        #"Package load time""
-        loadSnoop = SnoopCompile.@snoopi using MatLang
-
+        loadSnoop = SnoopCompile.@snoopi using LinearAlgebra
         @test typeof(timesum(loadSnoop)) == Float64
-
-        #"Running Examples/Tests:"
-        runSnoop = SnoopCompile.@snoopi begin
-            using MatLang
-            include(joinpath(dirname(dirname(pathof(MatLang))),"test","runtests.jl"))
-        end
-
-        @test typeof(timesum(runSnoop)) == Float64
     end
 end
 
