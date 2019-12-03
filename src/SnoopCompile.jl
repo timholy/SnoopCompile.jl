@@ -23,6 +23,9 @@ if VERSION >= v"1.2.0-DEV.573"
         return ret
     end
 
+    @noinline start_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
+    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+
     function sort_timed_inf(tmin)
         data = __inf_timing__
         if tmin > 0
@@ -47,12 +50,12 @@ if VERSION >= v"1.2.0-DEV.573"
             error("at most two arguments are supported")
         end
         quote
-            empty!($__inf_timing__)
-            ccall(:jl_set_typeinf_func, Cvoid, (Any,), $typeinf_ext_timed)
+            empty!(__inf_timing__)
+            start_timing()
             try
                 $(esc(cmd))
             finally
-                ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+                stop_timing()
             end
             $sort_timed_inf($tmin)
         end
@@ -396,6 +399,8 @@ if VERSION >= v"1.2.0-DEV.573"
         # (the *.ji file stores only the inferred code)
         precompile(typeinf_ext_timed, (Core.MethodInstance, Core.Compiler.Params))
         precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+        precompile(start_timing, ())
+        precompile(stop_timing, ())
         nothing
     end
 end
