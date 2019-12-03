@@ -117,9 +117,8 @@ let str = "typeof(Base.Sort.sort!), Array{Any, 1}, Base.Sort.MergeSortAlg, Base.
     @test topmod == :Base
 end
 =#
-
-@testset "timesum" begin
-    if VERSION >= v"1.2.0-DEV.573"
+if VERSION >= v"1.2.0-DEV.573"
+    @testset "timesum" begin
         #"Package load time""
         loadSnoop = SnoopCompile.@snoopi using MatLang
 
