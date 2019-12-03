@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "1.0.1"
+version = "1.0.2"
 
 [deps]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
