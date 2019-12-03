@@ -38,4 +38,18 @@ using SnoopCompile, Test, Pkg
         notisempty(joinpath(tmpdir2, "precompile_FixedPointNumbers.jl"), 2)
         notisempty(tmpfile2, 100)
     end
+
+    println("Package load time:")
+    loadSnoop = SnoopCompile.@snoopi using ColorTypes
+
+    @test typeof(SnoopCompile.timesum(loadSnoop)) == Float64
+
+    println("Running Examples/Tests:")
+    runSnoop = SnoopCompile.@snoopi begin
+        using ColorTypes
+        include(joinpath(dirname(dirname(pathof(ColorTypes))),"test","runtests.jl"))
+    end
+
+    @test typeof(timesum(runSnoop)) == Float64
+
 end

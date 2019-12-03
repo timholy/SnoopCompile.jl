@@ -2,7 +2,7 @@ module SnoopCompile
 
 using Serialization
 
-export @snoopc
+export @snoopc, timesum
 if VERSION >= v"1.2.0-DEV.573"
     export @snoopi
 
@@ -106,7 +106,6 @@ end
 timesum(runSnoop)
 ```
 """
-export timesum
 function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
     timeSum = 0.0
     for x in snoop
