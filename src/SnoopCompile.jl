@@ -272,6 +272,16 @@ function topmodule(mods)
     return mod
 end
 
+function addmodules!(mods, parameters)
+    for p in parameters
+        if isa(p, DataType)
+            push!(mods, Base.moduleroot(p.name.module))
+            addmodules!(mods, p.parameters)
+        end
+    end
+    return mods
+end
+
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()   # output
     mods = Set{Module}()                  # module of each parameter for a given method
@@ -285,14 +295,10 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # "topmost".
         empty!(mods)
         push!(mods, Base.moduleroot(m.module))
-        for p in tt.parameters
-            if isa(p, DataType)
-                push!(mods, Base.moduleroot(p.name.module))
-            end
-        end
+        addmodules!(mods, tt.parameters)
         topmod = topmodule(mods)
         if topmod === nothing
-            @debug "Skipping $tt due to lack of top module"
+            @debug "Skipping $tt due to lack of a suitable top module"
             continue
         end
         # If we haven't yet started the list for this module, initialize
