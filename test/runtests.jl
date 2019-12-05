@@ -47,6 +47,11 @@ if VERSION >= v"1.2.0-DEV.573"
         tinf = @snoopi sortperm(rand(5); rev=true)
         pc = SnoopCompile.parcel(tinf)
         @test any(str->occursin("kwftype", str), pc[:Base])
+
+        # Wrap anonymous functions in an `if isdefined`
+        list = Any["xbar7", "yfoo8"]
+        tinf = @snoopi E.hasfoo(list)
+        pc = SnoopCompile.parcel(tinf)
     end
     """)
 

@@ -273,50 +273,67 @@ function topmodule(mods)
 end
 
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
-    pc = Dict{Symbol, Vector{String}}()
-    mods = Set{Module}()
+    pc = Dict{Symbol, Vector{String}}()   # output
+    mods = Set{Module}()                  # module of each parameter for a given method
     for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
         m = mi.def
         isa(m, Method) || continue
+        # Determine which module to assign this method to. All the types in the arguments
+        # need to be defined; we collect all the corresponding modules and assign it to the
+        # "topmost".
         empty!(mods)
         push!(mods, Base.moduleroot(m.module))
-        ok = true
         for p in tt.parameters
             if isa(p, DataType)
-                if match(anonrex, String(p.name.name)) !== nothing
-                    ok = false
-                    break
-                end
                 push!(mods, Base.moduleroot(p.name.module))
             end
         end
-        ok || continue
         topmod = topmodule(mods)
-        topmod === nothing && continue
+        if topmod === nothing
+            @debug "Skipping $tt due to lack of top module"
+            continue
+        end
+        # If we haven't yet started the list for this module, initialize
+        topmodname = nameof(topmod)
+        if !haskey(pc, topmodname)
+            pc[topmodname] = String[]
+        end
+        # Create the string representation of the signature
+        # Use special care with keyword functions, anonymous functions
+        prefix = ""
         paramrepr = map(tt.parameters) do p
-            mkw = match(kwrex, String(p.name.name))
+            name = p.name.name
+            mkw = match(kwrex, String(name))
+            manon = match(anonrex, String(name))
+            thismod = p.name.module
             if mkw !== nothing
+                # Keyword function
                 fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
-                thismod = p.name.module
                 "Core.kwftype(typeof($thismod.$fname))"
+            elseif manon !== nothing
+                # Anonymous function, wrap in an `isdefined`
+                prefix = "if isdefined($thismod, Symbol(\"$name\")"
+                "getfield($thismod, Symbol(\"$name\"))"  # this is universal, var is Julia 1.3+
             else
                 repr(p)
             end
         end
         ttrepr = "Tuple{" * join(paramrepr, ',') * '}'
+        # Check that we parsed it correctly, and that all types are defined in the module
         ttexpr = Meta.parse(ttrepr)
         try
             Core.eval(topmod, ttexpr)
         catch
+            @debug "Module $topmod: skipping $ttrepr due to eval failure"
             continue
         end
-        topmodname = nameof(topmod)
-        if !haskey(pc, topmodname)
-            pc[topmodname] = String[]
+        stmt = "precompile(" * ttrepr * ')'
+        if !isempty(prefix)
+            stmt = prefix * ' ' * stmt * " end"
         end
-        push!(pc[topmodname], "precompile(" * ttrepr * ')')
+        push!(pc[topmodname], stmt)
     end
     return pc
 end
