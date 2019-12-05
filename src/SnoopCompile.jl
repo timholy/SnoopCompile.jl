@@ -177,7 +177,8 @@ function extract_topmod(e)
     return :unknown
 end
 
-const anonrex = r"#{1,2}\d+#{1,2}\d+"   # detect anonymous functions
+const anonrex = r"#{1,2}\d+#{1,2}\d+"       # detect anonymous functions
+const kwrex = r"^#kw##(.*)$|#([^#]*)##kw$"  # detect keyword-supplying functions
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
     match(anonrex, line) === nothing || return false, line, :unknown, ""
@@ -294,7 +295,17 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         ok || continue
         topmod = topmodule(mods)
         topmod === nothing && continue
-        ttrepr = repr(tt)
+        paramrepr = map(tt.parameters) do p
+            mkw = match(kwrex, String(p.name.name))
+            if mkw !== nothing
+                fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
+                thismod = p.name.module
+                "Core.kwftype(typeof($thismod.$fname))"
+            else
+                repr(p)
+            end
+        end
+        ttrepr = "Tuple{" * join(paramrepr, ',') * '}'
         ttexpr = Meta.parse(ttrepr)
         try
             Core.eval(topmod, ttexpr)
@@ -305,7 +316,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         if !haskey(pc, topmodname)
             pc[topmodname] = String[]
         end
-        push!(pc[topmodname], "precompile(" * repr(tt) * ')')
+        push!(pc[topmodname], "precompile(" * ttrepr * ')')
     end
     return pc
 end
