@@ -177,8 +177,9 @@ function extract_topmod(e)
     return :unknown
 end
 
-const anonrex = r"#{1,2}\d+#{1,2}\d+"       # detect anonymous functions
-const kwrex = r"^#kw##(.*)$|#([^#]*)##kw$"  # detect keyword-supplying functions
+const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
+const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functions
+const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
 
 function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
     match(anonrex, line) === nothing || return false, line, :unknown, ""
@@ -282,9 +283,26 @@ function addmodules!(mods, parameters)
     return mods
 end
 
+function methods_with_generators(m::Module)
+    meths = Method[]
+    for name in names(m; all=true)
+        isdefined(m, name) || continue
+        f = getfield(m, name)
+        if isa(f, Function)
+            for method in methods(f)
+                if isdefined(method, :generator)
+                    push!(meths, method)
+                end
+            end
+        end
+    end
+    return meths
+end
+
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
-    pc = Dict{Symbol, Vector{String}}()   # output
-    mods = Set{Module}()                  # module of each parameter for a given method
+    pc = Dict{Symbol, Vector{String}}()      # output
+    modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
+    mods = Set{Module}()                     # module of each parameter for a given method
     for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
@@ -309,31 +327,49 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # Create the string representation of the signature
         # Use special care with keyword functions, anonymous functions
         prefix = ""
-        paramrepr = map(tt.parameters) do p
-            name = p.name.name
-            mkw = match(kwrex, String(name))
-            manon = match(anonrex, String(name))
-            thismod = p.name.module
-            if mkw !== nothing
-                # Keyword function
-                fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
-                "Core.kwftype(typeof($thismod.$fname))"
-            elseif manon !== nothing
-                # Anonymous function, wrap in an `isdefined`
-                prefix = "if isdefined($thismod, Symbol(\"$name\")"
-                "getfield($thismod, Symbol(\"$name\"))"  # this is universal, var is Julia 1.3+
+        p = tt.parameters[1]
+        mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
+        mkw = match(kwrex, mname)
+        manon = match(anonrex, mname)
+        mgen = match(genrex, mname)
+        frepr = if mkw !== nothing
+            # Keyword function
+            fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
+            "Core.kwftype(typeof($mmod.$fname))"
+        elseif manon !== nothing
+            # Anonymous function, wrap in an `isdefined`
+            prefix = "if isdefined($mmod, Symbol(\"$mname\")"
+            "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
+        elseif mgen !== nothing
+            # Generator for a @generated function
+            if !haskey(modgens, m.module)
+                callers = modgens[m.module] = methods_with_generators(m.module)
             else
-                repr(p)
+                callers = modgens[m.module]
             end
+            getgen = "nothing"
+            for caller in callers
+                if nameof(caller.generator.gen) == m.name
+                    getgen = "typeof(first(whichtt($(caller.sig))).generator.gen)"
+                    break
+                end
+            end
+            getgen
+        else
+            repr(p)
         end
+        paramrepr = map(repr, Iterators.drop(tt.parameters, 1))
+        pushfirst!(paramrepr, frepr)
         ttrepr = "Tuple{" * join(paramrepr, ',') * '}'
         # Check that we parsed it correctly, and that all types are defined in the module
         ttexpr = Meta.parse(ttrepr)
-        try
-            Core.eval(topmod, ttexpr)
-        catch
-            @debug "Module $topmod: skipping $ttrepr due to eval failure"
-            continue
+        if mgen === nothing  # whichtt is not defined in topmod
+            try
+                Core.eval(topmod, ttexpr)
+            catch
+                @debug "Module $topmod: skipping $ttrepr due to eval failure"
+                continue
+            end
         end
         stmt = "precompile(" * ttrepr * ')'
         if !isempty(prefix)
@@ -411,6 +447,15 @@ function write(prefix::AbstractString, pc::Dict; always::Bool = false)
     end
     for (k, v) in pc
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
+            println(io, """
+            # Like `which` but takes the full signature Tuple-type (including `typeof(f)`)
+            # Used to get the generator of @generated functions, if present
+            function whichtt(@nospecialize(tt))
+                m = ccall(:jl_gf_invoke_lookup, Any, (Any, UInt), tt, typemax(UInt))
+                m === nothing && return nothing
+                return m.func::Method
+            end
+            """)
             println(io, "function _precompile_()")
             !always && println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
             for ln in v

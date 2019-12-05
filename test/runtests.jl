@@ -52,6 +52,11 @@ if VERSION >= v"1.2.0-DEV.573"
         list = Any["xbar7", "yfoo8"]
         tinf = @snoopi E.hasfoo(list)
         pc = SnoopCompile.parcel(tinf)
+
+        # Extract the generator in a name-independent manner
+        tinf = @snoopi E.Egen(1.0f0)
+        pc = SnoopCompile.parcel(tinf)
+        @test any(str->occursin("generator", str), pc[:E])
     end
     """)
 

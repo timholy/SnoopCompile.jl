@@ -15,4 +15,8 @@ module E
         end
         return any(hf)
     end
+    @generated function Egen(x::T) where T
+        Tbigger = T == Float32 ? Float64 : BigFloat
+        :(convert($Tbigger, x))
+    end
 end
