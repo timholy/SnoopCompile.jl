@@ -42,6 +42,11 @@ if VERSION >= v"1.2.0-DEV.573"
         directive = pc[:A][1]
         @test occursin("C.CT", directive)
         @test !occursin("E.ET", directive)
+
+        # Identify kwfuncs, whose naming depends on the Julia version (issue #46)
+        tinf = @snoopi sortperm(rand(5); rev=true)
+        pc = SnoopCompile.parcel(tinf)
+        @test any(str->occursin("kwftype", str), pc[:Base])
     end
     """)
 
