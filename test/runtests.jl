@@ -117,7 +117,7 @@ let str = "typeof(Base.Sort.sort!), Array{Any, 1}, Base.Sort.MergeSortAlg, Base.
     @test topmod == :Base
 end
 =#
-if VERSION >= v"1.2.0-DEV.573"
+@static if VERSION >= v"1.2.0-DEV.573"
     @testset "timesum" begin
         loadSnoop = SnoopCompile.@snoopi using LinearAlgebra
         @test typeof(timesum(loadSnoop)) == Float64
