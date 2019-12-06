@@ -93,14 +93,14 @@ Julia can cache inference results so to measure the effect of adding _precompile
 using SnoopCompile
 
 println("Package load time:")
-loadSnoop = @snoopi using LinearAlgebra
+loadSnoop = @snoopi using MatLang
 
 timesum(loadSnoop)
 
 println("Running Examples/Tests:")
 runSnoop = @snoopi begin
-    using LinearAlgebra
-    include(joinpath(dirname(dirname(pathof(LinearAlgebra))),"test","runtests.jl"))
+    using MatLang
+    include(joinpath(dirname(dirname(pathof(MatLang))),"test","runtests.jl"))
 end
 
 timesum(runSnoop)

@@ -118,7 +118,7 @@ end
 =#
 @static if VERSION >= v"1.2.0-DEV.573"
     @testset "timesum" begin
-        loadSnoop = SnoopCompile.@snoopi using LinearAlgebra
+        loadSnoop = SnoopCompile.@snoopi using MatLang
         @test typeof(timesum(loadSnoop)) == Float64
     end
 end
