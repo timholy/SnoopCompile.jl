@@ -106,8 +106,13 @@ end
 timesum(runSnoop)
 ```
 """
-timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}}) = sum(first, snoop)
-
+function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
+    if isempty(snoop)
+        return 0.0
+    else
+        return sum(first, snoop)
+    end
+end
 """
 ```
 @snoopc "compiledata.csv" begin
