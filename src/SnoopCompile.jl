@@ -106,13 +106,7 @@ end
 timesum(runSnoop)
 ```
 """
-function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
-    timeSum = 0.0
-    for x in snoop
-        timeSum+=x[1]
-    end
-    return timeSum
-end
+timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}}) = sum(first, snoop)
 
 """
 ```
