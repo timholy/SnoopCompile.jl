@@ -66,10 +66,11 @@ if VERSION >= v"1.2.0-DEV.573"
 end
 
 # issue #26
-@snoopc "/tmp/anon.log" begin
+logfile = joinpath(tempdir(), "anon.log")
+@snoopc logfile begin
     map(x->x^2, [1,2,3])
 end
-data = SnoopCompile.read("/tmp/anon.log")
+data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test length(pc[:Base]) <= 1
 
@@ -79,12 +80,14 @@ keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symb
 @test pcstring == "Tuple{getfield(JLD, Symbol(\"##s27#8\")), Int, Int, Int, Int, Int}"
 @test topmod == :JLD
 @test name == "##s27#8"
-save("/tmp/mat.jld", "mat", sprand(10, 10, 0.1))
-@snoopc "/tmp/jldanon.log" begin
+matfile = joinpath(tempdir(), "mat.jld")
+save(matfile, "mat", sprand(10, 10, 0.1))
+logfile = joinpath(tempdir(), "jldanon.log")
+@snoopc logfile begin
     using JLD, SparseArrays
-    mat = load("/tmp/mat.jld", "mat")
+    mat = load(joinpath(tempdir(), "mat.jld"), "mat")
 end
-data = SnoopCompile.read("/tmp/jldanon.log")
+data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test any(startswith.(pc[:JLD], "isdefined"))
 
