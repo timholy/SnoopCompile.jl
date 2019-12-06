@@ -20,8 +20,8 @@ pop!(LOAD_PATH)
 end
 
 uncompiled(x) = x + 1
-if VERSION >= v"1.2.0-DEV.573"
-    include_string(Main, """
+@static if VERSION >= v"1.2.0-DEV.573"
+
     @testset "snoopi" begin
         timing_data = @snoopi uncompiled(2)
         @test any(td->td[2].def.name == :uncompiled, timing_data)
@@ -43,7 +43,6 @@ if VERSION >= v"1.2.0-DEV.573"
         @test occursin("C.CT", directive)
         @test !occursin("E.ET", directive)
     end
-    """)
 
     # docstring is present (weird Docs bug)
     dct = Docs.meta(SnoopCompile)
