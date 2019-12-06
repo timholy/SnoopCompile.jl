@@ -389,6 +389,8 @@ macro snoop(args...)
     :(@snoopc $(args...))
 end
 
+include("utilities.jl")
+
 if VERSION >= v"1.2.0-DEV.573"
     function __init__()
         # typeinf_ext_timed must be compiled before it gets run
