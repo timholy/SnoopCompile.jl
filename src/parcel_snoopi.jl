@@ -254,7 +254,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
                     csigstr = tuplestring(cparamrepr)
                     mkwc = match(kwbodyrex, cname)
                     if mkwc === nothing
-                        getgen = "typeof(which($cmod.$cname,$csigstr).generator.gen)"
+                        getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
                         add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt)
                     else
                         if VERSION >= v"1.4.0-DEV.215"
