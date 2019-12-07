@@ -100,6 +100,7 @@ uncompiled(x) = x + 1
     FK = pc[:FuncKinds]
     @test any(str->occursin("precompile(Tuple{typeof(FuncKinds.gen),Float32})", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(FuncKinds.gen2),$Int,Float64})", str), FK)
+    @test any(str->occursin("typeof(which(FuncKinds.gen2,($Int,Any,)).generator.gen)", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw2)})", str), FK)
     @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,),Tuple{String}},typeof(FuncKinds.genkw2)}", str), FK)
