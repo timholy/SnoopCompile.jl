@@ -1,6 +1,11 @@
 # Snooping on inference: `@snoopi`
 
 The most useful tool is a macro, `@snoopi`, which is only available on Julia 1.2 or higher.
+
+Julia can cache inference results, so you can use `@snoopi` to generate `precompile`
+directives for your package. Executing these directives when the package is compiled
+may reduce compilation (inference) time when the package is used.
+
 Here's a quick demo:
 
 ```julia

@@ -78,4 +78,11 @@ let str = "typeof(Base.Sort.sort!), Array{Any, 1}, Base.Sort.MergeSortAlg, Base.
 end
 =#
 
+@static if VERSION >= v"1.2.0-DEV.573"
+    @testset "timesum" begin
+        loadSnoop = SnoopCompile.@snoopi using MatLang
+        @test typeof(timesum(loadSnoop)) == Float64
+    end
+end
+
 include("colortypes.jl")
