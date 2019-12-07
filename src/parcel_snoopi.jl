@@ -214,6 +214,10 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # Use special care with keyword functions, anonymous functions
         p = tt.parameters[1]   # the portion of the signature related to the function itself
         paramrepr = map(repr, Iterators.drop(tt.parameters, 1))  # all the rest of the args
+        if any(str->occursin('#', str), paramrepr)
+            @debug "Skipping $tt due to argument types having anonymous bindings"
+            continue
+        end
         mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
         mkw = match(kwrex, mname)
         mkwbody = match(kwbodyrex, mname)
