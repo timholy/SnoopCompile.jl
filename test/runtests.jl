@@ -1,69 +1,11 @@
+if VERSION >= v"1.2.0-DEV.573"
+    include("snoopi.jl")
+end
+
 using SnoopCompile
 using JLD
 using SparseArrays
 using Test
-
-push!(LOAD_PATH, @__DIR__)
-using A
-using E
-pop!(LOAD_PATH)
-
-@testset "topmodule" begin
-    # topmod is called on moduleroots but nevertheless this is a useful test
-    @test SnoopCompile.topmodule([A, A.B]) === A
-    @test SnoopCompile.topmodule([A, A.B.C]) === A
-    @test SnoopCompile.topmodule([A.B, A]) === A
-    @test SnoopCompile.topmodule([A.B.C, A]) === A
-    @test SnoopCompile.topmodule([A.B.C, A.B.D]) === nothing
-    @test SnoopCompile.topmodule([A, Base]) === A
-    @test SnoopCompile.topmodule([Base, A]) === A
-end
-
-uncompiled(x) = x + 1
-if VERSION >= v"1.2.0-DEV.573"
-    include_string(Main, """
-    @testset "snoopi" begin
-        timing_data = @snoopi uncompiled(2)
-        @test any(td->td[2].def.name == :uncompiled, timing_data)
-        # Ensure older methods can be tested
-        a = rand(Float16, 5)
-        timing_data = @snoopi sum(a)
-        @test any(td->td[2].def.name == :sum, timing_data)
-
-        a = [E.ET(1)]
-        c = [A.B.C.CT(1)]
-        timing_data = @snoopi (A.f(a); A.f(c))
-        @test length(timing_data) == 2
-
-        pc = SnoopCompile.parcel(timing_data)
-        @test isa(pc, Dict)
-        @test length(pc) == 1
-        @test length(pc[:A]) == 1
-        directive = pc[:A][1]
-        @test occursin("C.CT", directive)
-        @test !occursin("E.ET", directive)
-
-        # Identify kwfuncs, whose naming depends on the Julia version (issue #46)
-        tinf = @snoopi sortperm(rand(5); rev=true)
-        pc = SnoopCompile.parcel(tinf)
-        @test any(str->occursin("kwftype", str), pc[:Base])
-
-        # Wrap anonymous functions in an `if isdefined`
-        list = Any["xbar7", "yfoo8"]
-        tinf = @snoopi E.hasfoo(list)
-        pc = SnoopCompile.parcel(tinf)
-
-        # Extract the generator in a name-independent manner
-        tinf = @snoopi E.Egen(1.0f0)
-        pc = SnoopCompile.parcel(tinf)
-        @test any(str->occursin("generator", str), pc[:E])
-    end
-    """)
-
-    # docstring is present (weird Docs bug)
-    dct = Docs.meta(SnoopCompile)
-    @test haskey(dct, Docs.Binding(SnoopCompile, Symbol("@snoopi")))
-end
 
 # issue #26
 logfile = joinpath(tempdir(), "anon.log")
