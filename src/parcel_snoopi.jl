@@ -70,6 +70,12 @@ const __bodyfunction__ = Dict{Method,Any}()
 # `mnokw` is the method that gets called when you invoke it without
 # supplying any keywords.
 function __lookup_kwbody__(mnokw::Method)
+    function getsym(arg)
+        isa(arg, Symbol) && return arg
+        @assert isa(arg, GlobalRef)
+        return arg.name
+    end
+
     f = get(__bodyfunction__, mnokw, nothing)
     if f === nothing
         fmod = mnokw.module
@@ -85,7 +91,13 @@ function __lookup_kwbody__(mnokw::Method)
                 if isa(fsym, Symbol)
                     f = getfield(fmod, fsym)
                 elseif isa(fsym, GlobalRef)
-                    f = getfield(fsym.mod, fsym.name)
+                    if fsym.mod === Core && fsym.name === :_apply
+                        f = getfield(mnokw.module, getsym(callexpr.args[2]))
+                    elseif fsym.mod === Core && fsym.name === :_apply_iterate
+                        f = getfield(mnokw.module, getsym(callexpr.args[3]))
+                    else
+                        f = getfield(fsym.mod, fsym.name)
+                    end
                 else
                     f = missing
                 end
@@ -206,7 +218,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         mkw = match(kwrex, mname)
         mkwbody = match(kwbodyrex, mname)
         isgen = match(genrex, mname) !== nothing
-        isanon = match(anonrex, mname) !== nothing
+        isanon = match(anonrex, mname) !== nothing || match(innerrex, mname) !== nothing
         isgen && (mkwbody = nothing)
         if VERSION < v"1.4.0-DEV.215"  # before this version, we can't robustly look up kwbody callers (missing `nkw`)
             isanon |= mkwbody !== nothing  # treat kwbody methods the same way we treat anonymous functions

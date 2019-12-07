@@ -18,6 +18,23 @@ pop!(LOAD_PATH)
     @test SnoopCompile.topmodule([Base, A]) === A
 end
 
+module Lookup
+f1(x, y; a=1) = error("oops")
+f2(f::Function, args...; kwargs...) = f1(args...; kwargs...)
+end
+
+@testset "lookup bodyfunction" begin
+    Core.eval(Lookup, SnoopCompile.lookup_kwbody_ex)
+    m = first(methods(Lookup.f1))
+    f = Lookup.__lookup_kwbody__(m)
+    @test occursin("f1#", String(nameof(f)))
+    m = first(methods(Lookup.f2))
+    f = Lookup.__lookup_kwbody__(m)
+    isdefined(Core, :_apply_iterate) && @test f !== Core._apply_iterate
+    @test f !== Core._apply
+    @test occursin("f2#", String(nameof(f)))
+end
+
 uncompiled(x) = x + 1
 
 @testset "snoopi" begin
@@ -90,8 +107,14 @@ uncompiled(x) = x + 1
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw1, ()))", str), FK)
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw2, ()))", str), FK)
     else
-        @test any(str->occursin("isdefined", str), FK)        
+        @test any(str->occursin("isdefined", str), FK)
     end
+
+    # Inner functions
+    tinf = @snoopi FuncKinds.hasinner(1, 2)
+    pc = SnoopCompile.parcel(tinf)
+    FK = pc[:FuncKinds]
+    @test any(str->match(r"isdefined.*#inner#", str) !== nothing, FK)
 end
 
 @testset "Lots of methods" begin

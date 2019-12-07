@@ -54,6 +54,16 @@ function gen2(x::Int, y)
     end
 end
 
+function hasinner(x, y)
+    inner(z) = 2z
+
+    s = 0
+    for i = 1:10
+        s += inner(returnsrandom())
+    end
+    return s
+end
+
 # Two kwarg generated functions; one will be called from the no-kw call, the other from a kwcall
 @generated function genkw1(; b=2)
     :(string(typeof($b)))
