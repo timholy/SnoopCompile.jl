@@ -184,7 +184,7 @@ end
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()      # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
-    mods = Set{Module}()                     # module of each parameter for a given method
+    mods = OrderedSet{Module}()                     # module of each parameter for a given method
     for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
