@@ -35,7 +35,7 @@ function write(prefix::AbstractString, pc::Dict; always::Bool = false)
             end
             println(io, "function _precompile_()")
             !always && println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
-            for ln in v
+            for ln in sort(v)
                 println(io, "    ", ln)
             end
             println(io, "end")

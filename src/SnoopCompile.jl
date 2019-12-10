@@ -1,6 +1,6 @@
 module SnoopCompile
 
-using Serialization
+using Serialization, OrderedCollections
 
 export timesum  # @snoopi and @snoopc are exported from their files of definition
 
