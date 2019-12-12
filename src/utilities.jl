@@ -101,12 +101,7 @@ end
 
 macro that generates precompile files and includes them in the package. Calls other utitlities.
 """
-macro snoopiBot(packageName::String, snoopScript)
-
-# by default run "runtests"
-# = :(using MatLang; include(joinpath(dirname(dirname(pathof(MatLang))), "test","runtests.jl")); )
-
-
+macro snoopiBot(packageName::String, snoopScript::Expr)
     ################################################################
     package = Symbol(packageName)
     packageSym = QuoteNode(package)
@@ -129,11 +124,22 @@ macro snoopiBot(packageName::String, snoopScript)
         ################################################################
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data)
-        onlypackage = Dict( $packageSym => sort(pc[$packageSym] ) )
+        onlypackage = Dict( $packageSym => sort( pc[$packageSym] ) )
         SnoopCompile.write("$(pwd())/precompile",onlypackage)
         ################################################################
         cd(rootPath)
         precompileActivator($packagePath, precompilePath($packageName))
     end
 
+end
+
+macro snoopiBot(packageName::String)
+    package = Symbol(packageName)
+    packageSym = QuoteNode(package)
+    snoopScript = :(QuoteNode(
+        using packageSym; include(joinpath(dirname(dirname(pathof(packageSym))), "test","runtests.jl"));
+    ))
+    return quote
+        @snoopiBot $packageName $snoopScript
+    end
 end
