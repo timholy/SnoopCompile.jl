@@ -24,7 +24,7 @@ Written exclusively for SnoopCompile Github actions.
 function precompileActivator(packagePath::String, precompilePath::String)
 
     file = open(packagePath,"r")
-    packageText = read(file, String)
+    packageText = Base.read(file, String)
     close(file)
 
     # Checking availability of _precompile_ code
@@ -65,7 +65,7 @@ Written exclusively for SnoopCompile Github actions.
 function precompileDeactivator(packagePath::String, precompilePath::String)
 
     file = open(packagePath,"r")
-    packageText = read(file, String)
+    packageText = Base.read(file, String)
     close(file)
 
     # Checking availability of _precompile_ code
