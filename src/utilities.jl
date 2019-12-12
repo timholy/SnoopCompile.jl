@@ -134,11 +134,10 @@ end
 
 macro snoopiBot(packageName::String)
     package = Symbol(packageName)
-    packageSym = QuoteNode(package)
-    snoopScript = :(QuoteNode(
-        using packageSym; include(joinpath(dirname(dirname(pathof(packageSym))), "test","runtests.jl"));
-    ))
+    snoopScript = :(
+        using package, Pkg; Pkg.test(packageName)
+    )
     return quote
-        @snoopiBot $packageName $snoopScript
+        @snoopiBot $packageName $(esc(snoopScript))
     end
 end
