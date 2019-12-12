@@ -8,7 +8,7 @@ To get the path of precompile_packageName.jl file
 Written exclusively for SnoopCompile Github actions.
 """
 function precompilePath(packageName::String)
-    return "../deps/SnoopCompile/precompile/precompile_$packageName.jl"
+    return "\"../deps/SnoopCompile/precompile/precompile_$packageName.jl\""
 end
 
 precompilePath(packageName::Symbol) = precompilePath(string(packageName))
