@@ -11,6 +11,9 @@ function precompilePath(packageName::String)
     return "../deps/SnoopCompile/precompile/precompile_$packageName.jl"
 end
 
+precompilePath(packageName::Symbol) = precompilePath(string(packageName))
+precompilePath(packageName::Module) = precompilePath(string(packageName))
+
 """
     precompileActivator(packagePath, precompilePath)
 
