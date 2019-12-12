@@ -119,3 +119,4 @@ end
 =#
 
 include("colortypes.jl")
+include("utilitiesTest.jl")
