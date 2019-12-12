@@ -15,4 +15,4 @@ See the documentation:
 
 Quite a few packages have used SnoopCompile to reduce startup latency, and some have preserved their scripts which may serve as an example to other users:
 
-- MatLang ([SnoopFile Folder](https://github.com/juliamatlab/MatLang/tree/master/SnoopCompile) and [source file](https://github.com/juliamatlab/MatLang/blob/85640e269e902b6fb68ad254f0b939e1ffb47e7d/src/MatLang.jl#L26)).
+- MatLang ([SnoopFile Folder](https://github.com/juliamatlab/MatLang/tree/master/deps/SnoopCompile) and [source file](https://github.com/juliamatlab/MatLang/blob/85640e269e902b6fb68ad254f0b939e1ffb47e7d/src/MatLang.jl#L26)).

@@ -1,6 +1,11 @@
 # Snooping on inference: `@snoopi`
 
 The most useful tool is a macro, `@snoopi`, which is only available on Julia 1.2 or higher.
+
+Julia can cache inference results, so you can use `@snoopi` to generate `precompile`
+directives for your package. Executing these directives when the package is compiled
+may reduce compilation (inference) time when the package is used.
+
 Here's a quick demo:
 
 ```julia
@@ -200,3 +205,28 @@ end
 This covers `+`, `-`, `*`, `/`, and conversion for various combinations of types.
 The results from `@snoopi` can suggest method/type combinations that might be useful to
 precompile, but often you can generalize its suggestions in useful ways.
+
+## Analyzing omitted methods
+
+There are some methods that cannot be precompiled. For example, suppose you have two packages,
+`A` and `B`, that are independent of one another.
+Then `A.f([B.Object(1)])` cannot be precompiled, because `A` does not know about `B.Object`,
+and `B` does not know about `A.f`, unless both `A` and `B` get included into another package.
+
+Such problematic methods are removed automatically.
+If you want to be informed about these removals, you can use Julia's logging framework
+while running `parcel`:
+
+```
+julia> using Base.CoreLogging
+
+julia> logger = SimpleLogger(IOBuffer(), CoreLogging.Debug);
+
+julia> pc = with_logger(logger) do
+           SnoopCompile.parcel(inf_timing)
+       end
+
+julia> msgs = String(take!(logger.stream))
+```
+
+The omitted methods will be logged to the string `msgs`.
