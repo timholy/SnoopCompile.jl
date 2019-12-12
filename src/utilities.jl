@@ -103,11 +103,10 @@ macro that generates precompile files and includes them in the package. Calls ot
 """
 macro snoopiBot(packageName::String, snoopScript::Expr)
     ################################################################
-    package = Symbol(packageName)
-    packageSym = QuoteNode(package)
     packagePath = joinpath(pwd(),"src","$packageName.jl")
 
     quote
+        packageSym = Symbol($packageName)
         ################################################################
         using SnoopCompile
         ################################################################
@@ -124,7 +123,7 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
         ################################################################
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data)
-        onlypackage = Dict( $packageSym => sort( pc[$packageSym] ) )
+        onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write("$(pwd())/precompile",onlypackage)
         ################################################################
         cd(rootPath)
