@@ -120,7 +120,7 @@ macro snoopiBot(packageName::String, snoopScript)
 
         ### Log the compiles
         data = @snoopi begin
-            $snoopScript
+            $(QuoteNode(snoopScript))
         end
 
         ################################################################
