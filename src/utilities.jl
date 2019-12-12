@@ -1,4 +1,4 @@
-export precompileActivator, precompileDeactivator, precompilePath
+export precompileActivator, precompileDeactivator, precompilePath, @snoopiBot
 
 """
     precompilePath(packageName::String)
@@ -92,6 +92,45 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
          include($precompilePath)
          _precompile_()
          """)
+    end
+
+end
+
+"""
+    snoopiBot(packageName::String, snoopScript)
+
+macro that generates precompile files and includes them in the package. Calls other utitlities.
+"""
+macro snoopiBot(packageName::String, snoopScript)
+
+# by default run "runtests"
+# = :(using MatLang; include(joinpath(dirname(dirname(pathof(MatLang))), "test","runtests.jl")); )
+
+    ################################################################
+    packagePath = joinpath(pwd(),"src","$packageName.jl")
+
+    quote
+        ################################################################
+        using SnoopCompile
+        ################################################################
+        const rootPath = pwd()
+        precompileDeactivator($packagePath, precompilePath($packageName));
+        cd(@__DIR__)
+        ################################################################
+
+        ### Log the compiles
+        data = @snoopi begin
+            $snoopScript
+        end
+
+        ################################################################
+        ### Parse the compiles and generate precompilation scripts
+        pc = SnoopCompile.parcel(data)
+        onlypackage = Dict(package => sort(pc[package]))
+        SnoopCompile.write("$(pwd())/precompile",onlypackage)
+        ################################################################
+        cd(rootPath)
+        precompileActivator($packagePath, precompilePath($packageName))
     end
 
 end
