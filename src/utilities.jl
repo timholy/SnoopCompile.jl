@@ -106,7 +106,10 @@ macro snoopiBot(packageName::String, snoopScript)
 # by default run "runtests"
 # = :(using MatLang; include(joinpath(dirname(dirname(pathof(MatLang))), "test","runtests.jl")); )
 
+
     ################################################################
+    package = Symbol(packageName)
+    packageSym = QuoteNode(package)
     packagePath = joinpath(pwd(),"src","$packageName.jl")
 
     quote
@@ -126,7 +129,7 @@ macro snoopiBot(packageName::String, snoopScript)
         ################################################################
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data)
-        onlypackage = Dict(package => sort(pc[package]))
+        onlypackage = Dict( $packageSym => sort(pc[$packageSym] ) )
         SnoopCompile.write("$(pwd())/precompile",onlypackage)
         ################################################################
         cd(rootPath)
