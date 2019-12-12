@@ -41,7 +41,7 @@ function precompileActivator(packagePath::String, precompilePath::String)
                      init = packageText)
 
                      file = open(packagePath,"w")
-                     write(file, packageEdited)
+                     Base.write(file, packageEdited)
                      close(file)
     elseif available
         # do nothing
@@ -82,7 +82,7 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
                      init = packageText)
 
                     file = open(packagePath,"w")
-                    write(file, packageEdited)
+                    Base.write(file, packageEdited)
                     close(file)
     elseif commented
         # do nothing
