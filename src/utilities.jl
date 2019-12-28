@@ -1,18 +1,35 @@
 export precompileActivator, precompileDeactivator, precompilePath, @snoopiBot
 
 """
-    precompilePath(packageName::String)
+    precompilePather(packageName::String)
 
 To get the path of precompile_packageName.jl file
 
 Written exclusively for SnoopCompile Github actions.
+# Examples
+```julia
+precompilePath = precompilePather("MatLang")
+```
 """
-function precompilePath(packageName::String)
+function precompilePather(packageName::String)
     return "\"../deps/SnoopCompile/precompile/precompile_$packageName.jl\""
 end
 
-precompilePath(packageName::Symbol) = precompilePath(string(packageName))
-precompilePath(packageName::Module) = precompilePath(string(packageName))
+precompilePather(packageName::Symbol) = precompilePather(string(packageName))
+precompilePather(packageName::Module) = precompilePather(string(packageName))
+
+################################################################
+
+function precompileRegex(precompilePath)
+    # https://stackoverflow.com/questions/3469080/match-whitespace-but-not-newlines
+    # {1,} for any number of spaces
+    c1 = Regex("#[^\\S\\r\\n]{0,}include\\($(precompilePath)\\)")
+    c2 = r"#\s{0,}_precompile_\(\)"
+    a1 = "include($precompilePath)"
+    a2 = "_precompile_()"
+    return c1, c2, a1, a2
+end
+################################################################
 
 """
     precompileActivator(packagePath, precompilePath)
@@ -27,16 +44,17 @@ function precompileActivator(packagePath::String, precompilePath::String)
     packageText = Base.read(file, String)
     close(file)
 
-    # Checking availability of _precompile_ code
-    commented = occursin("#include($precompilePath)", packageText)  && occursin("#_precompile_()", packageText)
+    c1, c2, a1, a2 = precompileRegex(precompilePath)
 
-    available = occursin("include($precompilePath)", packageText)  && occursin("_precompile_()", packageText)
+    # Checking availability of _precompile_ code
+    commented = occursin(c1, packageText) && occursin(c2, packageText)
+    available = occursin(a1, packageText) && occursin(a2, packageText)
 
     if commented
         packageEdited = foldl(replace,
                      (
-                      "#include($precompilePath)" => "include($precompilePath)",
-                      "#_precompile_()" => "_precompile_()",
+                      c1 => a1,
+                      c2 => a2,
                      ),
                      init = packageText)
 
@@ -70,16 +88,17 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
     packageText = Base.read(file, String)
     close(file)
 
-    # Checking availability of _precompile_ code
-    commented = occursin("#include($precompilePath)", packageText)  && occursin("#_precompile_()", packageText)
+    c1, c2, a1, a2 = precompileRegex(precompilePath)
 
-    available = occursin("include($precompilePath)", packageText)  && occursin("_precompile_()", packageText)
+    # Checking availability of _precompile_ code
+    commented = occursin(c1, packageText) && occursin(c2, packageText)
+    available = occursin(a1, packageText) && occursin(a2, packageText)
 
     if available && !commented
         packageEdited = foldl(replace,
                      (
-                      "include($precompilePath)" => "#include($precompilePath)",
-                      "_precompile_()" => "#_precompile_()",
+                      a1 => "#"*a1,
+                      a2 => "#"*a2,
                      ),
                      init = packageText)
 
@@ -115,7 +134,7 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
         using SnoopCompile
         ################################################################
         const rootPath = pwd()
-        precompileDeactivator($packagePath, precompilePath($packageName));
+        precompileDeactivator($packagePath, precompilePather($packageName));
         cd(@__DIR__)
         ################################################################
 
@@ -131,7 +150,7 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
         SnoopCompile.write("$(pwd())/precompile",onlypackage)
         ################################################################
         cd(rootPath)
-        precompileActivator($packagePath, precompilePath($packageName))
+        precompileActivator($packagePath, precompilePather($packageName))
     end
 
 end
