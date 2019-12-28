@@ -43,8 +43,10 @@ function precompileActivator(packagePath::String, precompilePath::String)
                      file = open(packagePath,"w")
                      Base.write(file, packageEdited)
                      close(file)
+        println("precompile is activated")
     elseif available
         # do nothing
+        println("precompile is already activated")
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your package:
@@ -84,8 +86,10 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
                     file = open(packagePath,"w")
                     Base.write(file, packageEdited)
                     close(file)
+        println("precompile is deactivated")
     elseif commented
         # do nothing
+        println("precompile is already deactivated")
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your package:
