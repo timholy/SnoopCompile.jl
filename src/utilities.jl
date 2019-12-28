@@ -69,8 +69,8 @@ function precompileActivator(packagePath::String, precompilePath::String)
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your package:
-         include($precompilePath)
-         _precompile_()
+         #include($precompilePath)
+         #_precompile_()
          """)
     end
 
@@ -113,8 +113,8 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your package:
-         include($precompilePath)
-         _precompile_()
+         #include($precompilePath)
+         #_precompile_()
          """)
     end
 
