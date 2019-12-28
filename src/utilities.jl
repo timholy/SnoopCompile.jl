@@ -8,11 +8,12 @@ To get the path of precompile_packageName.jl file
 Written exclusively for SnoopCompile Github actions.
 # Examples
 ```julia
-precompilePath = precompilePather("MatLang")
+precompilePath, precompileFolder = precompilePather("MatLang")
 ```
 """
 function precompilePather(packageName::String)
-    return "\"../deps/SnoopCompile/precompile/precompile_$packageName.jl\""
+    return "\"../deps/SnoopCompile/precompile/precompile_$packageName.jl\"",
+    "$(pwd())/deps/SnoopCompile/precompile/"
 end
 
 precompilePather(packageName::Symbol) = precompilePather(string(packageName))
@@ -127,15 +128,14 @@ macro that generates precompile files and includes them in the package. Calls ot
 macro snoopiBot(packageName::String, snoopScript::Expr)
     ################################################################
     packagePath = joinpath(pwd(),"src","$packageName.jl")
+    precompilePath, precompileFolder = precompilePather(packageName)
 
     quote
         packageSym = Symbol($packageName)
         ################################################################
         using SnoopCompile
         ################################################################
-        const rootPath = pwd()
-        precompileDeactivator($packagePath, precompilePather($packageName));
-        cd(@__DIR__)
+        precompileDeactivator($packagePath, $precompilePath);
         ################################################################
 
         ### Log the compiles
@@ -147,10 +147,9 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompile.write("$(pwd())/precompile",onlypackage)
+        SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
-        cd(rootPath)
-        precompileActivator($packagePath, precompilePather($packageName))
+        precompileActivator($packagePath, $precompilePath)
     end
 
 end
