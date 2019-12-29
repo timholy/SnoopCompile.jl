@@ -1,4 +1,4 @@
-export precompileActivator, precompileDeactivator, precompilePath, @snoopiBot
+export precompileActivator, precompileDeactivator, precompilePather, @snoopiBot
 
 """
     precompilePather(packageName::String)
