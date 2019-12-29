@@ -1,7 +1,7 @@
 using SnoopCompile, Test, Suppressor
 
 cd(@__DIR__)
-@testset "utilities" begin
+@testset "bot" begin
     @testset "precompilePather" begin
         precompilePath, precompileFolder = precompilePather("TestPackage")
         @test  precompilePath == "\"../deps/SnoopCompile/precompile/precompile_TestPackage.jl\""
@@ -10,11 +10,11 @@ cd(@__DIR__)
 
     @testset "precompileActivator" begin
         precompilePath, precompileFolder = precompilePather("TestPackage")
-        @test (@capture_out precompileActivator("utilities/activated.jl", precompilePath)) == "precompile is already activated\n"
+        @test (@capture_out precompileActivator("bot/activated.jl", precompilePath)) == "precompile is already activated\n"
     end
 
     @testset "precompileDeactivator" begin
         precompilePath, precompileFolder = precompilePather("TestPackage")
-        @test (@capture_out precompileDeactivator("utilities/deactivated.jl", precompilePath)) == "precompile is already deactivated\n"
+        @test (@capture_out precompileDeactivator("bot/deactivated.jl", precompilePath)) == "precompile is already deactivated\n"
     end
 end
