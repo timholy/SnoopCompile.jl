@@ -119,7 +119,7 @@ function precompileDeactivator(packagePath::String, precompilePath::String)
     end
 
 end
-
+################################################################
 """
     snoopiBot(packageName::String, snoopScript)
 
@@ -154,9 +154,19 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
 
 end
 
-################################################################
-using Pkg
+macro snoopiBot(packageName::String)
+    package = Symbol(packageName)
+    snoopScript = :(
+        using $(package);
+        runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
+        include(runtestpath);
+    )
+    return quote
+        @snoopiBot $packageName $(esc(snoopScript))
+    end
+end
 
+################################################################
 """
 Should be removed once Pkg allows adding test dependencies to the current environment
 
@@ -175,15 +185,3 @@ function addtestdep()
     end
 end
 ################################################################
-
-macro snoopiBot(packageName::String)
-    package = Symbol(packageName)
-    snoopScript = :(
-        using $(package);
-        runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
-        include(runtestpath);
-    )
-    return quote
-        @snoopiBot $packageName $(esc(snoopScript))
-    end
-end
