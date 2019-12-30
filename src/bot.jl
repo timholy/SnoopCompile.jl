@@ -1,4 +1,4 @@
-export precompileActivator, precompileDeactivator, precompilePather, @snoopiBot
+export precompileActivator, precompileDeactivator, precompilePather, @snoopiBot, @snoopiBenchBot
 
 """
     precompilePather(packageName::String)
@@ -256,3 +256,73 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
 end
 
 ################################################################
+"""
+    @snoopiBenchBot(packageName::String, snoopScript::Expr)
+    @snoopiBenchBot(packageName::String)
+
+Performs an infertime benchmark by activating and deactivating the __precompile__()
+# Examples
+Benchmarking the load infer time
+```julia
+println("loading infer benchmark")
+
+@snoopiBenchBot "MatLang" using MatLang
+
+Benchmarking the example infer time
+```julia
+println("examples infer benchmark")
+
+@snoopiBenchBot "MatLang" begin
+    using MatLang
+    examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
+    # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
+    include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
+    include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+end
+```
+
+Benchmarking the tests:
+```julia
+@snoopiBenchBot "MatLang"
+```
+"""
+macro snoopiBenchBot(packageName::String, snoopScript::Expr)
+
+    ################################################################
+    packagePath = joinpath(pwd(),"src","$packageName.jl")
+    precompilePath, precompileFolder = precompilePather(packageName)
+
+    juliaCode = """
+    using SnoopCompile; data = @snoopi begin
+        $(string(snoopScript));
+    end;
+    println(timesum(data));
+    """
+    juliaCmd = `julia --project=@. -e "$juliaCode"`
+    quote
+        packageSym = Symbol($packageName)
+        ################################################################
+        using SnoopCompile
+        ################################################################
+        precompileDeactivator($packagePath, $precompilePath);
+        ### Log the compiles
+        run($juliaCmd)
+        ################################################################
+        precompileActivator($packagePath, $precompilePath)
+        ### Log the compiles
+        run($juliaCmd)
+    end
+
+end
+
+macro snoopiBenchBot(packageName::String)
+    package = Symbol(packageName)
+    snoopScript = :(
+        using $(package);
+        runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
+        include(runtestpath);
+    )
+    return quote
+        @snoopiBenchBot $packageName $(snoopScript)
+    end
+end
