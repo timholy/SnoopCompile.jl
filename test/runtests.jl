@@ -86,4 +86,4 @@ end
 end
 
 include("colortypes.jl")
-include("bot.jl")
+include("bot/bot.jl")

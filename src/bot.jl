@@ -306,24 +306,24 @@ macro snoopiBenchBot(packageName::String, snoopScript::Expr)
         using SnoopCompile
         println("""*******************
         Benchmark Started
+        *******************
         """)
         ################################################################
-        println("""------------------------
-        Precompile Deactivated Benchmark
+        println("""Precompile Deactivated Benchmark
         ------------------------
         """)
         precompileDeactivator($packagePath, $precompilePath);
         ### Log the compiles
         run($juliaCmd)
         ################################################################
-        println("""------------------------
-        Precompile Activated Benchmark
+        println("""Precompile Activated Benchmark
         ------------------------
         """)
         precompileActivator($packagePath, $precompilePath)
         ### Log the compiles
         run($juliaCmd)
-        println("""Benchmark Finished
+        println("""*******************
+        Benchmark Finished
         *******************
         """)
     end
