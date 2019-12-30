@@ -192,6 +192,7 @@ macro snoopiBot(packageName::String)
 end
 
 ################################################################
+import Pkg
 """
 Should be removed once Pkg allows adding test dependencies to the current environment
 
