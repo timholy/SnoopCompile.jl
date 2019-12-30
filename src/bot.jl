@@ -150,7 +150,7 @@ using SnoopCompile
 @snoopiBot "MatLang"
 ```
 """
-macro snoopiBot(packageName::String, snoopScript::Expr)
+macro snoopiBot(packageName::String, snoopScript::Expr, blacklist::Vector{Union{AbstractString,Regex,AbstractChar}}=String[])
     ################################################################
     packagePath = joinpath(pwd(),"src","$packageName.jl")
     precompilePath, precompileFolder = precompilePather(packageName)
@@ -170,7 +170,7 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
 
         ################################################################
         ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompile.parcel(data)
+        pc = SnoopCompile.parcel(data, blacklist = blacklist)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
@@ -179,7 +179,7 @@ macro snoopiBot(packageName::String, snoopScript::Expr)
 
 end
 
-macro snoopiBot(packageName::String)
+macro snoopiBot(packageName::String, blacklist::Vector{Union{AbstractString,Regex,AbstractChar}}=String[])
     package = Symbol(packageName)
     snoopScript = :(
         using $(package);
@@ -187,7 +187,7 @@ macro snoopiBot(packageName::String)
         include(runtestpath);
     )
     return quote
-        @snoopiBot $packageName $(esc(snoopScript))
+        @snoopiBot $packageName $(esc(snoopScript)) blacklist
     end
 end
 
