@@ -267,6 +267,7 @@ Benchmarking the load infer time
 println("loading infer benchmark")
 
 @snoopiBenchBot "MatLang" using MatLang
+```
 
 Benchmarking the example infer time
 ```julia

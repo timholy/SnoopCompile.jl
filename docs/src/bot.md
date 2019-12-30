@@ -55,7 +55,14 @@ jobs:
 ```
 If your examples or tests have dependencies, you should add a `Test.toml` to your test folder.
 
-`Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it. For example for MatLang package:
+`Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it.
+
+```yaml
+# - name: Install Test dependencies
+#  run: julia -e 'using SnoopCompile; SnoopCompile.addtestdep()'
+```
+
+For example for MatLang package:
 
 [Link](https://github.com/juliamatlab/MatLang/blob/master/.github/workflows/SnoopCompile.yml)
 
@@ -64,7 +71,7 @@ Change `committer` to your name and your email.
 ----------------------------------
 
 
-- Examples that call the package functions.
+- Add a `snoopCompile.jl` file under `deps/SnoopCompile`. The content of the file can be the examples that call the package functions:
 
 ```julia
 using SnoopCompile
@@ -79,31 +86,61 @@ end
 ```
 [Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopCompile.jl)
 
-If you do not have additional examples, you can use your runtests.jl file. To do that use:
+or If you do not have additional examples, you can use your runtests.jl file:
 
 ```julia
 using SnoopCompile
 
 # using runtests:
-@snoopiBot "Juno"
+@snoopiBot "MatLang"
 ```
-[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopCompile.jl)
 
 ----------------------------------
 
-- Two lines of code that includes the precompile file
+- Two lines of code that includes the precompile file in your main module. It is better to have these lines commented, if you want to continuously develop and change your package offline. Only merging pull requests online will uncomment the lines automatically:
 
 ```julia
-include("../deps/SnoopCompile/precompile/precompile_MatLang.jl")
-_precompile_()
+# include("../deps/SnoopCompile/precompile/precompile_MatLang.jl")
+# _precompile_()
 ```
 
 [Ref](https://github.com/juliamatlab/MatLang/blob/072ff8ed9877cbb34f8583ae2cf928a5df18aa0c/src/MatLang.jl#L26)
 
 
-Or have it commented if you want to continuously develop your package offline, and only merge pull requests online:
+## Benchmark
+
+To measure the effect of adding precompile files. Add a `snoopBenchmark.jl`. The content of this file can be the following:
+
+Benchmarking the load infer time
 ```julia
-# include("../deps/SnoopCompile/precompile/precompile_Juno.jl")
-# _precompile_()
+println("loading infer benchmark")
+
+@snoopiBenchBot "MatLang" using MatLang
 ```
-[Ref](https://github.com/aminya/Juno.jl/blob/1241d0f0ab421190ba9ff9a855666aef0cebfb55/src/Juno.jl#L32)
+
+Benchmarking the example infer time
+```julia
+println("examples infer benchmark")
+
+@snoopiBenchBot "MatLang" begin
+    using MatLang
+    examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
+    # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
+    include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
+    include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+end
+```
+
+Benchmarking the tests:
+```julia
+@snoopiBenchBot "MatLang"
+```
+[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopBenchmark.jl)
+
+
+To run the benchmark online, add the following to your yaml file after `Generating precompile files` step:
+
+```yaml
+- name: Running Benchmark
+  run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
+```
