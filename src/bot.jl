@@ -304,14 +304,28 @@ macro snoopiBenchBot(packageName::String, snoopScript::Expr)
         packageSym = Symbol($packageName)
         ################################################################
         using SnoopCompile
+        println("""*******************
+        Benchmark Started
+        """)
         ################################################################
+        println("""------------------------
+        Precompile Deactivated Benchmark
+        ------------------------
+        """)
         precompileDeactivator($packagePath, $precompilePath);
         ### Log the compiles
         run($juliaCmd)
         ################################################################
+        println("""------------------------
+        Precompile Activated Benchmark
+        ------------------------
+        """)
         precompileActivator($packagePath, $precompilePath)
         ### Log the compiles
         run($juliaCmd)
+        println("""Benchmark Finished
+        *******************
+        """)
     end
 
 end

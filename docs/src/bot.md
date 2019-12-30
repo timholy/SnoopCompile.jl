@@ -39,6 +39,8 @@ jobs:
         run: julia -e 'using SnoopCompile; SnoopCompile.addtestdep()'
       - name: Generating precompile files
         run: julia --project=@. -e 'include("deps/SnoopCompile/snoopCompile.jl")'
+      - name: Running Benchmark
+        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
