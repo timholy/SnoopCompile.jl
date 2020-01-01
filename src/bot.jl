@@ -16,15 +16,15 @@ Config object that holds the options and configuration for the snoopCompile bot.
 """
 struct BotConfig
     packageName::String
-    subst::Vector{Pair{UStrings, UStrings}}
-    blacklist::Vector{UStrings}
+    subst::Vector{Pair{T1, T2}} where {T1<:UStrings, T2 <: UStrings}
+    blacklist::Vector{T3} where {T3<:UStrings}
 end
 
-function BotConfig(packageName::String; subst::Vector{Pair{UStrings, UStrings}} = Vector{Pair{String, String}}(), blacklist::Vector{UStrings}= String[])
+function BotConfig(packageName::String; subst::Vector{Pair{T1, T2}} where {T1<:UStrings, T2 <: UStrings} = Vector{Pair{String, String}}(), blacklist::Vector{T3} where {T3<:UStrings}= String[])
     return BotConfig(packageName, subst, blacklist)
 end
 
-include("botutils.jl")
-include("precomileInclude.jl")
-include("snoopiBot.jl")
-include("snoopiBenchBot.jl")
+include("bot/botutils.jl")
+include("bot/precomileInclude.jl")
+include("bot/snoopiBot.jl")
+include("bot/snoopiBenchBot.jl")
