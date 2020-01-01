@@ -24,7 +24,8 @@ end
 macro snoopiBot(config::BotConfig, snoopScript)
 
     packageName = config.packageName
-    blacklist= config.blacklist
+    blacklist = config.blacklist
+    subst = config.subst
     ################################################################
     packagePath = joinpath(pwd(),"src","$packageName.jl")
     precompilePath, precompileFolder = precompilePather(packageName)
@@ -44,7 +45,7 @@ macro snoopiBot(config::BotConfig, snoopScript)
 
         ################################################################
         ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompile.parcel(data, blacklist = $blacklist)
+        pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
