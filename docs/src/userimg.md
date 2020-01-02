@@ -1,7 +1,7 @@
 # [Creating `userimg.jl` files](@id userimg)
 
 If you want to save more precompile information, one option is to create a `"userimg.jl`"
-file with with to build Julia.
+file with which to build Julia.
 This is only supported for `@snoopc`.
 Instead of calling `SnoopCompile.parcel` and `SnoopCompile.write`, use the following:
 
