@@ -168,13 +168,11 @@ inference on those methods, because it used the inference results from the cache
     Note that this forces you to update your precompile directives as you modify your package,
     which may or may not be desirable.
 
-The statements appear in the precompile file in order of inference time,
-with the first methods taking the longest to precompile.
 If you find that some precompile directives are
 ineffective (they appear in a new `@snoopi` despite being precompiled) and their
 inference time is substantial, sometimes a bit of manual investigation of the callees
 can lead to insights. For example, you might be able to introduce a precompile in a
-dependent package) that can mitigate the total time.
+dependent package that can mitigate the total time.
 
 ## Producing precompile directives manually
 
@@ -208,12 +206,12 @@ precompile, but often you can generalize its suggestions in useful ways.
 
 ## Analyzing omitted methods
 
-There are some methods that cannot be precompiled. For example, suppose you have two packages,
-`A` and `B`, that are independent of one another.
+There are some method signatures that cannot be precompiled.
+For example, suppose you have two packages, `A` and `B`, that are independent of one another.
 Then `A.f([B.Object(1)])` cannot be precompiled, because `A` does not know about `B.Object`,
-and `B` does not know about `A.f`, unless both `A` and `B` get included into another package.
+and `B` does not know about `A.f`, unless both `A` and `B` get included into a third package.
 
-Such problematic methods are removed automatically.
+Such problematic method signatures are removed automatically.
 If you want to be informed about these removals, you can use Julia's logging framework
 while running `parcel`:
 
@@ -229,4 +227,4 @@ julia> pc = with_logger(logger) do
 julia> msgs = String(take!(logger.stream))
 ```
 
-The omitted methods will be logged to the string `msgs`.
+The omitted method signatures will be logged to the string `msgs`.
