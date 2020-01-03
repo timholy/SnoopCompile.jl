@@ -153,6 +153,22 @@ function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "")
     return pclist
 end
 
+function reprcontext(mod::Module, @nospecialize(T::Type))
+    # First try without the full module context
+    rplain = repr(T)
+    try
+        ex = Meta.parse(rplain)
+        Core.eval(mod, ex)
+        return rplain
+    catch
+        # Add full module context
+        rdec = repr(T; context=:module=>nothing)
+        ex = Meta.parse(rdec)
+        Core.eval(mod, ex)
+        return rdec
+    end
+end
+
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
     if !isdefined(m.module, nameparent)   # TODO: replace debugging with error-handling
@@ -213,7 +229,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # Create the string representation of the signature
         # Use special care with keyword functions, anonymous functions
         p = tt.parameters[1]   # the portion of the signature related to the function itself
-        paramrepr = map(repr, Iterators.drop(tt.parameters, 1))  # all the rest of the args
+        paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
         if any(str->occursin('#', str), paramrepr)
             @debug "Skipping $tt due to argument types having anonymous bindings"
             continue
@@ -279,7 +295,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
             fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
             add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix)
         else
-            add_if_evals!(pc[topmodname], topmod, repr(p), paramrepr, tt)
+            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
     end
     return pc
