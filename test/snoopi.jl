@@ -1,10 +1,13 @@
 using SnoopCompile
 using Test
 
-push!(LOAD_PATH, @__DIR__)
+push!(LOAD_PATH, joinpath(@__DIR__, "testmodules"))
 using A
 using E
 using FuncKinds
+using Reachable.ModuleA
+using Reachable.ModuleB
+using Reachable2
 pop!(LOAD_PATH)
 
 @testset "topmodule" begin
@@ -172,6 +175,21 @@ end
     # @test any(str->occursin("typeof(FuncKinds.f9),(3) == 9
     # @test any(str->occursin("typeof(FuncKinds.f9),(3.0) == 3.0
 
+end
+
+# Issue https://github.com/timholy/SnoopCompile.jl/issues/40#issuecomment-570560584
+@testset "Reachable" begin
+    tinf = @snoopi begin
+        include("snoopreachable.jl")
+    end
+    pc = SnoopCompile.parcel(tinf)
+    pcd = pc[:Reachable]
+    @test length(pcd) == 2
+    @test sum(str->occursin("RchA", str), pcd) == 2
+    # Make sure that two modues that know about each other only via Main do not allow precompilation
+    @test !any(str->occursin("ModuleB.f", str), pcd)
+    pcd = pc[:Reachable2]
+    @test length(pcd) == 1
 end
 
 @testset "@snoopi docs" begin
