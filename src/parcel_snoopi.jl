@@ -162,10 +162,7 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
         return rplain
     catch
         # Add full module context
-        rdec = repr(T; context=:module=>nothing)
-        ex = Meta.parse(rdec)
-        Core.eval(mod, ex)
-        return rdec
+        return repr(T; context=:module=>nothing)
     end
 end
 
