@@ -1,7 +1,7 @@
 using SnoopCompile
 using Test
 
-push!(LOAD_PATH, @__DIR__)
+push!(LOAD_PATH, joinpath(@__DIR__, "testmodules"))
 using A
 using E
 using FuncKinds
