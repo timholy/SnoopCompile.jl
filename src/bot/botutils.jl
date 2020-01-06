@@ -6,10 +6,9 @@ Should be removed once Pkg allows adding test dependencies to the current enviro
 Used in Github Action workflow yaml file
 """
 function addtestdep()
-    local testToml
-    try
+    if isfile("test/Test.toml")
         testToml = Pkg.Types.parse_toml("test/Test.toml")
-    catch
+    else
         error("please add a Test.toml to the /test directory for test dependencies")
     end
 

@@ -28,14 +28,14 @@ macro snoopiBot(config::BotConfig, snoopScript)
     subst = config.subst
     ################################################################
     packagePath = joinpath(pwd(),"src","$packageName.jl")
-    precompilePath, precompileFolder = precompilePather(packageName)
+    precompilePath, precompileFolder = precompile_pather(packageName)
 
     quote
         packageSym = Symbol($packageName)
         ################################################################
         using SnoopCompile
         ################################################################
-        precompileDeactivator($packagePath, $precompilePath);
+        precompile_deactivator($packagePath, $precompilePath);
         ################################################################
 
         ### Log the compiles
@@ -49,7 +49,7 @@ macro snoopiBot(config::BotConfig, snoopScript)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
-        precompileActivator($packagePath, $precompilePath)
+        precompile_activator($packagePath, $precompilePath)
     end
 
 end
