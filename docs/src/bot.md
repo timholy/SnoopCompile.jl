@@ -44,7 +44,7 @@ jobs:
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v2.0.0
+        uses: peter-evans/create-pull-request@v2.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update precompile_*.jl file
