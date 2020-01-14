@@ -7,7 +7,7 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [SnoopCompile],
-    pages = ["index.md", "snoopi.md", "snoopc.md", "userimg.md", "reference.md"]
+    pages = ["index.md", "snoopi.md", "snoopc.md", "userimg.md", "bot.md", "reference.md"]
 )
 
 deploydocs(
