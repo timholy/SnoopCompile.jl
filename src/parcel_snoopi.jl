@@ -227,6 +227,14 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # Use special care with keyword functions, anonymous functions
         p = tt.parameters[1]   # the portion of the signature related to the function itself
         paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
+
+        # blacklist remover
+        for (iLine, line) in enumerate(pc[topmodname])
+          if any(occursin.(blacklist, line))
+            deleteat!(pc[topmodname], iLine)
+          end
+        end
+
         if any(str->occursin('#', str), paramrepr)
             @debug "Skipping $tt due to argument types having anonymous bindings"
             continue
