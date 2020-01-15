@@ -30,3 +30,9 @@ include("bot/snoopi_bot.jl")
 include("bot/snoopi_bench.jl")
 
 
+# deprecation and backward compatiblity
+const snoopiBot = snoopi_bot
+const snoopiBench = snoopi_bench
+
+Base.@deprecate_binding snoopiBot snoopi_bot
+Base.@deprecate_binding snoopiBench snoopi_bench
