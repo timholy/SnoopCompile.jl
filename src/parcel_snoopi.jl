@@ -193,7 +193,6 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     return nothing
 end
 
-
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Vector{String}}()      # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
@@ -229,11 +228,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
 
         # blacklist remover
-        for (iLine, line) in enumerate(pc[topmodname])
-          if any(occursin.(blacklist, line))
-            deleteat!(pc[topmodname], iLine)
-          end
-        end
+        pc[topmodname] = blacklist_remover(blacklist, pc[topmodname])
 
         if any(str->occursin('#', str), paramrepr)
             @debug "Skipping $tt due to argument types having anonymous bindings"
@@ -304,4 +299,26 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         end
     end
     return pc
+end
+
+"""
+Search and removes blacklist from pcI
+
+# Examples
+```julia
+blacklist = ["hi","bye"]
+pcI = ["good","bad","hi","bye","no"]
+
+blacklist_remover(blacklist, pcI)
+```
+"""
+function blacklist_remover(blacklist, pcI)
+    idx=Vector{Int64}(undef,0)
+    for (iLine, line) in enumerate(pcI)
+      if any(occursin.(blacklist, line))
+          push!(idx, iLine)
+      end
+    end
+    deleteat!(pcI, idx)
+    return pcI
 end
