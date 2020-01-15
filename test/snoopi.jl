@@ -123,7 +123,7 @@ uncompiled(x) = x + 1
     # blacklist_remover
     blacklist = ["hi", "bye"]
     pcI = ["good", "bad", "hi", "bye", "no"]
-    @test SnoopCompile.blacklist_remover(blacklist, pcI) == ["good", "bad", "no"]
+    @test SnoopCompile.blacklist_remover!(pcI, blacklist) == ["good", "bad", "no"]
 end
 
 @testset "Lots of methods" begin

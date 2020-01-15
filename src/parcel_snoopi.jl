@@ -228,7 +228,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
 
         # blacklist remover
-        pc[topmodname] = blacklist_remover(blacklist, pc[topmodname])
+        pc[topmodname] = blacklist_remover!(pc[topmodname], blacklist)
 
         if any(str->occursin('#', str), paramrepr)
             @debug "Skipping $tt due to argument types having anonymous bindings"
@@ -309,10 +309,10 @@ Search and removes blacklist from pcI
 blacklist = ["hi","bye"]
 pcI = ["good","bad","hi","bye","no"]
 
-SnoopCompile.blacklist_remover(blacklist, pcI)
+SnoopCompile.blacklist_remover!(pcI, blacklist)
 ```
 """
-function blacklist_remover(blacklist, pcI)
+function blacklist_remover!(pcI, blacklist)
     idx = Vector{Int64}(undef, 0)
     for (iLine, line) in enumerate(pcI)
         if any(occursin.(blacklist, line))
