@@ -31,16 +31,16 @@ cd(@__DIR__)
     end
 
 
-    # Fails. # snoopiBot pwd() differs from what it is cd to
+    # Fails. # snoopi_bot pwd() differs from what it is cd to
     # instead test the code in MatLang actions: https://github.com/juliamatlab/MatLang/actions?query=workflow%3ASnoopCompile
     #=
-    @testset "snoopiBot" begin
+    @testset "snoopi_bot" begin
         using Pkg; Pkg.develop("MatLang")
 
         examplePath = Base.read(`cmd /c julia -e 'import MatLang; print(pathof(MatLang))'`, String)
         cd(dirname(dirname(examplePath)))
 
-        @snoopiBot "MatLang" begin
+        @snoopi_bot "MatLang" begin
 
           using MatLang
           examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
@@ -49,13 +49,13 @@ cd(@__DIR__)
         end
     end
 
-    @testset "snoopiBench" begin
+    @testset "snoopi_bench" begin
         using Pkg; Pkg.develop("MatLang")
 
         examplePath = Base.read(`cmd /c julia -e 'import MatLang; print(pathof(MatLang))'`, String)
         cd(dirname(dirname(examplePath)))
 
-        @snoopiBench "MatLang" begin
+        @snoopi_bench "MatLang" begin
             using MatLang
             examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
             include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
