@@ -309,15 +309,15 @@ Search and removes blacklist from pcI
 blacklist = ["hi","bye"]
 pcI = ["good","bad","hi","bye","no"]
 
-blacklist_remover(blacklist, pcI)
+SnoopCompile.blacklist_remover(blacklist, pcI)
 ```
 """
 function blacklist_remover(blacklist, pcI)
-    idx=Vector{Int64}(undef,0)
+    idx = Vector{Int64}(undef, 0)
     for (iLine, line) in enumerate(pcI)
-      if any(occursin.(blacklist, line))
-          push!(idx, iLine)
-      end
+        if any(occursin.(blacklist, line))
+            push!(idx, iLine)
+        end
     end
     deleteat!(pcI, idx)
     return pcI
