@@ -313,7 +313,7 @@ SnoopCompile.blacklist_remover!(pcI, blacklist)
 ```
 """
 function blacklist_remover!(pcI, blacklist)
-    idx = Vector{Int64}(undef, 0)
+    idx = Int[]
     for (iLine, line) in enumerate(pcI)
         if any(occursin.(blacklist, line))
             push!(idx, iLine)
