@@ -119,6 +119,11 @@ uncompiled(x) = x + 1
     pc = SnoopCompile.parcel(tinf)
     FK = pc[:FuncKinds]
     @test any(str->match(r"isdefined.*#inner#", str) !== nothing, FK)
+
+    # blacklist_remover
+    blacklist = ["hi", "bye"]
+    pcI = ["good", "bad", "hi", "bye", "no"]
+    @test SnoopCompile.blacklist_remover!(pcI, blacklist) == ["good", "bad", "no"]
 end
 
 @testset "Lots of methods" begin
