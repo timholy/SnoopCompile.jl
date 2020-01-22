@@ -31,8 +31,13 @@ include("bot/snoopi_bench.jl")
 
 
 # deprecation and backward compatiblity
-const snoopiBot = snoopi_bot
-const snoopiBench = snoopi_bench
+macro snoopiBot(args...)
+    return esc(:(@snoopi_bot($(args...))))
+end
+macro snoopiBench(args...)
+    return esc(:(@snoopi_bench($(args...))))
+
+end
 
 Base.@deprecate_binding snoopiBot snoopi_bot
 Base.@deprecate_binding snoopiBench snoopi_bench
