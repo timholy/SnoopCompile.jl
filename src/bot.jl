@@ -31,7 +31,6 @@ include("bot/snoopi_bench.jl")
 
 
 # deprecation and backward compatiblity
-export @snoopiBot, @snoopiBench 
 macro snoopiBot(args...)
     warning("@snoopiBot is deprecated. Use @snoopi_bot instead")
     return esc(:(@snoopi_bot($(args...))))
@@ -40,3 +39,6 @@ macro snoopiBench(args...)
     warning("@snoopiBench is deprecated. Use @snoopi_bench instead")
     return esc(:(@snoopi_bench($(args...))))
 end
+
+@eval @deprecate $(Symbol("@snoopiBot")) $(Symbol("@snoopi_bot"))
+@eval @deprecate $(Symbol("@snoopiBench")) $(Symbol("@snoopi_bench"))
