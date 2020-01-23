@@ -31,13 +31,12 @@ include("bot/snoopi_bench.jl")
 
 
 # deprecation and backward compatiblity
+export @snoopiBot, @snoopiBench 
 macro snoopiBot(args...)
+    warning("@snoopiBot is deprecated. Use @snoopi_bot instead")
     return esc(:(@snoopi_bot($(args...))))
 end
 macro snoopiBench(args...)
+    warning("@snoopiBench is deprecated. Use @snoopi_bench instead")
     return esc(:(@snoopi_bench($(args...))))
-
 end
-
-Base.@deprecate_binding snoopiBot snoopi_bot
-Base.@deprecate_binding snoopiBench snoopi_bench
