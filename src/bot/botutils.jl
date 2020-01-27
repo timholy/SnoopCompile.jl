@@ -8,8 +8,10 @@ Used in Github Action workflow yaml file
 function addtestdep()
     if isfile("test/Test.toml")
         testToml = Pkg.Types.parse_toml("test/Test.toml")
+    elseif isfile("test/Project.toml")
+        testToml = Pkg.Types.parse_toml("test/Project.toml")
     else
-        error("please add a Test.toml to the /test directory for test dependencies")
+        error("please add a Test.toml or Project.toml to the /test directory for test dependencies")
     end
 
     for (name, uuid) in testToml["deps"]
