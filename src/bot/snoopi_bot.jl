@@ -1,18 +1,18 @@
 
 ################################################################
 """
-    @snoopiBot config::BotConfig snoopScript
+    @snoopi_bot config::BotConfig snoopScript
 
 macro that generates precompile files and includes them in the package. Calls other bot functions.
 
 # Examples
 
-`@snoopiBot` the examples that call the package functions.
+`@snoopi_bot` the examples that call the package functions.
 
 ```julia
 using SnoopCompile
 
-@snoopiBot "MatLang" begin
+@snoopi_bot "MatLang" begin
   using MatLang
   examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
   include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
@@ -21,7 +21,7 @@ using SnoopCompile
 end
 ```
 """
-macro snoopiBot(config::BotConfig, snoopScript)
+macro snoopi_bot(config::BotConfig, snoopScript)
 
     packageName = config.packageName
     blacklist = config.blacklist
@@ -54,21 +54,21 @@ macro snoopiBot(config::BotConfig, snoopScript)
 
 end
 
-macro snoopiBot(packageName::String, snoopScript)
+macro snoopi_bot(packageName::String, snoopScript)
     config = BotConfig(packageName)
     return quote
-        @snoopiBot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoopScript))
     end
 end
-macro snoopiBot(configExpr, snoopScript)
+macro snoopi_bot(configExpr, snoopScript)
     config = eval(configExpr)
     return quote
-        @snoopiBot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoopScript))
     end
 end
 
 """
-    @snoopiBot config::BotConfig
+    @snoopi_bot config::BotConfig
 
 If you do not have additional examples, you can use your runtests.jl file. To do that use:
 
@@ -76,10 +76,10 @@ If you do not have additional examples, you can use your runtests.jl file. To do
 using SnoopCompile
 
 # using runtests:
-@snoopiBot "MatLang"
+@snoopi_bot "MatLang"
 ```
 """
-macro snoopiBot(config::BotConfig)
+macro snoopi_bot(config::BotConfig)
 
     packageName = config.packageName
 
@@ -90,20 +90,20 @@ macro snoopiBot(config::BotConfig)
         include(runtestpath)
     end)
     return quote
-        @snoopiBot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoopScript))
     end
 end
 
-macro snoopiBot(packageName::String)
+macro snoopi_bot(packageName::String)
     config = BotConfig(packageName)
     return quote
-        @snoopiBot $config
+        @snoopi_bot $config
     end
 end
 
-macro snoopiBot(configExpr)
+macro snoopi_bot(configExpr)
     config = eval(configExpr)
     return quote
-        @snoopiBot $config
+        @snoopi_bot $config
     end
 end

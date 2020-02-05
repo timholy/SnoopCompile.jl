@@ -44,7 +44,7 @@ jobs:
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v2.1.0
+        uses: peter-evans/create-pull-request@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update precompile_*.jl file
@@ -79,7 +79,7 @@ For example, some examples that call the functions:
 ```julia
 using SnoopCompile
 
-@snoopiBot "MatLang" begin
+@snoopi_bot "MatLang" begin
   using MatLang
   examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
   include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
@@ -95,7 +95,7 @@ or if you do not have additional examples, you can use your runtests.jl file usi
 using SnoopCompile
 
 # using runtests:
-@snoopiBot "MatLang"
+@snoopi_bot "MatLang"
 ```
 
 [Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
@@ -106,7 +106,7 @@ using SnoopCompile
 
 Two lines of (commented) code that includes the precompile file in your main module.
 
-It is better to have these lines commented to continuously develop and change your package offline. snoopiBot will find these lines of code and will uncomment them in the created pull request. If they are not commented the bot will leave it as is in the pull request:
+It is better to have these lines commented to continuously develop and change your package offline. snoopi_bot will find these lines of code and will uncomment them in the created pull request. If they are not commented the bot will leave it as is in the pull request:
 
 ```julia
 # include("../deps/SnoopCompile/precompile/precompile_MatLang.jl")
@@ -127,14 +127,14 @@ Benchmarking the load infer time
 ```julia
 println("loading infer benchmark")
 
-@snoopiBench "MatLang" using MatLang
+@snoopi_bench "MatLang" using MatLang
 ```
 
 Benchmarking the example infer time
 ```julia
 println("examples infer benchmark")
 
-@snoopiBench "MatLang" begin
+@snoopi_bench "MatLang" begin
     using MatLang
     examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
     # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
@@ -145,7 +145,7 @@ end
 
 Benchmarking the tests:
 ```julia
-@snoopiBench "MatLang"
+@snoopi_bench "MatLang"
 ```
 [Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopBenchmark.jl)
 

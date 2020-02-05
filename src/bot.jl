@@ -1,11 +1,11 @@
-export precompile_activator, precompile_deactivator, precompile_pather, @snoopiBot, @snoopiBench, BotConfig
+export precompile_activator, precompile_deactivator, precompile_pather, BotConfig, @snoopi_bot, @snoopi_bench
 
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 ################################################################
 """
     BotConfig
 
-Config object that holds the options and configuration for the SnoopCompile bot. This object is fed to the `@snoopiBot`.
+Config object that holds the options and configuration for the SnoopCompile bot. This object is fed to the `@snoopi_bot`.
 
 # Arguments:
 - `packageName::String`
@@ -26,5 +26,19 @@ end
 
 include("bot/botutils.jl")
 include("bot/precompileInclude.jl")
-include("bot/snoopiBot.jl")
-include("bot/snoopiBench.jl")
+include("bot/snoopi_bot.jl")
+include("bot/snoopi_bench.jl")
+
+
+# deprecation and backward compatiblity
+macro snoopiBot(args...)
+    warning("@snoopiBot is deprecated. Use @snoopi_bot instead")
+    return esc(:(@snoopi_bot($(args...))))
+end
+macro snoopiBench(args...)
+    warning("@snoopiBench is deprecated. Use @snoopi_bench instead")
+    return esc(:(@snoopi_bench($(args...))))
+end
+
+@eval @deprecate $(Symbol("@snoopiBot")) $(Symbol("@snoopi_bot"))
+@eval @deprecate $(Symbol("@snoopiBench")) $(Symbol("@snoopi_bench"))
