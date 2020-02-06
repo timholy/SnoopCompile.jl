@@ -60,10 +60,10 @@ function precompile_activator(packagePath::String, precompilePath::String)
 
                      Base.write(packagePath, packageEdited)
 
-        println("precompile is activated")
+        @info "precompile is activated"
     elseif available
         # do nothing
-        println("precompile is already activated")
+        @info "precompile is already activated"
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your PackageName.jl file under src folder:
@@ -103,10 +103,10 @@ function precompile_deactivator(packagePath::String, precompilePath::String)
 
                      Base.write(packagePath, packageEdited)
 
-        println("precompile is deactivated")
+        @info "precompile is deactivated"
     elseif commented
         # do nothing
-        println("precompile is already deactivated")
+        @info "precompile is already deactivated"
     else
         # TODO: add code automatiaclly
         error(""" add the following codes into your PackageName.jl file under src folder:

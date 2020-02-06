@@ -19,8 +19,7 @@ JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
 MatLang = "05b439c0-bb3c-11e9-1d8d-1f0a9ebca87a"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Pkg", "ColorTypes", "Test", "FixedPointNumbers", "JLD", "SparseArrays", "MatLang", "Suppressor"]
+test = ["Pkg", "ColorTypes", "Test", "FixedPointNumbers", "JLD", "SparseArrays", "MatLang"]

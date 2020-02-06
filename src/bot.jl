@@ -32,11 +32,13 @@ include("bot/snoopi_bench.jl")
 
 # deprecation and backward compatiblity
 macro snoopiBot(args...)
-    warning("@snoopiBot is deprecated. Use @snoopi_bot instead")
-    return esc(:(@snoopi_bot($(args...))))
+     f, l = __source__.file, __source__.line
+     Base.depwarn("`@snoopiBot` at $f:$l is deprecated, rename the macro to `@snoopi_bot`.", Symbol("@snoopiBot"))
+     return esc(:(@snoopi_bot($(args...))))
 end
 macro snoopiBench(args...)
-    warning("@snoopiBench is deprecated. Use @snoopi_bench instead")
+    f, l = __source__.file, __source__.line
+    Base.depwarn("`@snoopiBench` at $f:$l is deprecated, rename the macro to `@snoopi_bench`.", Symbol("@snoopiBench"))
     return esc(:(@snoopi_bench($(args...))))
 end
 

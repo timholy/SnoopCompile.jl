@@ -1,4 +1,4 @@
-using SnoopCompile, Test, Suppressor
+using SnoopCompile, Test
 
 cd(@__DIR__)
 @testset "bot" begin
@@ -16,7 +16,7 @@ cd(@__DIR__)
             """)
 
             precompilePath, precompileFolder = precompile_pather("TestPackage")
-            @test (@capture_out precompile_activator("activated.jl", precompilePath)) == "precompile is already activated\n"
+            @test_logs (:info,"precompile is already activated") precompile_activator("activated.jl", precompilePath)
         end
 
         @testset "precompile_deactivator" begin
@@ -26,7 +26,7 @@ cd(@__DIR__)
             """)
 
             precompilePath, precompileFolder = precompile_pather("TestPackage")
-            @test (@capture_out precompile_deactivator("deactivated.jl", precompilePath)) == "precompile is already deactivated\n"
+            @test_logs (:info, "precompile is already deactivated") precompile_deactivator("deactivated.jl", precompilePath)
         end
     end
 

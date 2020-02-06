@@ -89,32 +89,32 @@ macro snoopi_bench(packageName::String, snoopScript::Expr)
     using SnoopCompile; data = @snoopi begin
         $(string(snoopScript));
     end;
-    println(timesum(data));
+    @info(timesum(data));
     """
     juliaCmd = `julia --project=@. -e "$juliaCode"`
     quote
         packageSym = Symbol($packageName)
         ################################################################
         using SnoopCompile
-        println("""*******************
+        @info("""*******************
         Benchmark Started
         *******************
         """)
         ################################################################
-        println("""Precompile Deactivated Benchmark
+        @info("""Precompile Deactivated Benchmark
         ------------------------
         """)
         precompile_deactivator($packagePath, $precompilePath);
         ### Log the compiles
         run($juliaCmd)
         ################################################################
-        println("""Precompile Activated Benchmark
+        @info("""Precompile Activated Benchmark
         ------------------------
         """)
         precompile_activator($packagePath, $precompilePath)
         ### Log the compiles
         run($juliaCmd)
-        println("""*******************
+        @info("""*******************
         Benchmark Finished
         *******************
         """)
