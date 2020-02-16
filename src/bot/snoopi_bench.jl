@@ -54,8 +54,8 @@ end
 
 ################################################################
 """
-    @snoopi_bench(packageName::String, snoopScript::Expr)
-    @snoopi_bench(packageName::String)
+    @snoopi_bench(package_name::String, snoop_script::Expr)
+    @snoopi_bench(package_name::String)
 
 Performs an infertime benchmark by activating and deactivating the _precompile_()
 # Examples
@@ -72,28 +72,26 @@ println("examples infer benchmark")
 
 @snoopi_bench "MatLang" begin
     using MatLang
-    examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-    # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-    include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-    include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+    example_path = joinpath(dirname(dirname(pathof(MatLang))), "examples")
+    # include(joinpath(example_path,"Language_Fundamentals", "usage_Entering_Commands.jl"))
+    include(joinpath(example_path,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
+    include(joinpath(example_path,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
 end
 ```
 """
-macro snoopi_bench(packageName::String, snoopScript::Expr)
+macro snoopi_bench(package_name::String, snoop_script::Expr)
 
     ################################################################
-    packagePath = joinpath(pwd(),"src","$packageName.jl")
-    precompilePath, precompileFolder = precompile_pather(packageName)
-
+    package_path = joinpath(pwd(),"src","$package_name.jl")
     juliaCode = """
     using SnoopCompile; data = @snoopi begin
-        $(string(snoopScript));
+        $(string(snoop_script));
     end;
     @info(timesum(data));
     """
-    juliaCmd = `julia --project=@. -e "$juliaCode"`
+    julia_cmd = `julia --project=@. -e "$juliaCode"`
     quote
-        packageSym = Symbol($packageName)
+        package_sym = Symbol($package_name)
         ################################################################
         using SnoopCompile
         @info("""*******************
@@ -104,16 +102,16 @@ macro snoopi_bench(packageName::String, snoopScript::Expr)
         @info("""Precompile Deactivated Benchmark
         ------------------------
         """)
-        precompile_deactivator($packagePath);
+        precompile_deactivator($package_path);
         ### Log the compiles
-        run($juliaCmd)
+        run($julia_cmd)
         ################################################################
         @info("""Precompile Activated Benchmark
         ------------------------
         """)
-        precompile_activator($packagePath);
+        precompile_activator($package_path);
         ### Log the compiles
-        run($juliaCmd)
+        run($julia_cmd)
         @info("""*******************
         Benchmark Finished
         *******************
@@ -123,21 +121,21 @@ macro snoopi_bench(packageName::String, snoopScript::Expr)
 end
 
 """
-    @snoopi_bench packageName::String
+    @snoopi_bench package_name::String
 
 Benchmarking the infer time of the tests:
 ```julia
 @snoopi_bench "MatLang"
 ```
 """
-macro snoopi_bench(packageName::String)
-    package = Symbol(packageName)
-    snoopScript = :(
+macro snoopi_bench(package_name::String)
+    package = Symbol(package_name)
+    snoop_script = :(
         using $(package);
         runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
         include(runtestpath);
     )
     return quote
-        @snoopi_bench $packageName $(snoopScript)
+        @snoopi_bench $package_name $(snoop_script)
     end
 end
