@@ -27,7 +27,7 @@ function BotConfig(packageName::String; subst::Vector{Pair{T1, T2}} where {T1<:U
 end
 
 include("bot/botutils.jl")
-include("bot/precompileInclude.jl")
+include("bot/precompile_include.jl")
 include("bot/(de)activator.jl")
 include("bot/snoopi_bot.jl")
 include("bot/snoopi_bench.jl")
