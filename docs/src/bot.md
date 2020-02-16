@@ -23,9 +23,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.4.0-rc1'] # using 1.4 and higher is better
-        julia-arch: [x64]
-        os: [ubuntu-latest]
+        version:
+          - '1.4.0-rc1'
+        os:
+          - ubuntu-latest
+          - windows-latest # if you want multi-os signatures
+        arch:
+          - x64
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
