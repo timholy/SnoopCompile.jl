@@ -42,7 +42,7 @@ function new_includer_file(package_name::String, package_path::String, os::Union
     else
         multiosstr = ""
         for eachos in os
-            multiosstr = multiosstr * """elseif Sys.is$eachos
+            multiosstr = multiosstr * """elseif Sys.is$eachos()
                      include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
             """
         end
