@@ -26,10 +26,17 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     package_name = config.package_name
     blacklist = config.blacklist
     subst = config.subst
-    ismultios = config.ismultios
+    os = config.os
     ################################################################
     package_path = joinpath(pwd(),"src","$package_name.jl")
-    precompile_path, precompileFolder = precompile_pather(package_name, ismultios)
+    
+    # precompile folder for writing
+    if  isnothing(os)
+        precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/"
+    else
+        precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
+    end
+
     quote
         packageSym = Symbol($package_name)
         ################################################################
@@ -47,7 +54,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompile.write($precompileFolder,onlypackage)
+        SnoopCompile.write($precompile_folder,onlypackage)
         ################################################################
         precompile_activator($package_path, $precompile_path)
     end

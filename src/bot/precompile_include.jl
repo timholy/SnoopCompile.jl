@@ -24,28 +24,6 @@ allos_funs = [
 end
 ################################################################
 """
-    precompile_pather(package_name::String)
-    precompile_pather_multios(package_name::String)
-
-To get the path of precompile_package_name.jl file
-
-Written exclusively for SnoopCompile Github actions.
-# Examples
-```julia
-precompile_path, precompileFolder = precompile_pather("MatLang")
-```
-"""
-function precompile_pather(package_name::String)
-    return "\"../deps/SnoopCompile/precompile/precompile_$package_name.jl\"",
-        "$(pwd())/deps/SnoopCompile/precompile/"
-end
-function precompile_pather_multios(package_name::String)
-    os = detectos()[1]
-    return "\"../deps/SnoopCompile/precompile/$os/precompile_$package_name.jl\"",
-    "$(pwd())/deps/SnoopCompile/precompile/$os"
-end
-################################################################
-"""
     new_includer_file(package_path::String, precompile_path::String)
 
 Creates a "precompile_includer.jl" file.
