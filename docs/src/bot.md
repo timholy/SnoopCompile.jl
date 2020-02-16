@@ -49,9 +49,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update precompile_*.jl file
           committer: YOUR NAME <yourEmail@something.com> # Change `committer` to your name and your email.
-          title: '[AUTO] Update precompile_*.jl file'
+          title: "${{ matrix.os }} [AUTO] Update precompile_*.jl file'"
           labels: SnoopCompile
-          branch: create-pull-request/SnoopCompile
+          branch: "create-pull-request/SnoopCompile/${{ matrix.os }}"
       - name: Check output environment variable
         run: echo "Pull Request Number - ${{ env.PULL_REQUEST_NUMBER }}"
 ```
@@ -79,7 +79,7 @@ For example, some examples that call the functions:
 ```julia
 using SnoopCompile
 
-@snoopi_bot "MatLang" begin
+@snoopi_bot BotConfig("MatLang") begin
   using MatLang
   examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
   include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
@@ -95,29 +95,19 @@ or if you do not have additional examples, you can use your runtests.jl file usi
 using SnoopCompile
 
 # using runtests:
-@snoopi_bot "MatLang"
+@snoopi_bot BotConfig("MatLang")
 ```
 
 [Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
-
 ----------------------------------
 
-- Include precompile signatures
+# BotConfig
 
-Two lines of (commented) code that includes the precompile file in your main module.
-
-It is better to have these lines commented to continuously develop and change your package offline. snoopi_bot will find these lines of code and will uncomment them in the created pull request. If they are not commented the bot will leave it as is in the pull request:
+[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more.
 
 ```julia
-# include("../deps/SnoopCompile/precompile/precompile_MatLang.jl")
-# _precompile_()
+@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
 ```
-
-[Ref](https://github.com/juliamatlab/MatLang/blob/072ff8ed9877cbb34f8583ae2cf928a5df18aa0c/src/MatLang.jl#L26)
-
-
-----------------------------------
-
 
 ## Benchmark
 
@@ -127,14 +117,14 @@ Benchmarking the load infer time
 ```julia
 println("loading infer benchmark")
 
-@snoopi_bench "MatLang" using MatLang
+@snoopi_bench BotConfig("MatLang") using MatLang
 ```
 
 Benchmarking the example infer time
 ```julia
 println("examples infer benchmark")
 
-@snoopi_bench "MatLang" begin
+@snoopi_bench BotConfig("MatLang") begin
     using MatLang
     examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
     # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
@@ -145,7 +135,7 @@ end
 
 Benchmarking the tests:
 ```julia
-@snoopi_bench "MatLang"
+@snoopi_bench BotConfig("MatLang")
 ```
 [Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopBenchmark.jl)
 

@@ -9,9 +9,20 @@ Config object that holds the options and configuration for the SnoopCompile bot.
 
 # Arguments:
 - `package_name::String`
-- `subst::Vector{Pair{UStrings, UStrings}}` : to replace a packages precompile setences with another's package like `["ImageTest" => "Images"]`. `UStrings` is every string like type that `replace()` has a method for.
-- `blacklist::Vector{UStrings}` : to remove some precompile sentences
-- `os`::Vector{String} or nothing : give the list of os that you want to generate precompile signatures for. Each element will call a `Sys.is\$eachos()` function.
+
+## optional:
+
+- `subst` : A vector of pairs of Strings (or RegExp) to replace a packages precompile setences with another's package like `["ImageTest" => "Images"]`.
+
+- `blacklist` : A vector of of Strings (or RegExp) to remove some precompile sentences
+
+- `os`: A vector of of Strings (or RegExp) to give the list of os that you want to generate precompile signatures for. Each element will call a `Sys.is\$eachos()` function.
+
+
+# Example
+```julia
+BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
+```
 """
 struct BotConfig
     package_name::String
