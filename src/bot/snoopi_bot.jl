@@ -1,7 +1,7 @@
 
 ################################################################
 """
-    @snoopi_bot config::BotConfig snoopScript
+    @snoopi_bot config::BotConfig snoop_script
 
 macro that generates precompile files and includes them in the package. Calls other bot functions.
 
@@ -21,9 +21,9 @@ using SnoopCompile
 end
 ```
 """
-macro snoopi_bot(config::BotConfig, snoopScript)
+macro snoopi_bot(config::BotConfig, snoop_script)
 
-    packageName = config.packageName
+    package_name = config.package_name
     blacklist = config.blacklist
     subst = config.subst
     ################################################################
@@ -31,7 +31,7 @@ macro snoopi_bot(config::BotConfig, snoopScript)
     precompilePath, precompileFolder = precompile_pather(packageName)
 
     quote
-        packageSym = Symbol($packageName)
+        packageSym = Symbol($package_name)
         ################################################################
         using SnoopCompile
         ################################################################
@@ -40,7 +40,7 @@ macro snoopi_bot(config::BotConfig, snoopScript)
 
         ### Log the compiles
         data = @snoopi begin
-            $(esc(snoopScript))
+            $(esc(snoop_script))
         end
 
         ################################################################
@@ -49,21 +49,20 @@ macro snoopi_bot(config::BotConfig, snoopScript)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
-        precompile_activator($packagePath, $precompilePath)
+        precompile_activator($package_path, $precompile_path, $ismultios)
     end
-
 end
 
-macro snoopi_bot(packageName::String, snoopScript)
-    config = BotConfig(packageName)
+macro snoopi_bot(package_name::String, snoop_script)
+    config = BotConfig(package_name)
     return quote
-        @snoopi_bot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoop_script))
     end
 end
-macro snoopi_bot(configExpr, snoopScript)
+macro snoopi_bot(configExpr, snoop_script)
     config = eval(configExpr)
     return quote
-        @snoopi_bot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoop_script))
     end
 end
 
@@ -81,21 +80,21 @@ using SnoopCompile
 """
 macro snoopi_bot(config::BotConfig)
 
-    packageName = config.packageName
+    package_name = config.package_name
 
-    package = Symbol(packageName)
-    snoopScript = esc(quote
+    package = Symbol(package_name)
+    snoop_script = esc(quote
         using $(package)
         runtestpath = joinpath(dirname(dirname(pathof( $package ))), "test", "runtests.jl")
         include(runtestpath)
     end)
     return quote
-        @snoopi_bot $config $(esc(snoopScript))
+        @snoopi_bot $config $(esc(snoop_script))
     end
 end
 
-macro snoopi_bot(packageName::String)
-    config = BotConfig(packageName)
+macro snoopi_bot(package_name::String)
+    config = BotConfig(package_name)
     return quote
         @snoopi_bot $config
     end

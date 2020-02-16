@@ -11,7 +11,7 @@ function addtestdep()
     elseif isfile("test/Project.toml")
         testToml = Pkg.Types.parse_toml("test/Project.toml")
     else
-        error("please add a Test.toml or Project.toml to the /test directory for test dependencies")
+        error("please add a  Project.toml or Test.toml to the /test directory for test dependencies")
     end
 
     for (name, uuid) in testToml["deps"]
