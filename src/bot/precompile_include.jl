@@ -43,7 +43,7 @@ function new_includer_file(package_name::String, package_path::String, os::Union
         multiosstr = ""
         for eachos in os
             multiosstr = multiosstr * """elseif Sys.is$eachos
-            include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                     include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
             """
         end
         ismultios = true
@@ -116,7 +116,7 @@ function add_includer(package_path::String)
         # add line or error
         try
             code = """
-            "include("precompile_includer.jl")"
+            include("precompile_includer.jl")
             """
             insert!(package_lines,endline-1,code) # add new empty line before the end
         catch e

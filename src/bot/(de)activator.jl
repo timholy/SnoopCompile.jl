@@ -12,9 +12,10 @@ function precompile_activator(package_path::String)
         error("$includer_file doesn't exists")
     else
         file_text = Base.read(includer_file, String)
-        m = match(r"^should_precompile\s*=\s*(true|false)", file_text)
+        regp = r"(should_precompile\s*=\s*)(true|false)"
+        m = match(regp, file_text)
         if m !== nothing
-            file_text = replace(file_text, m=>s"true\1")
+            file_text = replace(file_text, regp => s"\1 true")
             Base.write(includer_file, file_text)
         else
             error("\"should_precompile = ...\" doesn't exist")
@@ -35,9 +36,10 @@ function precompile_deactivator(package_path::String)
         error("$includer_file doesn't exists")
     else
         file_text = Base.read(includer_file, String)
-        m = match(r"^should_precompile\s*=\s*(true|false)", file_text)
+        regp = r"(should_precompile\s*=\s*)(true|false)"
+        m = match(regp, file_text)
         if m !== nothing
-            file_text = replace(file_text, m=>s"false\1")
+            file_text = replace(file_text, regp => s"\1 false")
             Base.write(includer_file, file_text)
         else
             error("\"should_precompile = ...\" doesn't exist")
