@@ -26,16 +26,16 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     package_name = config.package_name
     blacklist = config.blacklist
     subst = config.subst
+    ismultios = config.ismultios
     ################################################################
-    packagePath = joinpath(pwd(),"src","$packageName.jl")
-    precompilePath, precompileFolder = precompile_pather(packageName)
-
+    package_path = joinpath(pwd(),"src","$package_name.jl")
+    precompile_path, precompileFolder = precompile_pather(package_name, ismultios)
     quote
         packageSym = Symbol($package_name)
         ################################################################
         using SnoopCompile
         ################################################################
-        precompile_deactivator($packagePath, $precompilePath);
+        precompile_deactivator($package_path, $precompile_path);
         ################################################################
 
         ### Log the compiles
@@ -49,7 +49,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompileFolder,onlypackage)
         ################################################################
-        precompile_activator($package_path, $precompile_path, $ismultios)
+        precompile_activator($package_path, $precompile_path)
     end
 end
 
