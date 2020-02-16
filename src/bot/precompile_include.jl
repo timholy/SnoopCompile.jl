@@ -46,3 +46,30 @@ end
 
 precompile_pather(package_name::Symbol, ismultios::Bool) = precompile_pather(string(package_name))
 precompile_pather(package_name::Module, ismultios::Bool) = precompile_pather(string(package_name))
+################################################################
+"""
+    create_includer_file(package_path::String, precompile_path::String)
+
+Creates a "precompile_includer.jl" file if it doesn't exist.
+
+create_includer_file(package_path, precompile_path)
+"""
+function create_includer_file(package_path::String, precompile_path::String)
+    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
+    if isfile(includer_file)
+        @info "$includer_file already exists"
+        return nothing
+    else
+        @info "$includer_file file will be created"
+        enclusure = """
+        # precompile_enclusre (don't edit the following!)
+        should_precompile = true
+        @static if should_precompile
+
+
+        end # precompile_enclusure
+        """
+        Base.write(includer_file, enclusure)
+    end
+end
+################################################################
