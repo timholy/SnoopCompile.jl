@@ -24,11 +24,11 @@ allos_funs = [
 end
 ################################################################
 """
-    new_includer_file(package_path::String, precompile_path::String)
+    new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
 
 Creates a "precompile_includer.jl" file.
 """
-function new_includer_file(package_name::String, package_path::String, precompile_path::String, os::Union{Vector{String}, Nothing})
+function new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
 
     if isnothing(os)
@@ -59,11 +59,11 @@ function new_includer_file(package_name::String, package_path::String, precompil
 end
 ################################################################
 """
-    add_includer(package_path::String, precompile_path::String)
+    add_includer(package_path::String)
 
 Writes the `include(precompile_includer.jl)` to the package file.
 """
-function add_includer(package_path::String, precompile_path::String)
+function add_includer(package_path::String)
     if !isfile(package_path)
         error("$package_path file doesn't exist")
     end

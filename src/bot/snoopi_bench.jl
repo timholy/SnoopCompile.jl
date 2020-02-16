@@ -104,14 +104,14 @@ macro snoopi_bench(packageName::String, snoopScript::Expr)
         @info("""Precompile Deactivated Benchmark
         ------------------------
         """)
-        precompile_deactivator($packagePath, $precompilePath);
+        precompile_deactivator($packagePath);
         ### Log the compiles
         run($juliaCmd)
         ################################################################
         @info("""Precompile Activated Benchmark
         ------------------------
         """)
-        precompile_activator($packagePath, $precompilePath)
+        precompile_activator($packagePath);
         ### Log the compiles
         run($juliaCmd)
         @info("""*******************

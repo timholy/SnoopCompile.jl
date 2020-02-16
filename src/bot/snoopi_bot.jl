@@ -42,7 +42,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         ################################################################
         using SnoopCompile
         ################################################################
-        precompile_deactivator($package_path, $precompile_path);
+        precompile_deactivator($package_path);
         ################################################################
 
         ### Log the compiles
@@ -56,7 +56,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompile_folder,onlypackage)
         ################################################################
-        precompile_activator($package_path, $precompile_path)
+        precompile_activator($package_path)
     end
 end
 
