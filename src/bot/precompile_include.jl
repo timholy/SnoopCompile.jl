@@ -14,11 +14,16 @@ allos_funs = [
          Sys.isnetbsd,
          Sys.isopenbsd,
          Sys.isjsvm]
+    os = ""
+    osfun = allos_funs[1] # temp
     for osfun in allos_funs
         if osfun()
             os = string(osfun)[3:end]
             break
         end
+    end
+    if os == ""
+        @error "os is not detected"
     end
     return os, osfun
 end
