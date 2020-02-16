@@ -46,26 +46,27 @@ function precompile_pather_multios(package_name::String)
 end
 ################################################################
 """
-    create_includer_file(package_path::String, precompile_path::String)
+    new_includer_file(package_path::String, precompile_path::String)
 
 Creates a "precompile_includer.jl" file if it doesn't exist.
-
-create_includer_file(package_path, precompile_path)
 """
-function create_includer_file(package_path::String, precompile_path::String)
+function new_includer_file(package_path::String, precompile_path::String, overwrite::Bool)
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
-    if isfile(includer_file)
+    if isfile(includer_file) && !overwrite
         @info "$includer_file already exists"
         return nothing
     else
-        @info "$includer_file file will be created"
+        @info """$includer_file file will be $(!overwrite ? "created" : "overwritten")"""
         enclusure = """
         # precompile_enclusre (don't edit the following!)
         should_precompile = true
+        ismultios = false
         @static if should_precompile
-
-
+            @static if !ismultios
+                include($precompile_path)
+            end
         end # precompile_enclusure
+        _precompile_()
         """
         Base.write(includer_file, enclusure)
     end
