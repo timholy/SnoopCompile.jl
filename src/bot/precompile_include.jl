@@ -48,28 +48,36 @@ end
 """
     new_includer_file(package_path::String, precompile_path::String)
 
-Creates a "precompile_includer.jl" file if it doesn't exist.
+Creates a "precompile_includer.jl" file.
 """
-function new_includer_file(package_path::String, precompile_path::String, overwrite::Bool)
+function new_includer_file(package_name::String, package_path::String, precompile_path::String, os::Union{Vector{String}, Nothing})
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
-    if isfile(includer_file) && !overwrite
-        @info "$includer_file already exists"
-        return nothing
+
+    if isnothing(os)
+        multiosstr = ""
     else
-        @info """$includer_file file will be $(!overwrite ? "created" : "overwritten")"""
-        enclusure = """
-        # precompile_enclusre (don't edit the following!)
-        should_precompile = true
-        ismultios = false
-        @static if should_precompile
-            @static if !ismultios
-                include($precompile_path)
-            end
-        end # precompile_enclusure
-        _precompile_()
-        """
-        Base.write(includer_file, enclusure)
+        multiosstr = ""
+        for eachos in os
+            multiosstr = multiosstr * """elseif Sys.is$eachos
+            include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+            """
+        end
     end
+
+    @info "$includer_file file will be created/overwritten"
+    enclusure = """
+    # precompile_enclusre (don't edit the following!)
+    should_precompile = true
+    ismultios = false
+    @static if should_precompile
+        @static if !ismultios
+            include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
+        $multiosstr
+        end
+    end # precompile_enclusure
+    _precompile_()
+    """
+    Base.write(includer_file, enclusure)
 end
 ################################################################
 """
