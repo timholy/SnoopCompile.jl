@@ -43,7 +43,8 @@ function new_includer_file(package_name::String, package_path::String, os::Union
         multiosstr = ""
         for eachos in os
             multiosstr = multiosstr * """elseif Sys.is$eachos()
-                     include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                _precompile_()
             """
         end
         ismultios = true
@@ -54,13 +55,13 @@ function new_includer_file(package_name::String, package_path::String, os::Union
     # precompile_enclusre (don't edit the following!)
     should_precompile = true
     ismultios = $ismultios
-    @static if should_precompile
-        @static if !ismultios
-            include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
-        $multiosstr
-        end
+    @static if !should_precompile
+            # nothing
+    elseif !ismultios
+        include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
+        _precompile_()
+    $multiosstr
     end # precompile_enclusure
-    _precompile_()
     """
     Base.write(includer_file, enclusure)
 end
