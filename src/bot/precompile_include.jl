@@ -113,17 +113,17 @@ function add_includer(package_path::String)
             code = """
             "include("precompile_includer.jl")"
             """
-            insert!(lines,iLine-1,code) # add new empty line before the end
+            insert!(package_lines,endline-1,code) # add new empty line before the end
         catch e
             @error("Error occured during writing", e)
             return nothing
         end
 
         # write the lines
-        if lines != nothing
+        if package_lines != nothing
             open(package_path, "w") do io
-                for l in lines
-                    write(io, l)
+                for l in package_lines
+                    Base.write(io, l)
                 end
             end
         end
