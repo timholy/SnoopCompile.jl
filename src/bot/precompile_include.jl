@@ -1,10 +1,11 @@
 """
     detectOS()
 
-Returns Operating System of a machine as a string.
+Returns Operating System of a machine as a string as the 1st output and the osfun as the 2nd output.
 """
 function detectOS()
-allos = [Sys.iswindows,
+allos_funs = [
+         Sys.iswindows,
          Sys.isapple,
          Sys.islinux,
          Sys.isbsd,
@@ -13,13 +14,13 @@ allos = [Sys.iswindows,
          Sys.isnetbsd,
          Sys.isopenbsd,
          Sys.isjsvm]
-    for os in allos
-        if os()
-            output = string(os)[3:end]
+    for osfun in allos_funs
+        if osfun()
+            os = string(osfun)[3:end]
             break
         end
     end
-    return output
+    return os, osfun
 end
 ################################################################
 """
@@ -38,7 +39,7 @@ function precompile_pather(package_name::String, ismultios::Bool)
         return "\"../deps/SnoopCompile/precompile/precompile_$package_name.jl\"",
         "$(pwd())/deps/SnoopCompile/precompile/"
     else
-        os = detectos()
+        os = detectos()[1]
         return "\"../deps/SnoopCompile/precompile/$os/precompile_$package_name.jl\"",
         "$(pwd())/deps/SnoopCompile/precompile/$os"
     end
