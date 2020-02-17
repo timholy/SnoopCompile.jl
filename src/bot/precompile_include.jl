@@ -52,9 +52,10 @@ function new_includer_file(package_name::String, package_path::String, os::Union
 
     @info "$includer_file file will be created/overwritten"
     enclusure = """
-    # precompile_enclusre (don't edit the following!)
+    # precompile_enclusre
     should_precompile = true
     ismultios = $ismultios
+    # Don't edit the following!
     @static if !should_precompile
             # nothing
     elseif !ismultios
@@ -67,11 +68,11 @@ function new_includer_file(package_name::String, package_path::String, os::Union
 end
 ################################################################
 """
-    add_includer(package_path::String)
+    add_includer(package_name::String, package_path::String)
 
 Writes the `include(precompile_includer.jl)` to the package file.
 """
-function add_includer(package_path::String)
+function add_includer(package_name::String, package_path::String)
     if !isfile(package_path)
         error("$package_path file doesn't exist")
     end
@@ -79,11 +80,17 @@ function add_includer(package_path::String)
     # read package
     package_text = Base.read(package_path, String)
 
-    # Checks if any other precompile code already exists
+    # Checks if any other precompile code already exists (only finds explicitly written _precompile_)
     if occursin("_precompile_()",package_text)
-        error("""Please remove `_precompile_()` and any other code that includes a `_precompile_()` function from $package_path
-        New version of SnoopCompile automatically creates the code.
-        """)
+        if occursin("""include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")""", package_text)
+            # removing SnoopCompile < v"1.2.2" code
+            replace(package_text, "_precompile_()"=>"")
+            replace(package_text, """include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")"""=>"")
+        else
+            error("""Please remove `_precompile_()` and any other code that includes a `_precompile_()` function from $package_path
+            SnoopCompile automatically creates the code.
+            """)
+        end
     elseif occursin(r"#\s*include\(\"precompile_includer.jl\"\)", package_text)
         error("""Please uncomment `\"include(\"precompile_includer.jl\")\"`
         Set `should_precompile = false` instead for disabling precompilation.

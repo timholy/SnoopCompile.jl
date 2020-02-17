@@ -31,7 +31,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     package_path = joinpath(pwd(),"src","$package_name.jl")
 
     new_includer_file(package_name, package_path, os) # create an precompile includer file
-    add_includer(package_path) # add the code to packages source for including the includer
+    add_includer(package_name, package_path) # add the code to packages source for including the includer
 
     # precompile folder for writing
     if  isnothing(os)
