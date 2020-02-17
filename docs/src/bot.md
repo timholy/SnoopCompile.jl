@@ -38,14 +38,14 @@ jobs:
       - name: Install dependencies
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate();'
-          julia -e 'using Pkg; Pkg.add(PackageSpec(url = \"https://github.com/aminya/SnoopCompile.jl\", rev = \"multios\")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
-        shell: pwsh
+          julia -e 'using Pkg; Pkg.add(PackageSpec(url = "https://github.com/aminya/SnoopCompile.jl", rev = "multios")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
+        shell: bash
       - name: Generating precompile files
-        run: julia --project=@. -e 'include(\"deps/SnoopCompile/snoopCompile.jl\")'
-        shell: pwsh
+        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopCompile.jl")'
+        shell: bash
       - name: Running Benchmark
-        run: julia --project=@. -e 'include(\"deps/SnoopCompile/snoopBenchmark.jl\")'
-        shell: pwsh
+        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
+        shell: bash
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
