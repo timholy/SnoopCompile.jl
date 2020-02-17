@@ -36,15 +36,16 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - name: Install dependencies
-        run: julia --project -e 'using Pkg; Pkg.instantiate();'
-      - name : Add SnoopCompile and current package
-        run: julia -e 'using Pkg; Pkg.add("SnoopCompile"); Pkg.develop(PackageSpec(; path=pwd()));'
-      - name: Install Test dependencies
-        run: julia -e 'using SnoopCompile; SnoopCompile.addtestdep()'
+        run: |
+          julia --project -e 'using Pkg; Pkg.instantiate();'
+          julia -e 'using Pkg; Pkg.add(PackageSpec(url = \"https://github.com/aminya/SnoopCompile.jl\", rev = \"multios\")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
+        shell: pwsh
       - name: Generating precompile files
-        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopCompile.jl")'
+        run: julia --project=@. -e 'include(\"deps/SnoopCompile/snoopCompile.jl\")'
+        shell: pwsh
       - name: Running Benchmark
-        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
+        run: julia --project=@. -e 'include(\"deps/SnoopCompile/snoopBenchmark.jl\")'
+        shell: pwsh
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
@@ -56,8 +57,6 @@ jobs:
           title: "${{ matrix.os }} [AUTO] Update precompile_*.jl file'"
           labels: SnoopCompile
           branch: "create-pull-request/SnoopCompile/${{ matrix.os }}"
-      - name: Check output environment variable
-        run: echo "Pull Request Number - ${{ env.PULL_REQUEST_NUMBER }}"
 ```
 `Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it. In this case, if your examples or tests have dependencies, you should add a `Test.toml` to your test folder.
 
