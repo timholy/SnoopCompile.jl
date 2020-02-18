@@ -32,6 +32,8 @@ end
     new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
 
 Creates a "precompile_includer.jl" file.
+
+`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
 function new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
@@ -51,7 +53,7 @@ function new_includer_file(package_name::String, package_path::String, os::Union
     end
 
     @info "$includer_file file will be created/overwritten"
-    enclusure = """
+    enclosure = """
     # precompile_enclusre
     should_precompile = true
     ismultios = $ismultios
@@ -62,15 +64,17 @@ function new_includer_file(package_name::String, package_path::String, os::Union
         include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
         _precompile_()
     $multiosstr
-    end # precompile_enclusure
+    end # precompile_enclosure
     """
-    Base.write(includer_file, enclusure)
+    Base.write(includer_file, enclosure)
 end
 ################################################################
 """
     add_includer(package_name::String, package_path::String)
 
 Writes the `include(precompile_includer.jl)` to the package file.
+
+`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
 function add_includer(package_name::String, package_path::String)
     if !isfile(package_path)

@@ -4,7 +4,7 @@
 
 Activates precompile of a package by setting `should_precompile = true`
 
-`package_path` is the same as `pathof`. However, `pathof(module)` isn't used to prevent loadnig the package.
+`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
 function precompile_activator(package_path::String)
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
@@ -28,7 +28,7 @@ end
 
 Deactivates precompile of a package by setting `should_precompile = false`
 
-`package_path` is the same as `pathof`. However, `pathof(module)` isn't used to prevent loadnig the package.
+`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
 function precompile_deactivator(package_path::String)
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
