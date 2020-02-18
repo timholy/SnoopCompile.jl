@@ -41,10 +41,10 @@ jobs:
           julia -e 'using Pkg; Pkg.add(PackageSpec(url = "https://github.com/aminya/SnoopCompile.jl", rev = "multios")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
         shell: bash
       - name: Generating precompile files
-        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopCompile.jl")'
+        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bot.jl")'
         shell: bash
       - name: Running Benchmark
-        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
+        run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bench.jl")'
         shell: bash
 
       # https://github.com/marketplace/actions/create-pull-request
@@ -74,7 +74,7 @@ For example for MatLang package:
 
 - Precompile script
 
-Add a `snoopCompile.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
+Add a `snoopi_bot.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
 
 
 For example, some examples that call the functions:
@@ -90,7 +90,7 @@ using SnoopCompile
   include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
 end
 ```
-[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopCompile.jl)
+[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bot.jl)
 
 or if you do not have additional examples, you can use your runtests.jl file using this syntax:
 
@@ -114,7 +114,7 @@ using SnoopCompile
 
 ## Benchmark
 
-To measure the effect of adding precompile files. Add a `snoopBenchmark.jl`. The content of this file can be the following:
+To measure the effect of adding precompile files. Add a `snoopi_bench.jl`. The content of this file can be the following:
 
 Benchmarking the load infer time
 ```julia
@@ -140,12 +140,12 @@ Benchmarking the tests:
 ```julia
 @snoopi_bench BotConfig("MatLang")
 ```
-[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopBenchmark.jl)
+[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
 
 
 To run the benchmark online, add the following to your yaml file after `Generating precompile files` step:
 
 ```yaml
 - name: Running Benchmark
-  run: julia --project=@. -e 'include("deps/SnoopCompile/snoopBenchmark.jl")'
+  run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bench.jl")'
 ```
