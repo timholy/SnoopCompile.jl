@@ -74,55 +74,57 @@ cd(@__DIR__)
     package_path2 = joinpath(pwd(),"$package_name2.jl")
     Pkg.develop(PackageSpec(path=package_path2))
 
-    @testset "snoopi_bot" begin
-        cd(package_path)
+    if VERSION >=  v"1.2"
+        @testset "snoopi_bot" begin
+            cd(package_path)
 
-        using SnoopCompile
-        include("TestPackage.jl/deps/SnoopCompile/snoopi_bot.jl")
+            using SnoopCompile
+            include("TestPackage.jl/deps/SnoopCompile/snoopi_bot.jl")
 
-        @test isfile("deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+            @test isfile("deps/SnoopCompile/precompile/precompile_TestPackage.jl")
 
-        precompile_text = Base.read("deps/SnoopCompile/precompile/precompile_TestPackage.jl", String)
+            precompile_text = Base.read("deps/SnoopCompile/precompile/precompile_TestPackage.jl", String)
 
-        @test occursin("hello", precompile_text)
-        @test occursin("domath", precompile_text)
-    end
-
-    @testset "snoopi_bench" begin
-        cd(package_path)
-
-        using SnoopCompile
-        include("TestPackage.jl/deps/SnoopCompile/snoopi_bench.jl")
-    end
-
-    @testset "snoopi_bot_multios" begin
-        cd(package_path2)
-
-        os, osfun = SnoopCompile.detectOS()
-
-        using SnoopCompile
-        include("TestPackage2.jl/deps/SnoopCompile/snoopi_bot_multios.jl")
-
-        @test isfile("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
-
-        precompile_text = Base.read("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
-
-        if os == "windows"
-            @test occursin("hello2", precompile_text)
-            @test !occursin("domath2", precompile_text)
-        else
-            @test !occursin("hello2", precompile_text)
-            @test occursin("domath2", precompile_text)
+            @test occursin("hello", precompile_text)
+            @test occursin("domath", precompile_text)
         end
+
+        @testset "snoopi_bench" begin
+            cd(package_path)
+
+            using SnoopCompile
+            include("TestPackage.jl/deps/SnoopCompile/snoopi_bench.jl")
+        end
+
+        @testset "snoopi_bot_multios" begin
+            cd(package_path2)
+
+            os, osfun = SnoopCompile.detectOS()
+
+            using SnoopCompile
+            include("TestPackage2.jl/deps/SnoopCompile/snoopi_bot_multios.jl")
+
+            @test isfile("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
+
+            precompile_text = Base.read("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
+
+            if os == "windows"
+                @test occursin("hello2", precompile_text)
+                @test !occursin("domath2", precompile_text)
+            else
+                @test !occursin("hello2", precompile_text)
+                @test occursin("domath2", precompile_text)
+            end
+        end
+
+        @testset "snoopi_bench-multios" begin
+            cd(package_path2)
+
+            using SnoopCompile
+            include("TestPackage2.jl/deps/SnoopCompile/snoopi_bench.jl")
+        end
+
+        # workflow.yml file is tested online:
+        # https://github.com/aminya/Example.jl/actions
     end
-
-    @testset "snoopi_bench-multios" begin
-        cd(package_path2)
-
-        using SnoopCompile
-        include("TestPackage2.jl/deps/SnoopCompile/snoopi_bench.jl")
-    end
-
-    # workflow.yml file is tested online:
-    # https://github.com/aminya/Example.jl/actions
 end
