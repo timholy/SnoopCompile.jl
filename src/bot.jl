@@ -1,12 +1,11 @@
 export BotConfig, @snoopi_bot, @snoopi_bench
 
-const UStrings = Union{AbstractString,Regex,AbstractChar}
-
-
 if VERSION <=  v"1.1"
     isnothing(x) = x == nothing
 end
 ################################################################
+const UStrings = Union{AbstractString,Regex,AbstractChar}
+
 """
     BotConfig
 
@@ -31,12 +30,12 @@ BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
 """
 struct BotConfig
     package_name::String
-    subst::Vector{Pair{T1, T2}} where {T1<:UStrings, T2 <: UStrings}
-    blacklist::Vector{T3} where {T3<:UStrings}
+    subst::Vector{Pair{UStrings, UStrings}}
+    blacklist::Vector{UStrings}
     os::Union{Vector{String}, Nothing}
 end
 
-function BotConfig(package_name::String; subst::Vector{Pair{T1, T2}} where {T1<:UStrings, T2 <: UStrings} = Vector{Pair{String, String}}(), blacklist::Vector{T3} where {T3<:UStrings}= String[], os::Union{Vector{String}, Nothing} = nothing)
+function BotConfig(package_name::AbstractString; subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector= UStrings[], os::Union{Vector{String}, Nothing} = nothing)
     return BotConfig(package_name, subst, blacklist, os)
 end
 
