@@ -12,7 +12,7 @@ const UStrings = Union{AbstractString,Regex,AbstractChar}
 Config object that holds the options and configuration for the SnoopCompile bot. This object is fed to the `@snoopi_bot`.
 
 # Arguments:
-- `package_name::String`
+- `package_name::AbstractString`
 
 ## optional:
 
@@ -29,7 +29,7 @@ BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
 ```
 """
 struct BotConfig
-    package_name::String
+    package_name::AbstractString
     subst::Vector{Pair{UStrings, UStrings}}
     blacklist::Vector{UStrings}
     os::Union{Vector{String}, Nothing}

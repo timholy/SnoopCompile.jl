@@ -54,8 +54,8 @@ end
 
 ################################################################
 """
-    @snoopi_bench(package_name::String, snoop_script::Expr)
-    @snoopi_bench(package_name::String)
+    @snoopi_bench(package_name::AbstractString, snoop_script::Expr)
+    @snoopi_bench(package_name::AbstractString)
 
 Performs an infertime benchmark by activating and deactivating the _precompile_()
 # Examples
@@ -79,7 +79,7 @@ println("examples infer benchmark")
 end
 ```
 """
-macro snoopi_bench(package_name::String, snoop_script::Expr)
+macro snoopi_bench(package_name::AbstractString, snoop_script::Expr)
 
     ################################################################
     package_path = joinpath(pwd(),"src","$package_name.jl")
@@ -121,14 +121,14 @@ macro snoopi_bench(package_name::String, snoop_script::Expr)
 end
 
 """
-    @snoopi_bench package_name::String
+    @snoopi_bench package_name::AbstractString
 
 Benchmarking the infer time of the tests:
 ```julia
 @snoopi_bench "MatLang"
 ```
 """
-macro snoopi_bench(package_name::String)
+macro snoopi_bench(package_name::AbstractString)
     package = Symbol(package_name)
     snoop_script = :(
         using $(package);

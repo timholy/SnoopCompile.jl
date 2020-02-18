@@ -29,13 +29,13 @@ allos_funs = [
 end
 ################################################################
 """
-    new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
+    new_includer_file(package_name::AbstractString, package_path::AbstractString, os::Union{Vector{String}, Nothing})
 
 Creates a "precompile_includer.jl" file.
 
 `package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
-function new_includer_file(package_name::String, package_path::String, os::Union{Vector{String}, Nothing})
+function new_includer_file(package_name::AbstractString, package_path::AbstractString, os::Union{Vector{String}, Nothing})
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
 
     if isnothing(os)
@@ -70,13 +70,13 @@ function new_includer_file(package_name::String, package_path::String, os::Union
 end
 ################################################################
 """
-    add_includer(package_name::String, package_path::String)
+    add_includer(package_name::AbstractString, package_path::AbstractString)
 
 Writes the `include(precompile_includer.jl)` to the package file.
 
 `package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
-function add_includer(package_name::String, package_path::String)
+function add_includer(package_name::AbstractString, package_path::AbstractString)
     if !isfile(package_path)
         error("$package_path file doesn't exist")
     end
