@@ -35,7 +35,7 @@ struct BotConfig
     os::Union{Vector{String}, Nothing}
 end
 
-function BotConfig(package_name::AbstractString; subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector= UStrings[], os::Union{Vector{String}, Nothing} = nothing)
+function BotConfig(package_name::AbstractString; subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector = String[], os::Union{Vector{String}, Nothing} = nothing)
     return BotConfig(package_name, subst, blacklist, os)
 end
 

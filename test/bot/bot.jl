@@ -78,7 +78,6 @@ cd(@__DIR__)
         @testset "snoopi_bot" begin
             cd(package_path)
 
-            using SnoopCompile
             include("TestPackage.jl/deps/SnoopCompile/snoopi_bot.jl")
 
             @test isfile("deps/SnoopCompile/precompile/precompile_TestPackage.jl")
@@ -92,7 +91,6 @@ cd(@__DIR__)
         @testset "snoopi_bench" begin
             cd(package_path)
 
-            using SnoopCompile
             include("TestPackage.jl/deps/SnoopCompile/snoopi_bench.jl")
         end
 
@@ -101,7 +99,6 @@ cd(@__DIR__)
 
             os, osfun = SnoopCompile.detectOS()
 
-            using SnoopCompile
             include("TestPackage2.jl/deps/SnoopCompile/snoopi_bot_multios.jl")
 
             @test isfile("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
@@ -120,7 +117,6 @@ cd(@__DIR__)
         @testset "snoopi_bench-multios" begin
             cd(package_path2)
 
-            using SnoopCompile
             include("TestPackage2.jl/deps/SnoopCompile/snoopi_bench.jl")
         end
 

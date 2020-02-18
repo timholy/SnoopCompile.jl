@@ -63,7 +63,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     end
 end
 
-macro snoopi_bot(package_name::AbstractString, snoop_script)
+macro snoopi_bot(package_name::String, snoop_script)
     config = BotConfig(package_name)
     return quote
         @snoopi_bot $config $(esc(snoop_script))
@@ -103,7 +103,7 @@ macro snoopi_bot(config::BotConfig)
     end
 end
 
-macro snoopi_bot(package_name::AbstractString)
+macro snoopi_bot(package_name::String)
     config = BotConfig(package_name)
     return quote
         @snoopi_bot $config
