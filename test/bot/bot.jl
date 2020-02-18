@@ -85,6 +85,7 @@ cd(@__DIR__)
         precompile_text = Base.read("deps/SnoopCompile/precompile/precompile_TestPackage.jl", String)
 
         @test occursin("hello", precompile_text)
+        @test occursin("domath", precompile_text)
     end
 
     @testset "snoopi_bench" begin
@@ -106,8 +107,13 @@ cd(@__DIR__)
 
         precompile_text = Base.read("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
 
-        @test occursin("hello2", precompile_text)
-        @test !occursin("domath2", precompile_text)
+        if os == "windows"
+            @test occursin("hello2", precompile_text)
+            @test !occursin("domath2", precompile_text)
+        else
+            @test !occursin("hello2", precompile_text)
+            @test occursin("domath2", precompile_text)
+        end
     end
 
     @testset "snoopi_bench-multios" begin

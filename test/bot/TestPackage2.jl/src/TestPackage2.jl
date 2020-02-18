@@ -4,7 +4,7 @@ export hello2, domath2
 @static if Sys.iswindows()
   hello2(who::String) = "Hello, $who"
 
-elseif Sys.islinux() || Sys.isapple()
+else
   domath2(x::Number) = x + 5
 
 end
