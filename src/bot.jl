@@ -7,14 +7,14 @@ end
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
 """
-    BotConfig
+    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [])
 
-Config object that holds the options and configuration for the SnoopCompile bot. This object is fed to the `@snoopi_bot`.
+Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `@snoopi_bot`.
 
 # Arguments:
 - `package_name::AbstractString`
 
-## optional:
+You may supply the following keyword arguments:
 
 - `subst` : A vector of pairs of Strings (or RegExp) to replace a packages precompile setences with another's package like `["ImageTest" => "Images"]`.
 
