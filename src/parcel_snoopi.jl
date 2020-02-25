@@ -194,7 +194,7 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
 end
 
 function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
-    pc = Dict{Symbol, Vector{String}}()      # output
+    pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
     for (t, mi) in reverse(tinf)
@@ -216,7 +216,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         # If we haven't yet started the list for this module, initialize
         topmodname = nameof(topmod)
         if !haskey(pc, topmodname)
-            pc[topmodname] = String[]
+            pc[topmodname] = Set{String}()
             # For testing our precompile directives, we might need to have lookup available
             if VERSION >= v"1.4.0-DEV.215" && topmod !== Core && !isdefined(topmod, :__bodyfunction__)
                 Core.eval(topmod, lookup_kwbody_ex)
@@ -298,7 +298,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
             add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
     end
-    return pc
+    return Dict(mod=>collect(lines) for (mod, lines) in pc)
 end
 
 """
@@ -312,7 +312,7 @@ pcI = ["good","bad","hi","bye","no"]
 SnoopCompile.blacklist_remover!(pcI, blacklist)
 ```
 """
-function blacklist_remover!(pcI, blacklist)
+function blacklist_remover!(pcI::AbstractVector, blacklist)
     idx = Int[]
     for (iLine, line) in enumerate(pcI)
         if any(occursin.(blacklist, line))
@@ -321,4 +321,15 @@ function blacklist_remover!(pcI, blacklist)
     end
     deleteat!(pcI, idx)
     return pcI
+end
+
+function blacklist_remover!(pcI::AbstractSet, blacklist)
+    # We can't just use `setdiff!` because this is a substring search
+    todelete = Set{eltype(pcI)}()
+    for line in pcI
+        if any(occursin.(blacklist, line))
+            push!(todelete, line)
+        end
+    end
+    return setdiff!(pcI, todelete)
 end
