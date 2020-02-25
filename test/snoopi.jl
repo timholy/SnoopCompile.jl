@@ -202,3 +202,17 @@ end
     dct = Docs.meta(SnoopCompile)
     @test haskey(dct, Docs.Binding(SnoopCompile, Symbol("@snoopi")))
 end
+
+@testset "Duplicates (#70)" begin
+    tinf = @snoopi begin
+        function eval_local_function(i)
+            @eval generated() = $i
+            return Base.invokelatest(generated)
+        end
+        eval_local_function(1)
+        eval_local_function(2)
+        eval_local_function(3)
+    end
+    pc = SnoopCompile.parcel(tinf)
+    @test count(isequal("precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
+end
