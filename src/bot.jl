@@ -7,7 +7,7 @@ end
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
 """
-    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [])
+    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [], else_os = nothing, version = [], else_version = nothing)
 
 Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `@snoopi_bot`.
 
@@ -20,12 +20,40 @@ You may supply the following keyword arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile sentences
 
-- `os`: A vector of of Strings (or RegExp) to give the list of os that you want to generate precompile signatures for. Each element will call a `Sys.is\$eachos()` function.
+- `os`: A vector of of Strings (or RegExp) to give the list of os that you want to generate precompile signatures for. Each element will call a `Sys.is\$eachos()` function, and it will be checked by order.
 
+Example: `os = ["windows", "linux"]`
+
+- `else_os`: If you want to use the last run for `else` give `else_os` the name of the os that runs last.
+
+Example: `else_os = "linux"`
+
+- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. Each element will call a `VERSION <=\$eachversion` function, and it will be checked by order (give from old to new).
+
+Example: `version = [v"1.1", v"1.3.1"]`
+
+- `else_vresion`: If you want to use the last run for `else` give `else_version` the version of julia that runs last.
+
+Example: `else_version = v"1.3.1"`
 
 # Example
 ```julia
-BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
+# Different examples for showing some possibilities:
+BotConfig("MatLang")
+
+BotConfig("MatLang", blacklist = ["badfunction"])
+
+BotConfig("MatLang", os = ["linux", "windows"])
+
+BotConfig("MatLang", os = ["windows", "linux"], else_os = "linux")
+
+BotConfig("MatLang", version = [v"1.1", v"1.3.1"])
+
+BotConfig("MatLang", version = [v"1.1", v"1.3.1"], else_version = v"1.3.1")
+
+BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.3.1"])
+
+# etc
 ```
 """
 struct BotConfig
@@ -33,10 +61,19 @@ struct BotConfig
     subst::Vector{Pair{UStrings, UStrings}}
     blacklist::Vector{UStrings}
     os::Union{Vector{String}, Nothing}
+    else_os::Union{String, Nothing}
+    version::Union{Vector{VersionNumber}, Nothing}
+    else_version::Union{VersionNumber, Nothing}
 end
 
-function BotConfig(package_name::AbstractString; subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector = String[], os::Union{Vector{String}, Nothing} = nothing)
-    return BotConfig(package_name, subst, blacklist, os)
+function BotConfig(
+    package_name::AbstractString;
+    subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector = String[],
+    os::Union{Vector{String}, Nothing} = nothing,
+    else_os::Union{String, Nothing} = nothing,
+    version::Union{Vector{VersionNumber}, Nothing} = nothing,
+    else_version::Union{VersionNumber, Nothing} = nothing)
+    return BotConfig(package_name, subst, blacklist, os, else_os, version, else_version)
 end
 
 include("bot/botutils.jl")
