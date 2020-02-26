@@ -27,17 +27,48 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     blacklist = config.blacklist
     subst = config.subst
     os = config.os
+    else_os = config.else_os
+    vresion = config.version
+    else_version = config.else_version
     ################################################################
     package_path = joinpath(pwd(),"src","$package_name.jl")
 
-    new_includer_file(package_name, package_path, os) # create an precompile includer file
+    new_includer_file(package_name, package_path, os, else_os, version, else_version) # create an precompile includer file
     add_includer(package_name, package_path) # add the code to packages source for including the includer
 
     # precompile folder for writing
     if  isnothing(os)
-        precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/"
+        if isnothing(version)
+            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/"
+        else
+            if !isnothing(else_version) && VERSION == else_version
+                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_version"
+            else
+                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(VERSION)"
+            end
+        end
     else
-        precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
+        if isnothing(version)
+            if !isnothing(else_os) && detectOS()[1] == else_os
+                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os"
+            else
+                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
+            end
+        else
+            if !isnothing(else_os) && detectOS()[1] == else_os
+                if !isnothing(else_version) && VERSION == else_version
+                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os/else_version"
+                else
+                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os/$(VERSION)"
+                end
+            else
+                if !isnothing(else_version) && VERSION == else_version
+                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/else_version"
+                else
+                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/$(VERSION)"
+                end
+            end
+        end
     end
 
     quote
