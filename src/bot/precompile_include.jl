@@ -29,41 +29,170 @@ allos_funs = [
 end
 ################################################################
 """
-    new_includer_file(package_name::AbstractString, package_path::AbstractString, os::Union{Vector{String}, Nothing})
+    new_includer_file(
+        package_name::AbstractString,
+        package_path::AbstractString,
+        os::Union{Vector{String}, Nothing},
+        else_os::Union{String, Nothing},
+        version::Union{Vector{VersionNumber}, Nothing},
+        else_version::Union{VersionNumber, Nothing})
 
 Creates a "precompile_includer.jl" file.
 
 `package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
 """
-function new_includer_file(package_name::AbstractString, package_path::AbstractString, os::Union{Vector{String}, Nothing})
+function new_includer_file(
+    package_name::AbstractString,
+    package_path::AbstractString,
+    os::Union{Vector{String}, Nothing},
+    else_os::Union{String, Nothing},
+    version::Union{Vector{VersionNumber}, Nothing},
+    else_version::Union{VersionNumber, Nothing})
+
     includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
 
     if isnothing(os)
-        multiosstr = ""
         ismultios = false
-    else
-        multiosstr = ""
-        for eachos in os
-            multiosstr = multiosstr * """elseif Sys.is$eachos()
-                include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+
+        if isnothing(version)
+            ismultiversion = false
+            multiversionstr = ""
+
+        else
+            ismultiversion = true
+            version_length = length(version)
+            multiversionstr = """@static if VERSION <= $(version[1])
+                include("../deps/SnoopCompile/precompile/$(version[1])/precompile_$package_name.jl")
                 _precompile_()
             """
-        end
+            if length(version) > 1
+                for (iVersion, eachversion) in enumerate(version[2:end])
+                    if iVersion == version_length
+                        if isnothing(else_version)
+                            version_elsephrase = "elseif VERSION <= $eachversion"
+                        else
+                            version_elsephrase = "else"
+                            eachversion = "else_version"
+                        end
+                    else
+                        version_elsephrase = "elseif VERSION <= $eachversion"
+                    end
+                multiversionstr = multiversionstr * """$version_elsephrase
+                    include("../deps/SnoopCompile/precompile/$eachversion/precompile_$package_name.jl")
+                    _precompile_()
+                """
+                end # for version
+            end # if length versoin
+
+        end #if nothing vesion
+
+        multistr = """$multiversionstr
+            end
+        """
+
+    else
         ismultios = true
-    end
+        os_length = length(os)
+        if isnothing(version)
+            ismultiversion = false
+            multistr = """@static if Sys.is$(os[1])()
+                include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
+                _precompile_()
+            """
+            if length(os) > 1
+                for (iOs, eachos) in enumerate(os[2:end])
+                    if iOs == os_length
+                        if isnothing(else_os)
+                            os_elsephrase = "elseif Sys.is$eachos()"
+                        else
+                            os_elsephrase = "else"
+                            eachos = "else_os"
+                        end
+                    else
+                        os_elsephrase = "elseif Sys.is$eachos()"
+                    end
+                    multistr = multistr * """$os_elsephrase
+                        include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                        _precompile_()
+                    """
+                end # for os
+            end # if length os
+        else
+            ismultiversion = true
+            multistr = """@static if Sys.is$(os[1])()
+                include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
+                _precompile_()
+            """
+            if length(os) > 1
+                for (iOs, eachos) in enumerate(os[2:end])
+
+                    if iOs == os_length
+                        if isnothing(else_os)
+                            os_elsephrase = "elseif Sys.is$eachos()"
+                        else
+                            os_elsephrase = "else"
+                            eachos = "else_os"
+                        end
+                    else
+                        os_elsephrase = "elseif Sys.is$eachos()"
+                    end
+
+                    multiversionstr = """@static if VERSION <= $(version[1])
+                        include("../deps/SnoopCompile/precompile/$eachos/$(version[1])/precompile_$package_name.jl")
+                        _precompile_()
+                    """
+                    if length(version) > 1
+                        for (iVersion, eachversion) in enumerate(version[2:end])
+
+                            if iVersion == version_length
+                                if isnothing(else_version)
+                                    version_elsephrase = "elseif VERSION <= $eachversion"
+                                else
+                                    version_elsephrase = "else"
+                                    eachversion = "else_version"
+                                end
+                            else
+                                version_elsephrase = "elseif VERSION <= $eachversion"
+                            end
+
+                            multiversionstr = multiversionstr * """$version_elsephrase
+                            include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
+                            _precompile_()
+                            """
+                        end # for version
+                    end # if length version
+
+                    multiversionstr = multiversionstr *"""
+                        end
+                    """
+
+                    multistr = multistr * """$os_elsephrase
+                        $multiversionstr
+                    """
+                end # for os
+            end #if length os
+
+        end # if nothing version
+
+        multistr = multistr * """
+            end
+        """
+    end # if nothing os
 
     @info "$includer_file file will be created/overwritten"
     enclosure = """
     # precompile_enclusre
     should_precompile = true
     ismultios = $ismultios
+    ismultiversion = $ismultiversion
     # Don't edit the following!
     @static if !should_precompile
             # nothing
-    elseif !ismultios
+    elseif !ismultios && !ismultiversion
         include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
         _precompile_()
-    $multiosstr
+    else
+        $multistr
     end # precompile_enclosure
     """
     Base.write(includer_file, enclosure)
