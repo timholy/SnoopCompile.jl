@@ -9,7 +9,7 @@ cd(@__DIR__)
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
-        SnoopCompile.new_includer_file(package_name, package_path, nothing)
+        SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, nothing, nothing)
         SnoopCompile.add_includer(package_name, package_path)
 
         @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
@@ -34,7 +34,7 @@ cd(@__DIR__)
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
-        SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"])
+        SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, nothing, nothing)
         SnoopCompile.add_includer(package_name, package_path)
 
         @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
