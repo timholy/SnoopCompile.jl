@@ -28,7 +28,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
     subst = config.subst
     os = config.os
     else_os = config.else_os
-    vresion = config.version
+    version = config.version
     else_version = config.else_version
     ################################################################
     package_path = joinpath(pwd(),"src","$package_name.jl")
