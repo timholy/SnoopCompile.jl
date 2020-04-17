@@ -66,7 +66,7 @@ function new_includer_file(
         else
             ismultiversion = true
             version_length = length(version)
-            multiversionstr = """@static if VERSION <= $(version[1])
+            multiversionstr = """@static if VERSION <= v\"$(version[1])\"
                 include("../deps/SnoopCompile/precompile/$(version[1])/precompile_$package_name.jl")
                 _precompile_()
             """
@@ -74,13 +74,13 @@ function new_includer_file(
                 for (iVersion, eachversion) in enumerate(version[2:end])
                     if iVersion == version_length
                         if isnothing(else_version)
-                            version_elsephrase = "elseif VERSION <= $eachversion"
+                            version_elsephrase = "elseif VERSION <= v\"$eachversion\""
                         else
                             version_elsephrase = "else"
                             eachversion = "else_version"
                         end
                     else
-                        version_elsephrase = "elseif VERSION <= $eachversion"
+                        version_elsephrase = "elseif VERSION <= v\"$eachversion\""
                     end
                 multiversionstr = multiversionstr * """$version_elsephrase
                     include("../deps/SnoopCompile/precompile/$eachversion/precompile_$package_name.jl")
@@ -143,7 +143,7 @@ function new_includer_file(
                         os_elsephrase = "elseif Sys.is$eachos()"
                     end
 
-                    multiversionstr = """@static if VERSION <= $(version[1])
+                    multiversionstr = """@static if VERSION <= v\"$(version[1])\"
                         include("../deps/SnoopCompile/precompile/$eachos/$(version[1])/precompile_$package_name.jl")
                         _precompile_()
                     """
@@ -152,18 +152,18 @@ function new_includer_file(
 
                             if iVersion == version_length
                                 if isnothing(else_version)
-                                    version_elsephrase = "elseif VERSION <= $eachversion"
+                                    version_elsephrase = "elseif VERSION <= v\"$eachversion\""
                                 else
                                     version_elsephrase = "else"
                                     eachversion = "else_version"
                                 end
                             else
-                                version_elsephrase = "elseif VERSION <= $eachversion"
+                                version_elsephrase = "elseif VERSION <= v\"$eachversion\""
                             end
 
                             multiversionstr = multiversionstr * """$version_elsephrase
-                            include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
-                            _precompile_()
+                                include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
+                                _precompile_()
                             """
                         end # for version
                     end # if length version
@@ -185,15 +185,17 @@ function new_includer_file(
         """
     end # if nothing os
 
-    @info "$includer_file file will be created/overwritten"
-    enclosure = """
-    # precompile_enclusre
+    precompile_config = """
     should_precompile = true
     ismultios = $ismultios
     ismultiversion = $ismultiversion
+
+
+
     # Don't edit the following!
+    # precompile_enclosure
     @static if !should_precompile
-            # nothing
+        # nothing
     elseif !ismultios && !ismultiversion
         include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
         _precompile_()
@@ -201,7 +203,8 @@ function new_includer_file(
         $multistr
     end # precompile_enclosure
     """
-    Base.write(includer_file, enclosure)
+    @info "$includer_file file will be created/overwritten"
+    Base.write(includer_file, precompile_config)
 end
 ################################################################
 """
