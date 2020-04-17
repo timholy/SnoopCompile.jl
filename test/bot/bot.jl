@@ -4,15 +4,22 @@ stripall(x::String) = replace(x, r"\s|\n"=>"")
 
 cd(@__DIR__)
 @testset "bot" begin
-    @testset "precompile_include - single os - single version" begin
+    @testset "add_includer" begin
+        package_name = "TestPackage"
+        package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
+        includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
+
+        SnoopCompile.add_includer(package_name, package_path)
+
+        @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
+    end
+
+    @testset "precompile de/activation" begin
         package_name = "TestPackage"
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
         SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, nothing, nothing)
-        SnoopCompile.add_includer(package_name, package_path)
-
-        @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
 
         SnoopCompile.precompile_deactivator(package_path)
         @test occursin("should_precompile=false", stripall(Base.read(includer_path, String)))
@@ -20,85 +27,240 @@ cd(@__DIR__)
         SnoopCompile.precompile_activator(package_path)
         includer_text = stripall(Base.read(includer_path, String))
         @test occursin("should_precompile=true", includer_text)
-
-        @test occursin("ismultios=false", includer_text)
-
-        @test occursin(stripall("""elseif !ismultios && !ismultiversion
-            include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
     end
 
-    @testset "precompile_include - multi os - single version" begin
-        package_name = "TestPackage2"
+    @testset "precompile new_includer_file" begin
+        package_name = "TestPackage"
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
-        SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, nothing, nothing)
-        SnoopCompile.add_includer(package_name, package_path)
 
-        @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
+        @testset "no os, no else_os, no version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, nothing, nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=false", includer_text)
+            @test occursin("ismultiversion=false", includer_text)
 
-        SnoopCompile.precompile_deactivator(package_path)
-        @test occursin("should_precompile=false", stripall(Base.read(includer_path, String)))
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
 
-        SnoopCompile.precompile_activator(package_path)
-        includer_text = stripall(Base.read(includer_path, String))
+            end
+            """), includer_text)
+        end
 
-        @test occursin("should_precompile=true", includer_text)
+        @testset "yes os, no else_os, no version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, nothing, nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=true", includer_text)
+            @test occursin("ismultiversion=false", includer_text)
 
-        @test occursin("ismultios=true", includer_text)
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if Sys.islinux()
+                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    _precompile_()
+                elseif Sys.iswindows()
+                    include("../deps/SnoopCompile/precompile/windows/precompile_TestPackage.jl")
+                    _precompile_()
+                end
 
-        @test occursin(stripall("""elseif !ismultios && !ismultiversion
-            include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
+            end
+            """), includer_text)
+        end
 
-        @test occursin(stripall("""@static if Sys.islinux()
-            include("../deps/SnoopCompile/precompile/linux/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
+        @testset "yes os, yes else_os, no version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", nothing, nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=true", includer_text)
+            @test occursin("ismultiversion=false", includer_text)
 
-        @test occursin(stripall("""elseif Sys.iswindows()
-            include("../deps/SnoopCompile/precompile/windows/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
-    end
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if Sys.islinux()
+                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    _precompile_()
+                elseif Sys.iswindows()
+                    include("../deps/SnoopCompile/precompile/windows/precompile_TestPackage.jl")
+                    _precompile_()
+                else
+                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    _precompile_()
+                end
 
-    @testset "precompile_include - multi version - single os" begin
-        package_name = "TestPackage3"
-        package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
-        includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
+            end
+            """), includer_text)
+        end
 
-        SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, [v"1.0", v"1.4"], v"1.0")
-        SnoopCompile.add_includer(package_name, package_path)
+        @testset "no os, no else_os, yes version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, [v"1.0", v"1.4.1"], nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=false", includer_text)
+            @test occursin("ismultiversion=true", includer_text)
 
-        @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if VERSION <= v"1.0.0"
+                    include("../deps/SnoopCompile/precompile//1.0.0/precompile_TestPackage.jl")
+                    _precompile_()
+                elseif VERSION <= v"1.4.1"
+                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    _precompile_()
+                end
 
-        SnoopCompile.precompile_deactivator(package_path)
-        @test occursin("should_precompile=false", stripall(Base.read(includer_path, String)))
+            end
+            """), includer_text)
+        end
 
-        SnoopCompile.precompile_activator(package_path)
-        includer_text = stripall(Base.read(includer_path, String))
 
-        @test occursin("should_precompile=true", includer_text)
+        @testset "no os, no else_os, yes version, yes else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, [v"1.0", v"1.4.1"], v"1.4.1")
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=false", includer_text)
+            @test occursin("ismultiversion=true", includer_text)
 
-        @test occursin("ismultiversion=true", includer_text)
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if VERSION <= v"1.0.0"
+                    include("../deps/SnoopCompile/precompile//1.0.0/precompile_TestPackage.jl")
+                    _precompile_()
+                elseif VERSION <= v"1.4.1"
+                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    _precompile_()
+                else
+                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    _precompile_()
+                end
 
-        @test occursin(stripall("""elseif !ismultios && !ismultiversion
-            include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
+            end
+            """), includer_text)
+        end
 
-        @test occursin(stripall("""@static if VERSION <= v"1.0.0"
-            include("../deps/SnoopCompile/precompile/1.0.0/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
+        @testset "yes os, yes else_os, yes version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=true", includer_text)
+            @test occursin("ismultiversion=true", includer_text)
+
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if Sys.islinux()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                elseif Sys.iswindows()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                else
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                end
+
+            end
+            """), includer_text)
+        end
+
+        @testset "yes os, yes else_os, yes version, yes else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], v"1.4.1")
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=true", includer_text)
+            @test occursin("ismultiversion=true", includer_text)
+
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if Sys.islinux()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    else
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                elseif Sys.iswindows()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    else
+                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                else
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    else
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    end
+
+                end
+
+            end
+            """), includer_text)
+        end
         
-        @test occursin(stripall("""elseif VERSION <= v"1.4.0"
-            include("../deps/SnoopCompile/precompile/1.4.0/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
     end
 
     using Pkg;
