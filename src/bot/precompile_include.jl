@@ -40,6 +40,11 @@ end
 Creates a "precompile_includer.jl" file.
 
 `package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
+
+# # Examples
+```julia
+SnoopCompile.new_includer_file("MatLang", pwd(), ["windows", "linux"], "linux", [v"1.0", v"1.4.1"], v"1.0")
+```
 """
 function new_includer_file(
     package_name::AbstractString,
@@ -119,6 +124,7 @@ function new_includer_file(
             end # if length os
         else
             ismultiversion = true
+            version_length = length(version)
             multistr = """@static if Sys.is$(os[1])()
                 include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
                 _precompile_()
