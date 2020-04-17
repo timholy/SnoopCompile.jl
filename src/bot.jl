@@ -28,7 +28,7 @@ Example: `os = ["windows", "linux"]`
 
 Example: `else_os = "linux"`
 
-- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. Each element will call a `VERSION <=\$eachversion` function, and it will be checked by order (give from old to new).
+- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. The versions are sorted automatically and each element will call a `VERSION <=\$eachversion` function.
 
 Example: `version = [v"1.1", v"1.3.1"]`
 

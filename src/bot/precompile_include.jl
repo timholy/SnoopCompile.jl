@@ -65,6 +65,7 @@ function new_includer_file(
 
         else
             ismultiversion = true
+            sort!(version)
             version_length = length(version)
             multiversionstr = """@static if VERSION <= v\"$(version[1])\"
                 include("../deps/SnoopCompile/precompile/$(version[1])/precompile_$package_name.jl")
@@ -122,6 +123,7 @@ function new_includer_file(
             end # if length os
         else
             ismultiversion = true
+            sort!(version)
             version_length = length(version)
             multistr = """@static if Sys.is$(os[1])()
                 include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
