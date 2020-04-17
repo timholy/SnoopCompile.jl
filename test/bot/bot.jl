@@ -23,7 +23,7 @@ cd(@__DIR__)
 
         @test occursin("ismultios=false", includer_text)
 
-        @test occursin(stripall("""elseif !ismultios
+        @test occursin(stripall("""elseif !ismultios && !ismultiversion
             include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
             _precompile_()
         """), includer_text)
@@ -49,18 +49,18 @@ cd(@__DIR__)
 
         @test occursin("ismultios=true", includer_text)
 
-        @test occursin(stripall("""elseif !ismultios
+        @test occursin(stripall("""elseif !ismultios && !ismultiversion
             include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
+            _precompile_()
+        """), includer_text)
+
+        @test occursin(stripall("""@static if Sys.islinux()
+            include("../deps/SnoopCompile/precompile/linux/precompile_$package_name.jl")
             _precompile_()
         """), includer_text)
 
         @test occursin(stripall("""elseif Sys.iswindows()
             include("../deps/SnoopCompile/precompile/windows/precompile_$package_name.jl")
-            _precompile_()
-        """), includer_text)
-
-        @test occursin(stripall("""elseif Sys.islinux()
-            include("../deps/SnoopCompile/precompile/linux/precompile_$package_name.jl")
             _precompile_()
         """), includer_text)
     end
