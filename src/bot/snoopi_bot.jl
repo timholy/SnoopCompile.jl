@@ -41,33 +41,13 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         if isnothing(version)
             precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/"
         else
-            if !isnothing(else_version) && VERSION == else_version
-                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_version"
-            else
-                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(VERSION)"
-            end
+            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(VERSION)"
         end
     else
         if isnothing(version)
-            if !isnothing(else_os) && detectOS()[1] == else_os
-                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os"
-            else
-                precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
-            end
+            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
         else
-            if !isnothing(else_os) && detectOS()[1] == else_os
-                if !isnothing(else_version) && VERSION == else_version
-                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os/else_version"
-                else
-                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/else_os/$(VERSION)"
-                end
-            else
-                if !isnothing(else_version) && VERSION == else_version
-                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/else_version"
-                else
-                    precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/$(VERSION)"
-                end
-            end
+            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/$(VERSION)"
         end
     end
 

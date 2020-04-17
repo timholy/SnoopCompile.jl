@@ -104,25 +104,23 @@ end
 """
 Helper function for multios code generation
 """
-function _multios(os, else_os, package_name, ismultiversion, version = nothing, else_version = nothing)
-    os_length = length(os)
+function _multios(os_in, else_os, package_name, ismultiversion, version = nothing, else_version = nothing)
+    os = copy(os_in)
 
+    if !isnothing(else_os)
+        push!(os, else_os)
+    end
+
+    os_length = length(os)
     multistr = ""
     for (iOs, eachos) in enumerate(os)
 
         if iOs == 1
             os_phrase = "@static if Sys.is$eachos()"
+        elseif iOs == os_length && !isnothing(else_os)
+            os_phrase = "else"
         else
-            if iOs == os_length
-                if isnothing(else_os)
-                    os_phrase = "elseif Sys.is$eachos()"
-                else
-                    os_phrase = "else"
-                    eachos = else_os
-                end
-            else
-                os_phrase = "elseif Sys.is$eachos()"
-            end
+            os_phrase = "elseif Sys.is$eachos()"
         end
         multistr = multistr * "$os_phrase \n"
 
@@ -149,26 +147,25 @@ end
 """
 Helper function for multiversion code generation
 """
-function _multiversion(version, else_version, package_name, eachos = "")
+function _multiversion(version_in, else_version, package_name, eachos = "")
+    version = copy(version_in)
 
     sort!(version)
-    version_length = length(version)
 
+    if !isnothing(else_version)
+        push!(version, else_version)
+    end
+
+    version_length = length(version)
     multiversionstr = ""
     for (iVersion, eachversion) in enumerate(version)
+
         if iVersion == 1
             version_phrase = "@static if VERSION <= v\"$eachversion\""
+        elseif iVersion == version_length && !isnothing(else_version)
+            version_phrase = "else"
         else
-            if iVersion == version_length
-                if isnothing(else_version)
-                    version_phrase = "elseif VERSION <= v\"$eachversion\""
-                else
-                    version_phrase = "else"
-                    eachversion = else_version
-                end
-            else
-                version_phrase = "elseif VERSION <= v\"$eachversion\""
-            end
+            version_phrase = "elseif VERSION <= v\"$eachversion\""
         end
 
         multiversionstr = multiversionstr * """$version_phrase
