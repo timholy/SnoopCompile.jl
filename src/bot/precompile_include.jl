@@ -79,12 +79,11 @@ function new_includer_file(
 
     precompile_config = """
     should_precompile = true
+
+
+    # Don't edit the following! Instead change the script for @snoopi_bot.
     ismultios = $ismultios
     ismultiversion = $ismultiversion
-
-
-
-    # Don't edit the following!
     # precompile_enclosure
     @static if !should_precompile
         # nothing
