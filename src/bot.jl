@@ -78,7 +78,7 @@ end
 
 include("bot/botutils.jl")
 include("bot/precompile_include.jl")
-include("bot/(de)activator.jl")
+include("bot/precompile_activation.jl")
 include("bot/snoopi_bot.jl")
 include("bot/snoopi_bench.jl")
 
