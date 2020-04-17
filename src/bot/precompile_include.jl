@@ -58,7 +58,7 @@ function new_includer_file(
 
     if isnothing(os)
         ismultios = false
-
+        multistr = ""
         if isnothing(version)
             ismultiversion = false
             multiversionstr = ""
@@ -89,12 +89,10 @@ function new_includer_file(
                 end # for version
             end # if length versoin
 
+            multistr = """$multiversionstr
+                end
+            """
         end #if nothing vesion
-
-        multistr = """$multiversionstr
-            end
-        """
-
     else
         ismultios = true
         os_length = length(os)
