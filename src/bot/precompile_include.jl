@@ -62,37 +62,9 @@ function new_includer_file(
         if isnothing(version)
             ismultiversion = false
             multiversionstr = ""
-
         else
             ismultiversion = true
-            sort!(version)
-            version_length = length(version)
-            multiversionstr = """@static if VERSION <= v\"$(version[1])\"
-                include("../deps/SnoopCompile/precompile/$(version[1])/precompile_$package_name.jl")
-                _precompile_()
-            """
-            if length(version) > 1
-                for (iVersion, eachversion) in enumerate(version[2:end])
-                    if iVersion == version_length
-                        if isnothing(else_version)
-                            version_elsephrase = "elseif VERSION <= v\"$eachversion\""
-                        else
-                            version_elsephrase = "else"
-                            eachversion = "else_version"
-                        end
-                    else
-                        version_elsephrase = "elseif VERSION <= v\"$eachversion\""
-                    end
-                multiversionstr = multiversionstr * """$version_elsephrase
-                    include("../deps/SnoopCompile/precompile/$eachversion/precompile_$package_name.jl")
-                    _precompile_()
-                """
-                end # for version
-            end # if length versoin
-
-            multistr = """$multiversionstr
-                end
-            """
+            multiversionstr = _multiversion(version, else_version, package_name)
         end #if nothing vesion
     else
         ismultios = true
@@ -123,8 +95,6 @@ function new_includer_file(
             end # if length os
         else
             ismultiversion = true
-            sort!(version)
-            version_length = length(version)
             multistr = """@static if Sys.is$(os[1])()
                 include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
                 _precompile_()
@@ -143,33 +113,6 @@ function new_includer_file(
                         os_elsephrase = "elseif Sys.is$eachos()"
                     end
 
-                    multiversionstr = """@static if VERSION <= v\"$(version[1])\"
-                        include("../deps/SnoopCompile/precompile/$eachos/$(version[1])/precompile_$package_name.jl")
-                        _precompile_()
-                    """
-                    if length(version) > 1
-                        for (iVersion, eachversion) in enumerate(version[2:end])
-
-                            if iVersion == version_length
-                                if isnothing(else_version)
-                                    version_elsephrase = "elseif VERSION <= v\"$eachversion\""
-                                else
-                                    version_elsephrase = "else"
-                                    eachversion = "else_version"
-                                end
-                            else
-                                version_elsephrase = "elseif VERSION <= v\"$eachversion\""
-                            end
-
-                            multiversionstr = multiversionstr * """$version_elsephrase
-                                include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
-                                _precompile_()
-                            """
-                        end # for version
-                    end # if length version
-
-                    multiversionstr = multiversionstr *"""
-                        end
                     """
 
                     multistr = multistr * """$os_elsephrase
@@ -205,6 +148,42 @@ function new_includer_file(
     """
     @info "$includer_file file will be created/overwritten"
     Base.write(includer_file, precompile_config)
+end
+"""
+Helper function for multiversion code generation
+"""
+function _multiversion(version, else_version, package_name, eachos = "")
+
+    sort!(version)
+    version_length = length(version)
+
+    multiversionstr = ""
+    for (iVersion, eachversion) in enumerate(version)
+        if iVersion == 1
+            version_phrase = "@static if VERSION <= v\"$eachversion\""
+        else
+            if iVersion == version_length
+                if isnothing(else_version)
+                    version_phrase = "elseif VERSION <= v\"$eachversion\""
+                else
+                    version_phrase = "else"
+                    eachversion = else_version
+                end
+            else
+                version_phrase = "elseif VERSION <= v\"$eachversion\""
+            end
+        end
+
+        multiversionstr = multiversionstr * """$version_phrase
+            include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
+            _precompile_()
+        """
+    end # for version
+
+    multiversionstr = multiversionstr * """
+        end
+    """
+    return multiversionstr
 end
 ################################################################
 """
