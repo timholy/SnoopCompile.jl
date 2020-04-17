@@ -43,7 +43,7 @@ Creates a "precompile_includer.jl" file.
 
 # # Examples
 ```julia
-SnoopCompile.new_includer_file("MatLang", pwd(), ["windows", "linux"], "linux", [v"1.0", v"1.4.1"], v"1.0")
+SnoopCompile.new_includer_file("MatLang", joinpath(pwd(),"src/MatLang.jl"), ["windows", "linux"], "linux", [v"1.0", v"1.4"], v"1.4")
 ```
 """
 function new_includer_file(
@@ -54,8 +54,7 @@ function new_includer_file(
     version::Union{Vector{VersionNumber}, Nothing},
     else_version::Union{VersionNumber, Nothing})
 
-    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
-
+    # find multistr, ismultiversion, ismultios
     if isnothing(os)
         ismultios = false
         multistr = ""
@@ -65,67 +64,17 @@ function new_includer_file(
         else
             ismultiversion = true
             multiversionstr = _multiversion(version, else_version, package_name)
+            multistr = multiversionstr
         end #if nothing vesion
     else
         ismultios = true
-        os_length = length(os)
         if isnothing(version)
             ismultiversion = false
-            multistr = """@static if Sys.is$(os[1])()
-                include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
-                _precompile_()
-            """
-            if length(os) > 1
-                for (iOs, eachos) in enumerate(os[2:end])
-                    if iOs == os_length
-                        if isnothing(else_os)
-                            os_elsephrase = "elseif Sys.is$eachos()"
-                        else
-                            os_elsephrase = "else"
-                            eachos = "else_os"
-                        end
-                    else
-                        os_elsephrase = "elseif Sys.is$eachos()"
-                    end
-                    multistr = multistr * """$os_elsephrase
-                        include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
-                        _precompile_()
-                    """
-                end # for os
-            end # if length os
+            multistr = _multios(os, else_os, package_name, ismultiversion)
         else
             ismultiversion = true
-            multistr = """@static if Sys.is$(os[1])()
-                include("../deps/SnoopCompile/precompile/$(os[1])/precompile_$package_name.jl")
-                _precompile_()
-            """
-            if length(os) > 1
-                for (iOs, eachos) in enumerate(os[2:end])
-
-                    if iOs == os_length
-                        if isnothing(else_os)
-                            os_elsephrase = "elseif Sys.is$eachos()"
-                        else
-                            os_elsephrase = "else"
-                            eachos = "else_os"
-                        end
-                    else
-                        os_elsephrase = "elseif Sys.is$eachos()"
-                    end
-
-                    """
-
-                    multistr = multistr * """$os_elsephrase
-                        $multiversionstr
-                    """
-                end # for os
-            end #if length os
-
+            multistr = _multios(os, else_os, package_name, ismultiversion, version, else_version)
         end # if nothing version
-
-        multistr = multistr * """
-            end
-        """
     end # if nothing os
 
     precompile_config = """
@@ -146,9 +95,57 @@ function new_includer_file(
         $multistr
     end # precompile_enclosure
     """
+
+    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
     @info "$includer_file file will be created/overwritten"
     Base.write(includer_file, precompile_config)
 end
+
+"""
+Helper function for multios code generation
+"""
+function _multios(os, else_os, package_name, ismultiversion, version = nothing, else_version = nothing)
+    os_length = length(os)
+
+    multistr = ""
+    for (iOs, eachos) in enumerate(os)
+
+        if iOs == 1
+            os_phrase = "@static if Sys.is$eachos()"
+        else
+            if iOs == os_length
+                if isnothing(else_os)
+                    os_phrase = "elseif Sys.is$eachos()"
+                else
+                    os_phrase = "else"
+                    eachos = else_os
+                end
+            else
+                os_phrase = "elseif Sys.is$eachos()"
+            end
+        end
+        multistr = multistr * "$os_phrase \n"
+
+        if ismultiversion
+            multiversionstr = _multiversion(version, else_version, package_name, eachos)
+            multistr = multistr * """
+                $multiversionstr
+            """
+        else
+            multistr = multistr * """
+                include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                _precompile_()
+            """
+        end
+    end # for os
+
+    multistr = multistr * """
+        end
+    """
+    return multistr
+end
+
+
 """
 Helper function for multiversion code generation
 """
