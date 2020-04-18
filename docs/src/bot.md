@@ -17,6 +17,9 @@ name: SnoopCompile
 on:
   - push
 
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build:
@@ -24,10 +27,15 @@ jobs:
     strategy:
       matrix:
         version:
-          - '1.4.0-rc1'
+          - '1.4.1'
+          # if you want multi-version signatures:
+          - '1.2.0'
+          - '1.0.5'
         os:
           - ubuntu-latest
-          - windows-latest # if you want multi-os signatures
+          # if you want multi-os signatures:
+          - windows-latest
+          - osx-latest
         arch:
           - x64
     steps:
@@ -38,14 +46,13 @@ jobs:
       - name: Install dependencies
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate();'
-          julia -e 'using Pkg; Pkg.add(PackageSpec(url = "https://github.com/aminya/SnoopCompile.jl", rev = "multios")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
-        shell: bash
+          julia -e 'using Pkg; Pkg.add("SnoopCompile"); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
+      - name: Install Test dependencies
+        run: julia -e 'using SnoopCompile; SnoopCompile.addtestdep()'
       - name: Generating precompile files
         run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bot.jl")'
-        shell: bash
       - name: Running Benchmark
         run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bench.jl")'
-        shell: bash
 
       # https://github.com/marketplace/actions/create-pull-request
       - name: Create Pull Request
@@ -58,12 +65,8 @@ jobs:
           labels: SnoopCompile
           branch: "create-pull-request/SnoopCompile/${{ matrix.os }}"
 ```
-`Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it. In this case, if your examples or tests have dependencies, you should add a `Test.toml` to your test folder.
 
-```yaml
-- name: Install Test dependencies
-  run: julia -e 'using SnoopCompile; SnoopCompile.addtestdep()'
-```
+`Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it. In this case, if your examples or tests have dependencies, you should add a `Test.toml` to your test folder.
 
 For example for MatLang package:
 
@@ -71,13 +74,17 @@ For example for MatLang package:
 
 ----------------------------------
 
-
-- Precompile script
+# Precompile script
 
 Add a `snoopi_bot.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
 
+[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The following example shows a full usage of BotConfig which supports multiple os, multiple version, and also has a function in its backlist.
 
-For example, some examples that call the functions:
+```julia
+@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.1", "1.2", "1.0.5"], else_version = "1.4.1" )
+```
+
+An example with custom script that call the functions:
 
 ```julia
 using SnoopCompile
@@ -103,14 +110,6 @@ using SnoopCompile
 
 [Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
 ----------------------------------
-
-# BotConfig
-
-[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more.
-
-```julia
-@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows"])
-```
 
 ## Benchmark
 
