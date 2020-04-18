@@ -78,10 +78,10 @@ For example for MatLang package:
 
 Add a `snoopi_bot.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
 
-[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The following example shows a full usage of BotConfig which supports multiple os, multiple version, and also has a function in its backlist.
+[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The following example shows an example of a BotConfig that supports multiple os, multiple version, and also has a function in its backlist.
 
 ```julia
-@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.1", "1.2", "1.0.5"], else_version = "1.4.1" )
+@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = nothing, version = ["1.4.1", "1.2", "1.0.5"], else_version = "1.4.1" )
 ```
 
 An example with custom script that call the functions:

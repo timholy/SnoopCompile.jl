@@ -104,11 +104,10 @@ end
 Helper function for multios code generation
 """
 function _multios(os_in, else_os, package_name, ismultiversion, version = nothing, else_version = nothing)
-    os = copy(os_in)
+    os = similar(os_in, Any)
+    os[:] = os_in[:]
 
-    if !isnothing(else_os)
-        push!(os, else_os)
-    end
+    push!(os, string(else_os))
 
     os_length = length(os)
     multistr = ""
@@ -116,12 +115,16 @@ function _multios(os_in, else_os, package_name, ismultiversion, version = nothin
 
         if iOs == 1
             os_phrase = "@static if Sys.is$eachos()"
-        elseif iOs == os_length && !isnothing(else_os)
+        elseif iOs == os_length
             os_phrase = "else"
         else
             os_phrase = "elseif Sys.is$eachos()"
         end
         multistr = multistr * "$os_phrase \n"
+
+        if iOs == os_length && isnothing(else_os)
+            continue
+        end
 
         if ismultiversion
             multiversionstr = _multiversion(version, else_version, package_name, eachos)
@@ -147,13 +150,12 @@ end
 Helper function for multiversion code generation
 """
 function _multiversion(version_in, else_version, package_name, eachos = "")
-    version = copy(version_in)
+    version = similar(version_in, Any)
+    version[:] = version_in[:]
 
     sort!(version)
 
-    if !isnothing(else_version)
-        push!(version, else_version)
-    end
+    push!(version, else_version)
 
     version_length = length(version)
     multiversionstr = ""
@@ -161,13 +163,18 @@ function _multiversion(version_in, else_version, package_name, eachos = "")
 
         if iVersion == 1
             version_phrase = "@static if VERSION <= v\"$eachversion\""
-        elseif iVersion == version_length && !isnothing(else_version)
+        elseif iVersion == version_length
             version_phrase = "else"
         else
             version_phrase = "elseif VERSION <= v\"$eachversion\""
         end
+        multiversionstr = multiversionstr * "$version_phrase \n"
 
-        multiversionstr = multiversionstr * """$version_phrase
+        if  iVersion == version_length && isnothing(else_version)
+            continue
+        end
+
+        multiversionstr = multiversionstr * """
             include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
             _precompile_()
         """

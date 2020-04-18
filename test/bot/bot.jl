@@ -73,6 +73,7 @@ cd(@__DIR__)
                 elseif Sys.iswindows()
                     include("../deps/SnoopCompile/precompile/windows/precompile_TestPackage.jl")
                     _precompile_()
+                else
                 end
 
             end
@@ -126,6 +127,7 @@ cd(@__DIR__)
                 elseif VERSION <= v"1.4.1"
                     include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
                     _precompile_()
+                else
                 end
 
             end
@@ -181,6 +183,7 @@ cd(@__DIR__)
                     elseif VERSION <= v"1.4.1"
                         include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
                         _precompile_()
+                    else
                     end
 
                 elseif Sys.iswindows()
@@ -190,6 +193,7 @@ cd(@__DIR__)
                     elseif VERSION <= v"1.4.1"
                         include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
                         _precompile_()
+                    else
                     end
 
                 else
@@ -199,6 +203,7 @@ cd(@__DIR__)
                     elseif VERSION <= v"1.4.1"
                         include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
                         _precompile_()
+                    else
                     end
 
                 end
@@ -256,6 +261,46 @@ cd(@__DIR__)
                         _precompile_()
                     end
 
+                end
+
+            end
+            """), includer_text)
+        end
+
+        @testset "yes os, no else_os, yes version, no else_version" begin
+            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, [v"1.0", v"1.4.1"], nothing)
+            includer_text = stripall(Base.read(includer_path, String))
+            @test occursin("ismultios=true", includer_text)
+            @test occursin("ismultiversion=true", includer_text)
+
+            @test occursin(stripall("""
+            @static if !should_precompile
+                # nothing
+            elseif !ismultios && !ismultiversion
+                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                _precompile_()
+            else
+                @static if Sys.islinux()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    else
+                    end
+
+                elseif Sys.iswindows()
+                    @static if VERSION <= v"1.0.0"
+                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        _precompile_()
+                    elseif VERSION <= v"1.4.1"
+                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        _precompile_()
+                    else
+                    end
+
+                else
                 end
 
             end

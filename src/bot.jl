@@ -24,11 +24,11 @@ You may supply the following keyword arguments:
 
 Example: `os = ["windows", "linux"]`
 
-- `else_os`: If you want to use a specific os for any other os, give `else_os` the name of that os.
+- `else_os`: If you want to use a specific os for any other os, give `else_os` the name of that os. If you don't want to precompile for other os pass nothing.
 
 Example: `else_os = "linux"`
 
-- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. The versions are sorted automatically and each element will call a `VERSION <=\$eachversion` function.
+- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. The versions are sorted automatically and each element will call a `VERSION <=\$eachversion` function. If you don't want to precompile for other versions pass nothing.
 
 Example: `version = [v"1.1", v"1.4.1"]`
 
