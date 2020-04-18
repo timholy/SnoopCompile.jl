@@ -54,6 +54,25 @@ function new_includer_file(
     version::Union{Vector{VersionNumber}, Nothing},
     else_version::Union{VersionNumber, Nothing})
 
+    ## Standardize different names from Github actions, Travis, etc
+    # https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources
+    if !isnothing(os)
+        os[occursin.("macos", os)] .= "apple"
+        os[occursin.("osx", os)] .= "apple"
+        os[occursin.("apple", os)] .= "apple"
+        os[occursin.("ubuntu", os)] .= "linux"
+        os[occursin.("linux", os)] .= "linux"
+        os[occursin.("windows", os)] .= "windows"
+    end
+    if !isnothing(else_os)
+        occursin.("macos", else_os) ? else_os = "apple" : nothing
+        occursin.("osx", else_os) ? else_os = "apple" : nothing
+        occursin.("apple", else_os) ? else_os = "apple" : nothing
+        occursin.("ubuntu", else_os) ? else_os = "linux" : nothing
+        occursin.("linux", else_os) ? else_os = "linux" : nothing
+        occursin.("windows", else_os) ? else_os = "windows" : nothing
+    end
+
     # find multistr, ismultiversion, ismultios
     if isnothing(os)
         ismultios = false
