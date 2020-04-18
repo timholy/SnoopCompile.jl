@@ -1,5 +1,5 @@
 module TestPackage3
-export hello2, domath2, multiply3
+export hello3, domath3, multiply3
 
 @static if VERSION > v"1.3"
   hello3(who::String) = "Hello, $who"
@@ -11,6 +11,5 @@ else
   multiply3(x::Float64) = x + 6
 
 end
-include("precompile_includer.jl")
 
 end

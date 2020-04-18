@@ -3,6 +3,7 @@ using SnoopCompile, Test
 stripall(x::String) = replace(x, r"\s|\n"=>"")
 
 cd(@__DIR__)
+
 @testset "bot" begin
     @testset "add_includer" begin
         package_name = "TestPackage"
@@ -260,7 +261,7 @@ cd(@__DIR__)
             end
             """), includer_text)
         end
-        
+
     end
 
     using Pkg;
@@ -271,6 +272,10 @@ cd(@__DIR__)
     package_name2 = "TestPackage2"
     package_path2 = joinpath(pwd(),"$package_name2.jl")
     Pkg.develop(PackageSpec(path=package_path2))
+
+    package_name3 = "TestPackage3"
+    package_path3 = joinpath(pwd(),"$package_name3.jl")
+    Pkg.develop(PackageSpec(path=package_path3))
 
     if VERSION >=  v"1.2"
         @testset "snoopi_bot" begin
@@ -316,6 +321,37 @@ cd(@__DIR__)
             cd(package_path2)
 
             include("TestPackage2.jl/deps/SnoopCompile/snoopi_bench.jl")
+        end
+
+        @testset "snoopi_bot_multiversion" begin
+            cd(package_path3)
+
+            os, osfun = SnoopCompile.detectOS()
+
+            include("TestPackage3.jl/deps/SnoopCompile/snoopi_bot_multiversion.jl")
+
+            @test isfile("deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl")
+
+            precompile_text = Base.read("deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl", String)
+
+            if VERSION > v"1.3"
+                @test occursin("hello3", precompile_text)
+                @test !occursin("domath3", precompile_text)
+                @test !occursin("multiply3", precompile_text)
+            elseif VERSION > v"1.0"
+                @test !occursin("hello3", precompile_text)
+                @test occursin("domath3", precompile_text)
+                @test !occursin("multiply3", precompile_text)
+            else
+                @test !occursin("hello3", precompile_text)
+                @test !occursin("domath3", precompile_text)
+                @test occursin("multiply3", precompile_text)
+            end
+        end
+
+        @testset "snoopi_bench-multiversion" begin
+            cd(package_path3)
+            include("TestPackage3.jl/deps/SnoopCompile/snoopi_bench.jl")
         end
 
         # workflow.yml file is tested online:
