@@ -98,8 +98,6 @@ jobs:
         run: echo skip ci
 ```
 
-`Install Test dependencies` step is only needed if you have test dependencies other than Test. Otherwise, you should comment it. In this case, if your examples or tests have dependencies, you should add a `Test.toml` to your test folder.
-
 For example for MatLang package:
 
 [Link](https://github.com/juliamatlab/MatLang/blob/master/.github/workflows/SnoopCompile.yml)

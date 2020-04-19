@@ -6,15 +6,21 @@ Should be removed once Pkg allows adding test dependencies to the current enviro
 Used in Github Action workflow yaml file
 """
 function addtestdep()
+
     if isfile("test/Test.toml")
-        testToml = Pkg.Types.parse_toml("test/Test.toml")
+        toml = Pkg.TOML.parsefile("test/Test.toml")
+        test_deps = get(toml, "deps", nothing)
     elseif isfile("test/Project.toml")
-        testToml = Pkg.Types.parse_toml("test/Project.toml")
+        toml = Pkg.TOML.parsefile("test/Project.toml")
+        test_deps = get(toml, "deps", nothing)
     else
-        error("please add a  Project.toml or Test.toml to the /test directory for test dependencies")
+        toml = Pkg.TOML.parsefile("Project.toml")
+        test_deps = get(toml, "extras", nothing)
     end
 
-    for (name, uuid) in testToml["deps"]
-        Pkg.add(Pkg.PackageSpec(name = name, uuid = uuid))
+    if !isnothing(test_deps)
+        for (name, uuid) in test_deps
+            Pkg.add(Pkg.PackageSpec(name = name, uuid = uuid))
+        end
     end
 end
