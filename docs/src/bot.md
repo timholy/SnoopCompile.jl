@@ -125,6 +125,7 @@ To measure the effect of adding precompile files. Add a `snoopBenchmark.jl`. The
 
 Benchmarking the load infer time
 ```julia
+using SnoopCompile
 println("loading infer benchmark")
 
 @snoopi_bench "MatLang" using MatLang
@@ -132,6 +133,7 @@ println("loading infer benchmark")
 
 Benchmarking the example infer time
 ```julia
+using SnoopCompile
 println("examples infer benchmark")
 
 @snoopi_bench "MatLang" begin
@@ -145,6 +147,7 @@ end
 
 Benchmarking the tests:
 ```julia
+using SnoopCompile
 @snoopi_bench "MatLang"
 ```
 [Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopBenchmark.jl)
