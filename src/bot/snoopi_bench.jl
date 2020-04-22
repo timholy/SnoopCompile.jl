@@ -51,35 +51,10 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
         return sum(first, snoop)
     end
 end
-
 ################################################################
-"""
-    @snoopi_bench(package_name::AbstractString, snoop_script::Expr)
-    @snoopi_bench(package_name::AbstractString)
+function snoopi_bench(config::BotConfig, snoop_script::Expr)
 
-Performs an infertime benchmark by activating and deactivating the _precompile_()
-# Examples
-Benchmarking the load infer time
-```julia
-println("loading infer benchmark")
-
-@snoopi_bench "MatLang" using MatLang
-```
-
-Benchmarking the example infer time
-```julia
-println("examples infer benchmark")
-
-@snoopi_bench "MatLang" begin
-    using MatLang
-    example_path = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-    # include(joinpath(example_path,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-    include(joinpath(example_path,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-    include(joinpath(example_path,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
-end
-```
-"""
-macro snoopi_bench(package_name::AbstractString, snoop_script::Expr)
+    package_name = config.package_name
 
     ################################################################
     package_path = joinpath(pwd(),"src","$package_name.jl")
@@ -90,7 +65,7 @@ macro snoopi_bench(package_name::AbstractString, snoop_script::Expr)
     @info(timesum(data));
     """
     julia_cmd = `julia --project=@. -e "$juliaCode"`
-    quote
+    out = quote
         package_sym = Symbol($package_name)
         ################################################################
         using SnoopCompile
@@ -117,25 +92,88 @@ macro snoopi_bench(package_name::AbstractString, snoop_script::Expr)
         *******************
         """)
     end
-
+    return out
 end
 
+################################################################
 """
-    @snoopi_bench package_name::AbstractString
+    @snoopi_bench botconfig::BotConfig, snoop_script::Expr
 
-Benchmarking the infer time of the tests:
+Performs an infertime benchmark by activating and deactivating the _precompile_()
+# Examples
+Benchmarking the load infer time
 ```julia
-@snoopi_bench "MatLang"
+println("loading infer benchmark")
+
+@snoopi_bench BotConfig("MatLang") begin
+ using MatLang
+end
+```
+
+Benchmarking the example infer time
+```julia
+println("examples infer benchmark")
+
+@snoopi_bench BotConfig("MatLang") begin
+    using MatLang
+    example_path = joinpath(dirname(dirname(pathof(MatLang))), "examples")
+    # include(joinpath(example_path,"Language_Fundamentals", "usage_Entering_Commands.jl"))
+    include(joinpath(example_path,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
+    include(joinpath(example_path,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+end
 ```
 """
-macro snoopi_bench(package_name::AbstractString)
+macro snoopi_bench(configExpr, snoop_script)
+    config = eval(configExpr)
+    out = snoopi_bench(config, snoop_script)
+    return out
+end
+
+macro snoopi_bench(package_name::AbstractString, snoop_script)
+    f, l = __source__.file, __source__.line
+    @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
+
+    config = BotConfig(package_name)
+
+    out = snoopi_bench(config, snoop_script)
+    return out
+end
+
+################################################################
+function snoopi_bench(config::BotConfig)
+
+    package_name = config.package_name
+
     package = Symbol(package_name)
-    snoop_script = :(
+    snoop_script = quote
         using $(package);
         runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
         include(runtestpath);
-    )
-    return quote
-        @snoopi_bench $package_name $(snoop_script)
     end
+    out = snoopi_bench(config, snoop_script)
+    return out
+end
+
+"""
+    @snoopi_bench config::BotConfig
+
+Benchmarking the infer time of the tests:
+```julia
+@snoopi_bench BotConfig("MatLang")
+```
+"""
+macro snoopi_bench(configExpr)
+    config = eval(configExpr)
+    out = snoopi_bench(config)
+    return out
+end
+
+macro snoopi_bench(package_name::AbstractString)
+    f, l = __source__.file, __source__.line
+    @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
+
+    config = BotConfig(package_name)
+
+    out = snoopi_bench(config)
+    return out
 end

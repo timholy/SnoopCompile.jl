@@ -1,27 +1,4 @@
-
-################################################################
-"""
-    @snoopi_bot config::BotConfig snoop_script
-
-macro that generates precompile files and includes them in the package. Calls other bot functions.
-
-# Examples
-
-`@snoopi_bot` the examples that call the package functions.
-
-```julia
-using SnoopCompile
-
-@snoopi_bot "MatLang" begin
-  using MatLang
-  examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-  include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-  include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-  include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
-end
-```
-"""
-macro snoopi_bot(config::BotConfig, snoop_script)
+function snoopi_bot(config::BotConfig, snoop_script)
 
     package_name = config.package_name
     blacklist = config.blacklist
@@ -51,7 +28,7 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         end
     end
 
-    quote
+    out = quote
         packageSym = Symbol($package_name)
         ################################################################
         using SnoopCompile
@@ -72,20 +49,64 @@ macro snoopi_bot(config::BotConfig, snoop_script)
         ################################################################
         precompile_activator($package_path)
     end
+    return out
+end
+
+
+"""
+    @snoopi_bot config::BotConfig  snoop_script::Expr
+
+macro that generates precompile files and includes them in the package. Calls other bot functions.
+
+# Examples
+
+`@snoopi_bot` the examples that call the package functions.
+
+```julia
+using SnoopCompile
+
+@snoopi_bot BotConfig("MatLang") begin
+  using MatLang
+  examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
+  include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
+  include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
+  include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+end
+```
+"""
+macro snoopi_bot(configExpr, snoop_script)
+    config = eval(configExpr)
+
+    out = snoopi_bot(config, snoop_script)
+    return out
 end
 
 macro snoopi_bot(package_name::String, snoop_script)
+    f, l = __source__.file, __source__.line
+    @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
+
     config = BotConfig(package_name)
-    return quote
-        @snoopi_bot $config $(esc(snoop_script))
-    end
+
+    out = snoopi_bot(config, snoop_script)
+    return out
 end
-macro snoopi_bot(configExpr, snoop_script)
-    config = eval(configExpr)
-    return quote
-        @snoopi_bot $config $(esc(snoop_script))
+
+################################################################
+
+function snoopi_bot(config::BotConfig)
+
+    package_name = config.package_name
+
+    package = Symbol(package_name)
+    snoop_script = quote
+        using $(package)
+        runtestpath = joinpath(dirname(dirname(pathof( $package ))), "test", "runtests.jl")
+        include(runtestpath)
     end
+    out = snoopi_bot(config, snoop_script)
+    return out
 end
+
 
 """
     @snoopi_bot config::BotConfig
@@ -96,34 +117,22 @@ If you do not have additional examples, you can use your runtests.jl file. To do
 using SnoopCompile
 
 # using runtests:
-@snoopi_bot "MatLang"
+@snoopi_bot BotConfig("MatLang")
 ```
 """
-macro snoopi_bot(config::BotConfig)
+macro snoopi_bot(configExpr)
+    config = eval(configExpr)
 
-    package_name = config.package_name
-
-    package = Symbol(package_name)
-    snoop_script = esc(quote
-        using $(package)
-        runtestpath = joinpath(dirname(dirname(pathof( $package ))), "test", "runtests.jl")
-        include(runtestpath)
-    end)
-    return quote
-        @snoopi_bot $config $(esc(snoop_script))
-    end
+    out = snoopi_bot(config)
+    return out
 end
 
 macro snoopi_bot(package_name::String)
-    config = BotConfig(package_name)
-    return quote
-        @snoopi_bot $config
-    end
-end
+    f, l = __source__.file, __source__.line
+    @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
-macro snoopi_bot(configExpr)
-    config = eval(configExpr)
-    return quote
-        @snoopi_bot $config
-    end
+    config = BotConfig(package_name)
+
+    out = snoopi_bot(config)
+    return out
 end
