@@ -10,9 +10,12 @@ It is used inside @snoopi_bench. Julia can cache inference results so to measure
 ```julia
 using SnoopCompile
 data = @snoopi begin
-    include(joinpath(dirname(dirname(pathof(MatLang))),"test","runtests.jl"))
-end;
-println(timesum(data));
+    using MatLang
+    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
+
+    include("\$MatLang_rootpath/test/runtests.jl")
+end
+println(timesum(data))
 ```
 
 ## Manual Benchmark (withtout using [`@snoopi_bench`](@ref))
@@ -38,7 +41,9 @@ timesum(loadSnoop)
 println("Running Examples/Tests:")
 runSnoop = @snoopi begin
     using MatLang
-    include(joinpath(dirname(dirname(pathof(MatLang))),"test","runtests.jl"))
+
+    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
+    include("\$MatLang_rootpath/test/runtests.jl")
 end
 
 timesum(runSnoop)
@@ -103,8 +108,9 @@ Performs an infertime benchmark by activating and deactivating the _precompile_(
 # Examples
 Benchmarking the load infer time
 ```julia
-println("loading infer benchmark")
+using SnoopCompile
 
+println("loading infer benchmark")
 @snoopi_bench BotConfig("MatLang") begin
  using MatLang
 end
@@ -112,14 +118,15 @@ end
 
 Benchmarking the example infer time
 ```julia
-println("examples infer benchmark")
+SnoopCompile
 
+println("examples infer benchmark")
 @snoopi_bench BotConfig("MatLang") begin
     using MatLang
-    example_path = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-    # include(joinpath(example_path,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-    include(joinpath(example_path,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-    include(joinpath(example_path,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
+
+    include("\$MatLang_rootpath/examples/Language_Fundamentals/usage_Matrices_and_Arrays.jl")
+    include("\$MatLang_rootpath/examples/Language_Fundamentals/Data_Types/usage_Numeric_Types.jl")
 end
 ```
 """

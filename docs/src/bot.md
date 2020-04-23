@@ -1,13 +1,12 @@
-# SnoopCompile Bot (EXPERIMENTAL)
+# SnoopCompile Bot
 
-You can use SnoopCompile bot to automatically and continuously create precompile files.
+You can use SnoopCompile bot to automatically and continuously create precompile files. This bot can be used offline or online.
 
 One should add 3 things to a package to make the bot work:
 
 ----------------------------------
 
-
-- Workflow file:
+## 1 - GitHub Action file (only for online run)
 
 create a workflow file with this path in your repository `.github/workflows/SnoopCompile.yml` and use the following content:
 
@@ -104,7 +103,7 @@ For example for MatLang package:
 
 ----------------------------------
 
-# Precompile script
+## 2 - Precompile script
 
 Add a `snoopi_bot.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
 
@@ -121,10 +120,10 @@ using SnoopCompile
 
 @snoopi_bot BotConfig("MatLang") begin
   using MatLang
-  examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-  include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-  include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-  include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+  MatLang_rootpath = dirname(dirname(pathof("MatLang")))
+
+  include("\$MatLang_rootpath/examples/Language_Fundamentals/usage_Matrices_and_Arrays.jl")
+  include("\$MatLang_rootpath/examples/Language_Fundamentals/Data_Types/usage_Numeric_Types.jl")
 end
 ```
 [Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bot.jl)
@@ -141,7 +140,7 @@ using SnoopCompile
 [Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
 ----------------------------------
 
-## Benchmark
+## 3 - Benchmark Script
 
 To measure the effect of adding precompile files. Add a `snoopi_bench.jl`. The content of this file can be the following:
 
@@ -158,10 +157,10 @@ println("examples infer benchmark")
 
 @snoopi_bench BotConfig("MatLang") begin
     using MatLang
-    examplePath = joinpath(dirname(dirname(pathof(MatLang))), "examples")
-    # include(joinpath(examplePath,"Language_Fundamentals", "usage_Entering_Commands.jl"))
-    include(joinpath(examplePath,"Language_Fundamentals", "usage_Matrices_and_Arrays.jl"))
-    include(joinpath(examplePath,"Language_Fundamentals", "Data_Types", "usage_Numeric_Types.jl"))
+    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
+
+    include("\$MatLang_rootpath/examples/Language_Fundamentals/usage_Matrices_and_Arrays.jl")
+    include("\$MatLang_rootpath/examples/Language_Fundamentals/Data_Types/usage_Numeric_Types.jl")
 end
 ```
 
@@ -170,11 +169,3 @@ Benchmarking the tests:
 @snoopi_bench BotConfig("MatLang")
 ```
 [Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
-
-
-To run the benchmark online, add the following to your yaml file after `Generating precompile files` step:
-
-```yaml
-- name: Running Benchmark
-  run: julia --project=@. -e 'include("deps/SnoopCompile/snoopi_bench.jl")'
-```
