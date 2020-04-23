@@ -34,7 +34,7 @@ Example: `version = [v"1.1", v"1.4.1"]`
 
 - `else_vresion`: If you want to use a specific version for any other version, give `else_version` the name of that version.
 
-- `precompiles_rootpath`: the path where precompile files are stored. Default path is "\$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile"
+- `precompiles_rootpath`: the path where precompile files are stored. Default path is "package_root/deps/SnoopCompile/precompile"
 
 Example: `else_version = v"1.4.1"`
 
@@ -82,7 +82,7 @@ function BotConfig(
     precompiles_rootpath::AbstractString = "$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile",
     )
 
-    return BotConfig(package_name, subst, blacklist, os, else_os, version, else_version, precompiles_rootpath, tmin)
+    return BotConfig(package_name, blacklist, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
 include("bot/botutils.jl")

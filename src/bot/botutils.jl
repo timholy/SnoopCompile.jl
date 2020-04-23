@@ -1,3 +1,7 @@
+export GoodPath
+# to convert WindowsPath before they get inside the SnoopCompile code
+GoodPath(x::String) = replace(x, "\\" => "/")
+goodjoinpath(args...) = GoodPath(joinpath(args...))
 ################################################################
 
 export pathof_noload
