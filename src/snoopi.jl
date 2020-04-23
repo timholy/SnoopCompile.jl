@@ -22,7 +22,7 @@ end
 
 function sort_timed_inf(tmin)
     data = __inf_timing__
-    if tmin > 0
+    if tmin > 0.0
         data = filter(tl->tl[1] >= tmin, data)
     end
     return sort(data; by=tl->tl[1])
@@ -52,7 +52,11 @@ macro snoopi(args...)
     else
         error("at most two arguments are supported")
     end
-    quote
+    return _snoopi(cmd, tmin)
+end
+
+function snoopi(cmd::Expr, tmin = 0.0)
+    return quote
         empty!(__inf_timing__)
         start_timing()
         try
