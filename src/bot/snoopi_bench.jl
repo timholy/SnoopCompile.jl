@@ -57,19 +57,18 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
     end
 end
 ################################################################
-function snoopi_bench(config::BotConfig, snoop_script::Expr)
+function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
 
     package_name = config.package_name
     package_path = pathof_noload(package_name)
 
     ################################################################
-    juliaCode = """
-    using SnoopCompile; data = @snoopi begin
-        $(string(snoop_script));
-    end;
-    @info(timesum(data));
-    """
-    julia_cmd = `julia --project=@. -e "$juliaCode"`
+    juliaCode = quote
+        using SnoopCompile
+        data = Core.eval(  $modul, snoopi($(esc(snoop_script)))  )
+        @info(timesum(data))
+    end
+    julia_cmd = `julia --project=@. -e $juliaCode`
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
@@ -79,14 +78,14 @@ function snoopi_bench(config::BotConfig, snoop_script::Expr)
         *******************
         """)
         ################################################################
-        @info("""Precompile Deactivated Benchmark
+        @info("""Precompile Deactivated Inference Benchmark
         ------------------------
         """)
         precompile_deactivator($package_path);
         ### Log the compiles
         run($julia_cmd)
         ################################################################
-        @info("""Precompile Activated Benchmark
+        @info("""Precompile Activated Inference Benchmark
         ------------------------
         """)
         precompile_activator($package_path);
@@ -132,7 +131,7 @@ end
 """
 macro snoopi_bench(configExpr, snoop_script)
     config = eval(configExpr)
-    out = snoopi_bench(config, snoop_script)
+    out = snoopi_bench(__module__, config, snoop_script)
     return out
 end
 
@@ -142,12 +141,12 @@ macro snoopi_bench(package_name::AbstractString, snoop_script)
 
     config = BotConfig(package_name)
 
-    out = snoopi_bench(config, snoop_script)
+    out = snoopi_bench(__module__, config, snoop_script)
     return out
 end
 
 ################################################################
-function snoopi_bench(config::BotConfig)
+function snoopi_bench(modul::Module, config::BotConfig)
 
     package_name = config.package_name
 
@@ -159,7 +158,7 @@ function snoopi_bench(config::BotConfig)
         using $(package);
         include($runtestpath);
     end
-    out = snoopi_bench(config, snoop_script)
+    out = snoopi_bench(modul, config, snoop_script)
     return out
 end
 
@@ -173,7 +172,7 @@ Benchmarking the infer time of the tests:
 """
 macro snoopi_bench(configExpr)
     config = eval(configExpr)
-    out = snoopi_bench(config)
+    out = snoopi_bench(__module__, config)
     return out
 end
 
@@ -183,6 +182,6 @@ macro snoopi_bench(package_name::AbstractString)
 
     config = BotConfig(package_name)
 
-    out = snoopi_bench(config)
+    out = snoopi_bench(__module__, config)
     return out
 end

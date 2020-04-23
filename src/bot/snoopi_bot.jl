@@ -1,4 +1,4 @@
-function snoopi_bot(config::BotConfig, snoop_script)
+function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
 
     package_name = config.package_name
     blacklist = config.blacklist
@@ -29,7 +29,6 @@ function snoopi_bot(config::BotConfig, snoop_script)
             precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$(VERSION)"
         end
     end
-
     out = quote
         packageSym = Symbol($package_name)
         ################################################################
@@ -39,9 +38,7 @@ function snoopi_bot(config::BotConfig, snoop_script)
         ################################################################
 
         ### Log the compiles
-        data = @snoopi begin
-            $(esc(snoop_script))
-        end
+        data = Core.eval($modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
 
         ################################################################
         ### Parse the compiles and generate precompilation scripts
@@ -82,8 +79,7 @@ end
 """
 macro snoopi_bot(configExpr, snoop_script)
     config = eval(configExpr)
-
-    out = snoopi_bot(config, snoop_script)
+    out = snoopi_bot(__module__, config, snoop_script)
     return out
 end
 
@@ -93,13 +89,13 @@ macro snoopi_bot(package_name::String, snoop_script)
 
     config = BotConfig(package_name)
 
-    out = snoopi_bot(config, snoop_script)
+    out = snoopi_bot(__module__, config, snoop_script)
     return out
 end
 
 ################################################################
 
-function snoopi_bot(config::BotConfig)
+function snoopi_bot(modul, config::BotConfig)
 
     package_name = config.package_name
     package_rootpath = dirname(dirname(pathof_noload(package_name)))
@@ -110,7 +106,7 @@ function snoopi_bot(config::BotConfig)
         using $(package)
         include($runtestpath)
     end
-    out = snoopi_bot(config, snoop_script)
+    out = snoopi_bot(modul, config, snoop_script)
     return out
 end
 
@@ -129,8 +125,7 @@ using SnoopCompile
 """
 macro snoopi_bot(configExpr)
     config = eval(configExpr)
-
-    out = snoopi_bot(config)
+    out = snoopi_bot(__module__, config)
     return out
 end
 
@@ -140,6 +135,6 @@ macro snoopi_bot(package_name::String)
 
     config = BotConfig(package_name)
 
-    out = snoopi_bot(config)
+    out = snoopi_bot(__module__, config)
     return out
 end
