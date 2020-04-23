@@ -100,7 +100,7 @@ function snoopi_bot(config::BotConfig)
 
     package_name = config.package_name
     package_rootpath = dirname(dirname(pathof_noload(package_name)))
-    runtestpath = joinpath(package_rootpath, "test/runtests.jl");
+    runtestpath = "$package_rootpath/test/runtests.jl"
 
     package = Symbol(package_name)
     snoop_script = quote

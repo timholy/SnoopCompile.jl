@@ -121,7 +121,7 @@ function new_includer_file(
     end # precompile_enclosure
     """
 
-    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
+    includer_file = "$(dirname(package_path))/precompile_includer.jl"
     @info "$includer_file file will be created/overwritten"
     Base.write(includer_file, precompile_config)
 end

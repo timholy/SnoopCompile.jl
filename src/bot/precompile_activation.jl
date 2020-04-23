@@ -7,7 +7,7 @@ Activates precompile of a package by setting `should_precompile = true`
 `package_path = pathof_noload(package_name)`
 """
 function precompile_activator(package_path::AbstractString)
-    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
+    includer_file = "$(dirname(package_path))/precompile_includer.jl"
     if !isfile(includer_file)
         error("$includer_file doesn't exists")
     else
@@ -31,7 +31,7 @@ Deactivates precompile of a package by setting `should_precompile = false`
 `package_path = pathof_noload(package_name)`
 """
 function precompile_deactivator(package_path::AbstractString)
-    includer_file = joinpath(dirname(package_path), "precompile_includer.jl")
+    includer_file = "$(dirname(package_path))/precompile_includer.jl"
     if !isfile(includer_file)
         error("$includer_file doesn't exists")
     else
