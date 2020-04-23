@@ -7,7 +7,7 @@ end
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
 """
-    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [], else_os = nothing, version = [], else_version = nothing)
+    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [], else_os = nothing, version = [], else_version = nothing, precompiles_rootpath = "package_root/deps/SnoopCompile/precompile")
 
 Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `@snoopi_bot`.
 
@@ -33,6 +33,8 @@ Example: `else_os = "linux"`
 Example: `version = [v"1.1", v"1.4.1"]`
 
 - `else_vresion`: If you want to use a specific version for any other version, give `else_version` the name of that version.
+
+- `precompiles_rootpath`: the path where precompile files are stored. Default path is "\$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile"
 
 Example: `else_version = v"1.4.1"`
 
@@ -67,6 +69,7 @@ struct BotConfig
     else_os::Union{String, Nothing}
     version::Union{Vector{VersionNumber}, Nothing}
     else_version::Union{VersionNumber, Nothing}
+    precompiles_rootpath::AbstractString
 end
 
 function BotConfig(
@@ -75,8 +78,11 @@ function BotConfig(
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{VersionNumber}, Nothing} = nothing,
-    else_version::Union{VersionNumber, Nothing} = nothing)
-    return BotConfig(package_name, subst, blacklist, os, else_os, version, else_version)
+    else_version::Union{VersionNumber, Nothing} = nothing,
+    precompiles_rootpath::AbstractString = "$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile",
+    )
+
+    return BotConfig(package_name, subst, blacklist, os, else_os, version, else_version, precompiles_rootpath, tmin)
 end
 
 include("bot/botutils.jl")

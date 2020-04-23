@@ -146,7 +146,7 @@ function snoopi_bench(config::BotConfig)
 
     package = Symbol(package_name)
     package_rootpath = dirname(dirname(pathof_noload(package_name)))
-    runtestpath = joinpath(package_rootpath, "test", "runtests.jl");
+    runtestpath = joinpath(package_rootpath, "test/runtests.jl");
 
     snoop_script = quote
         using $(package);

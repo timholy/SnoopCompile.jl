@@ -18,9 +18,10 @@ cd(@__DIR__)
     @testset "precompile de/activation" begin
         package_name = "TestPackage"
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
+        precompiles_rootpath = joinpath(pwd(),"$package_name.jl","deps/SnoopCompile/precompile")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
-        SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, nothing, nothing)
+        SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, nothing, nothing)
 
         SnoopCompile.precompile_deactivator(package_path)
         @test occursin("should_precompile=false", stripall(Base.read(includer_path, String)))
@@ -33,11 +34,12 @@ cd(@__DIR__)
     @testset "precompile new_includer_file" begin
         package_name = "TestPackage"
         package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
+        precompiles_rootpath = joinpath(pwd(),"$package_name.jl","deps/SnoopCompile/precompile")
         includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
 
 
         @testset "no os, no else_os, no version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, nothing, nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, nothing, nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=false", includer_text)
             @test occursin("ismultiversion=false", includer_text)
@@ -55,7 +57,7 @@ cd(@__DIR__)
         end
 
         @testset "yes os, no else_os, no version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, nothing, nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], nothing, nothing, nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=false", includer_text)
@@ -81,7 +83,7 @@ cd(@__DIR__)
         end
 
         @testset "yes os, yes else_os, no version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", nothing, nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", nothing, nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=false", includer_text)
@@ -109,7 +111,7 @@ cd(@__DIR__)
         end
 
         @testset "no os, no else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, [v"1.0", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.0", v"1.4.1"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=false", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -136,7 +138,7 @@ cd(@__DIR__)
 
 
         @testset "no os, no else_os, yes version, yes else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, nothing, nothing, [v"1.0", v"1.4.1"], v"1.4.1")
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.0", v"1.4.1"], v"1.4.1")
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=false", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -164,7 +166,7 @@ cd(@__DIR__)
         end
 
         @testset "yes os, yes else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -213,7 +215,7 @@ cd(@__DIR__)
         end
 
         @testset "yes os, yes else_os, yes version, yes else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], v"1.4.1")
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.0", v"1.4.1"], v"1.4.1")
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -268,7 +270,7 @@ cd(@__DIR__)
         end
 
         @testset "yes os, no else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, ["linux", "windows"], nothing, [v"1.0", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], nothing, [v"1.0", v"1.4.1"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)

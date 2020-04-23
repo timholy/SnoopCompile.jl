@@ -7,12 +7,12 @@ function snoopi_bot(config::BotConfig, snoop_script)
     else_os = config.else_os
     version = config.version
     else_version = config.else_version
+    precompiles_rootpath = config.precompiles_rootpath
     ################################################################
     package_path = pathof_noload(package_name)
     package_rootpath = dirname(dirname(package_path))
-    precompiles_rootpath = "$package_rootpath/deps/SnoopCompile/precompile/"
 
-    new_includer_file(package_name, package_path, os, else_os, version, else_version) # create an precompile includer file
+    new_includer_file(package_name, package_path, precompiles_rootpath, os, else_os, version, else_version) # create an precompile includer file
     add_includer(package_name, package_path) # add the code to packages source for including the includer
 
     # precompile folder for writing
@@ -99,7 +99,7 @@ function snoopi_bot(config::BotConfig)
 
     package_name = config.package_name
     package_rootpath = dirname(dirname(pathof_noload(package_name)))
-    runtestpath = joinpath(package_rootpath, "test", "runtests.jl");
+    runtestpath = joinpath(package_rootpath, "test/runtests.jl");
 
     package = Symbol(package_name)
     snoop_script = quote

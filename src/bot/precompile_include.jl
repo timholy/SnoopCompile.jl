@@ -31,7 +31,8 @@ end
 """
     new_includer_file(
         package_name::AbstractString,
-        package_path::AbstractString,
+        package_path:: AbstractString,
+        precompiles_rootpath::AbstractString,
         os::Union{Vector{String}, Nothing},
         else_os::Union{String, Nothing},
         version::Union{Vector{VersionNumber}, Nothing},
@@ -40,19 +41,25 @@ end
 Creates a "precompile_includer.jl" file.
 
 `package_path = pathof_noload(package_name)`
+`precompiles_rootpath`: where the precompile files are stored.
 
 # # Examples
 ```julia
-SnoopCompile.new_includer_file("MatLang", joinpath(pwd(),"src/MatLang.jl"), ["windows", "linux"], "linux", [v"1.0", v"1.4"], v"1.4")
+SnoopCompile.new_includer_file("MatLang", "./src/MatLang.jl", "./deps/SnoopCompile/precompile", ["windows", "linux"], "linux", [v"1.0", v"1.4"], v"1.4")
 ```
 """
 function new_includer_file(
     package_name::AbstractString,
-    package_path::AbstractString,
+    package_path:: AbstractString,
+    precompiles_rootpath_in::AbstractString,
     os::Union{Vector{String}, Nothing},
     else_os::Union{String, Nothing},
     version::Union{Vector{VersionNumber}, Nothing},
     else_version::Union{VersionNumber, Nothing})
+
+    # make the precompile path relative to src folder
+    # this is the only path that is written to the disk by the bot, and it should be relative to make it generic.
+    precompiles_rootpath = GoodPath(relpath(precompiles_rootpath_in, dirname(package_path)))
 
     ## Standardize different names from Github actions, Travis, etc
     # https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources
@@ -82,17 +89,17 @@ function new_includer_file(
             multiversionstr = ""
         else
             ismultiversion = true
-            multiversionstr = _multiversion(version, else_version, package_name)
+            multiversionstr = _multiversion(package_name, precompiles_rootpath, version, else_version)
             multistr = multiversionstr
         end #if nothing vesion
     else
         ismultios = true
         if isnothing(version)
             ismultiversion = false
-            multistr = _multios(os, else_os, package_name, ismultiversion)
+            multistr = _multios(package_name, precompiles_rootpath, os, else_os, ismultiversion)
         else
             ismultiversion = true
-            multistr = _multios(os, else_os, package_name, ismultiversion, version, else_version)
+            multistr = _multios(package_name, precompiles_rootpath, os, else_os, ismultiversion, version, else_version)
         end # if nothing version
     end # if nothing os
 
@@ -107,7 +114,7 @@ function new_includer_file(
     @static if !should_precompile
         # nothing
     elseif !ismultios && !ismultiversion
-        include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")
+        include("$precompiles_rootpath/precompile_$package_name.jl")
         _precompile_()
     else
         $multistr
@@ -122,7 +129,7 @@ end
 """
 Helper function for multios code generation
 """
-function _multios(os_in, else_os, package_name, ismultiversion, version = nothing, else_version = nothing)
+function _multios(package_name, precompiles_rootpath, os_in, else_os, ismultiversion, version = nothing, else_version = nothing)
     os = similar(os_in, Any)
     os[:] = os_in[:]
 
@@ -146,13 +153,13 @@ function _multios(os_in, else_os, package_name, ismultiversion, version = nothin
         end
 
         if ismultiversion
-            multiversionstr = _multiversion(version, else_version, package_name, eachos)
+            multiversionstr = _multiversion(package_name, precompiles_rootpath, version, else_version, eachos)
             multistr = multistr * """
                 $multiversionstr
             """
         else
             multistr = multistr * """
-                include("../deps/SnoopCompile/precompile/$eachos/precompile_$package_name.jl")
+                include("$precompiles_rootpath/$eachos/precompile_$package_name.jl")
                 _precompile_()
             """
         end
@@ -168,7 +175,7 @@ end
 """
 Helper function for multiversion code generation
 """
-function _multiversion(version_in, else_version, package_name, eachos = "")
+function _multiversion(package_name, precompiles_rootpath, version_in, else_version, eachos = "")
     version = similar(version_in, Any)
     version[:] = version_in[:]
 
@@ -194,7 +201,7 @@ function _multiversion(version_in, else_version, package_name, eachos = "")
         end
 
         multiversionstr = multiversionstr * """
-            include("../deps/SnoopCompile/precompile/$eachos/$eachversion/precompile_$package_name.jl")
+            include("$precompiles_rootpath/$eachos/$eachversion/precompile_$package_name.jl")
             _precompile_()
         """
     end # for version
@@ -210,7 +217,7 @@ end
 
 Writes the `include(precompile_includer.jl)` to the package file.
 
-`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
+`package_path = pathof_noload(package_name)`
 """
 function add_includer(package_name::AbstractString, package_path::AbstractString)
     if !isfile(package_path)
@@ -223,7 +230,7 @@ function add_includer(package_name::AbstractString, package_path::AbstractString
     # Checks if any other precompile code already exists (only finds explicitly written _precompile_)
     if occursin("_precompile_()",package_text)
         if occursin("""include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")""", package_text)
-            # removing SnoopCompile < v"1.2.2" code
+            @warn """removing SnoopCompile < v"1.2.2" code"""  # For backward compatibility
             replace(package_text, "_precompile_()"=>"")
             replace(package_text, """include("../deps/SnoopCompile/precompile/precompile_$package_name.jl")"""=>"")
         else
