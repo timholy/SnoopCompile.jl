@@ -46,6 +46,9 @@ function snoopi_bot(config::BotConfig, snoop_script)
         ################################################################
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
+        if !haskey(pc, packageSym)
+            @error "no precompile signature is detected. Don't load the package before snooping. Restart your Julia session."
+        end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompile_folder,onlypackage)
         ################################################################
