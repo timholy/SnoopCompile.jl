@@ -55,9 +55,9 @@ end
 function snoopi_bench(config::BotConfig, snoop_script::Expr)
 
     package_name = config.package_name
+    package_path = pathof_noload(package_name)
 
     ################################################################
-    package_path = joinpath(pwd(),"src","$package_name.jl")
     juliaCode = """
     using SnoopCompile; data = @snoopi begin
         $(string(snoop_script));
@@ -145,10 +145,12 @@ function snoopi_bench(config::BotConfig)
     package_name = config.package_name
 
     package = Symbol(package_name)
+    package_rootpath = dirname(dirname(pathof_noload(package_name)))
+    runtestpath = joinpath(package_rootpath, "test", "runtests.jl");
+
     snoop_script = quote
         using $(package);
-        runtestpath = joinpath(dirname(dirname(pathof($(package)))), "test", "runtests.jl");
-        include(runtestpath);
+        include($runtestpath);
     end
     out = snoopi_bench(config, snoop_script)
     return out

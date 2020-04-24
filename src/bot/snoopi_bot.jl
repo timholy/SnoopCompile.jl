@@ -8,7 +8,9 @@ function snoopi_bot(config::BotConfig, snoop_script)
     version = config.version
     else_version = config.else_version
     ################################################################
-    package_path = joinpath(pwd(),"src","$package_name.jl")
+    package_path = pathof_noload(package_name)
+    package_rootpath = dirname(dirname(package_path))
+    precompiles_rootpath = "$package_rootpath/deps/SnoopCompile/precompile/"
 
     new_includer_file(package_name, package_path, os, else_os, version, else_version) # create an precompile includer file
     add_includer(package_name, package_path) # add the code to packages source for including the includer
@@ -16,15 +18,15 @@ function snoopi_bot(config::BotConfig, snoop_script)
     # precompile folder for writing
     if  isnothing(os)
         if isnothing(version)
-            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/"
+            precompile_folder = precompiles_rootpath
         else
-            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(VERSION)"
+            precompile_folder = "$precompiles_rootpath/$(VERSION)"
         end
     else
         if isnothing(version)
-            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$(detectOS()[1])"
+            precompile_folder = "$precompiles_rootpath/$(detectOS()[1])"
         else
-            precompile_folder = "$(pwd())/deps/SnoopCompile/precompile/$( detectOS()[1])/$(VERSION)"
+            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$(VERSION)"
         end
     end
 
@@ -96,12 +98,13 @@ end
 function snoopi_bot(config::BotConfig)
 
     package_name = config.package_name
+    package_rootpath = dirname(dirname(pathof_noload(package_name)))
+    runtestpath = joinpath(package_rootpath, "test", "runtests.jl");
 
     package = Symbol(package_name)
     snoop_script = quote
         using $(package)
-        runtestpath = joinpath(dirname(dirname(pathof( $package ))), "test", "runtests.jl")
-        include(runtestpath)
+        include($runtestpath)
     end
     out = snoopi_bot(config, snoop_script)
     return out

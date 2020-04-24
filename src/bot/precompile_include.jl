@@ -39,7 +39,7 @@ end
 
 Creates a "precompile_includer.jl" file.
 
-`package_path` should be the full path to the defining file for the package, i.e., identical to `pathof(ThePkg)`. However, `pathof(module)` isn't used to prevent the need to load the package.
+`package_path = pathof_noload(package_name)`
 
 # # Examples
 ```julia

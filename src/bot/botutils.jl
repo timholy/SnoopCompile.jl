@@ -1,4 +1,36 @@
 ################################################################
+
+export pathof_noload
+
+"""
+Returns a package's path without loading the package in the main Julia process.
+# Examples
+```julia
+pathof_noload("MatLang")
+```
+"""
+function pathof_noload(package_name::String)
+    path = Base.find_package(package_name)
+    if isnothing(path)
+        cmd = "import $package_name; print(pathof($package_name))"
+        try
+            path = Base.read(`julia -e $cmd`, String)
+            return GoodPath(path)
+        catch
+            try
+                path = Base.read(`julia --project=@. -e $cmd`, String)
+                return GoodPath(path)
+            catch
+                @error "Couldn't find the path of $package_name"
+            end
+        end
+    else
+        return GoodPath(path)
+    end
+end
+
+################################################################
+
 import Pkg
 """
 Should be removed once Pkg allows adding test dependencies to the current environment
