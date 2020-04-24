@@ -2,15 +2,16 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
 
     package_name = config.package_name
     blacklist = config.blacklist
-    subst = config.subst
     os = config.os
     else_os = config.else_os
     version = config.version
     else_version = config.else_version
+    package_path = config.package_path
     precompiles_rootpath = config.precompiles_rootpath
+    subst = config.subst
     tmin = config.tmin
+
     ################################################################
-    package_path = pathof_noload(package_name)
     package_rootpath = dirname(dirname(package_path))
 
     new_includer_file(package_name, package_path, precompiles_rootpath, os, else_os, version, else_version) # create an precompile includer file

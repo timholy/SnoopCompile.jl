@@ -7,16 +7,14 @@ end
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
 """
-    BotConfig(package_name::AbstractString; subst = [], blacklist = [], os = [], else_os = nothing, version = [], else_version = nothing, precompiles_rootpath = "package_root/deps/SnoopCompile/precompile")
+    BotConfig(package_name ; blacklist, os, else_os, version, else_version, package_path, precompiles_rootpath, subst, tmin)
 
 Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `@snoopi_bot`.
 
 # Arguments:
 - `package_name::AbstractString`
 
-You may supply the following keyword arguments:
-
-- `subst` : A vector of pairs of Strings (or RegExp) to replace a packages precompile setences with another's package like `["ImageTest" => "Images"]`.
+You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile sentences
 
@@ -34,9 +32,13 @@ Example: `version = [v"1.1", v"1.4.1"]`
 
 - `else_vresion`: If you want to use a specific version for any other version, give `else_version` the name of that version.
 
-- `precompiles_rootpath`: the path where precompile files are stored. Default path is "package_root/deps/SnoopCompile/precompile"
-
 Example: `else_version = v"1.4.1"`
+
+- `package_path`: path to the main `.jl` file of the package (similar to `pathof`). Default path is `pathof_noload(package_name)`.
+
+- `precompiles_rootpath`: the path where precompile files are stored. Default path is "\$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile".
+
+- `subst` : A vector of pairs of Strings (or RegExp) to replace a packages precompile setences with another's package like `["ImageTest" => "Images"]`.
 
 - `tmin`: Methods that take less time than `tmin` will not be reported. Defaults to 0.0.
 
@@ -65,24 +67,27 @@ BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.1"])
 """
 struct BotConfig
     package_name::AbstractString
-    subst::Vector{Pair{UStrings, UStrings}}
     blacklist::Vector{UStrings}
     os::Union{Vector{String}, Nothing}
     else_os::Union{String, Nothing}
     version::Union{Vector{VersionNumber}, Nothing}
     else_version::Union{VersionNumber, Nothing}
+    package_path::AbstractString
     precompiles_rootpath::AbstractString
+    subst::Vector{Pair{UStrings, UStrings}}
     tmin::AbstractFloat
 end
 
 function BotConfig(
     package_name::AbstractString;
-    subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(), blacklist::AbstractVector = String[],
+    blacklist::AbstractVector = String[],
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{VersionNumber}, Nothing} = nothing,
     else_version::Union{VersionNumber, Nothing} = nothing,
-    precompiles_rootpath::AbstractString = "$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile",
+    package_path::AbstractString = pathof_noload(package_name),
+    precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
+    subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
     tmin::AbstractFloat = 0.0,
     )
 

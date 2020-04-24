@@ -60,7 +60,7 @@ end
 function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
 
     package_name = config.package_name
-    package_path = pathof_noload(package_name)
+    package_path = config.package_path
 
     ################################################################
     # quote end generates $ which doesn't work in commands
@@ -162,9 +162,9 @@ end
 function snoopi_bench(modul::Module, config::BotConfig)
 
     package_name = config.package_name
+    package_rootpath = dirname(dirname(config.package_path))
 
     package = Symbol(package_name)
-    package_rootpath = dirname(dirname(pathof_noload(package_name)))
     runtestpath = "$package_rootpath/test/runtests.jl"
 
     snoop_script = quote
