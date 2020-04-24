@@ -1,4 +1,4 @@
-export BotConfig, @snoopi_bot, @snoopi_bench
+export BotConfig, snoopi_bot, snoopi_bench, @snoopi_bot, @snoopi_bench
 
 if VERSION <=  v"1.1"
     isnothing(x) = x == nothing
@@ -9,7 +9,7 @@ const UStrings = Union{AbstractString,Regex,AbstractChar}
 """
     BotConfig(package_name ; blacklist, os, else_os, version, else_version, package_path, precompiles_rootpath, subst, tmin)
 
-Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `@snoopi_bot`.
+Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is fed to the `snoopi_bot`.
 
 # Arguments:
 - `package_name::AbstractString`
