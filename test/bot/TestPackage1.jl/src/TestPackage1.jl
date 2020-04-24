@@ -1,4 +1,4 @@
-module TestPackage
+module TestPackage1
 export hello, domath
 
 hello(who::String) = "Hello, $who"

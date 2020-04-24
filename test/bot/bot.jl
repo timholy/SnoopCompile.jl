@@ -1,14 +1,16 @@
 using SnoopCompile, Test
-
+import SnoopCompile.goodjoinpath
 stripall(x::String) = replace(x, r"\s|\n"=>"")
 
-cd(@__DIR__)
+snoopcompiledir = pwd()
+bottestdir = GoodPath(@__DIR__)
 
 @testset "bot" begin
+
     @testset "add_includer" begin
-        package_name = "TestPackage"
-        package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
-        includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
+        package_name = "TestPackage0"
+        package_path = goodjoinpath(bottestdir,"$package_name.jl","src","$package_name.jl")
+        includer_path = goodjoinpath(dirname(package_path), "precompile_includer.jl")
 
         SnoopCompile.add_includer(package_name, package_path)
 
@@ -16,10 +18,10 @@ cd(@__DIR__)
     end
 
     @testset "precompile de/activation" begin
-        package_name = "TestPackage"
-        package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
-        precompiles_rootpath = joinpath(pwd(),"$package_name.jl","deps/SnoopCompile/precompile")
-        includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
+        package_name = "TestPackage0"
+        package_path = goodjoinpath(bottestdir,"$package_name.jl","src","$package_name.jl")
+        precompiles_rootpath = goodjoinpath(bottestdir,"$package_name.jl","deps/SnoopCompile/precompile")
+        includer_path = goodjoinpath(dirname(package_path), "precompile_includer.jl")
 
         SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, nothing, nothing)
 
@@ -29,13 +31,16 @@ cd(@__DIR__)
         SnoopCompile.precompile_activator(package_path)
         includer_text = stripall(Base.read(includer_path, String))
         @test occursin("should_precompile=true", includer_text)
+
+        rm(includer_path)
     end
 
     @testset "precompile new_includer_file" begin
-        package_name = "TestPackage"
-        package_path = joinpath(pwd(),"$package_name.jl","src","$package_name.jl")
-        precompiles_rootpath = joinpath(pwd(),"$package_name.jl","deps/SnoopCompile/precompile")
-        includer_path = joinpath(dirname(package_path), "precompile_includer.jl")
+        package_name = "TestPackage0"
+        package_path = goodjoinpath(bottestdir,"$package_name.jl","src","$package_name.jl")
+        precompiles_rootpath = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile"
+        precompiles_rootpath_rel = GoodPath(relpath( precompiles_rootpath , dirname(package_path)))
+        includer_path = goodjoinpath(dirname(package_path), "precompile_includer.jl")
 
 
         @testset "no os, no else_os, no version, no else_version" begin
@@ -48,7 +53,7 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
 
@@ -66,14 +71,14 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
-                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel/linux/precompile_$package_name.jl")
                     _precompile_()
                 elseif Sys.iswindows()
-                    include("../deps/SnoopCompile/precompile/windows/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel/windows/precompile_$package_name.jl")
                     _precompile_()
                 else
                 end
@@ -92,17 +97,17 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
-                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel/linux/precompile_$package_name.jl")
                     _precompile_()
                 elseif Sys.iswindows()
-                    include("../deps/SnoopCompile/precompile/windows/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel/windows/precompile_$package_name.jl")
                     _precompile_()
                 else
-                    include("../deps/SnoopCompile/precompile/linux/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel/linux/precompile_$package_name.jl")
                     _precompile_()
                 end
 
@@ -120,14 +125,14 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if VERSION <= v"1.0.0"
-                    include("../deps/SnoopCompile/precompile//1.0.0/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel//1.0.0/precompile_$package_name.jl")
                     _precompile_()
                 elseif VERSION <= v"1.4.1"
-                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
                     _precompile_()
                 else
                 end
@@ -147,17 +152,17 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if VERSION <= v"1.0.0"
-                    include("../deps/SnoopCompile/precompile//1.0.0/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel//1.0.0/precompile_$package_name.jl")
                     _precompile_()
                 elseif VERSION <= v"1.4.1"
-                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
                     _precompile_()
                 else
-                    include("../deps/SnoopCompile/precompile//1.4.1/precompile_TestPackage.jl")
+                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
                     _precompile_()
                 end
 
@@ -175,35 +180,35 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
 
                 elseif Sys.iswindows()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
 
                 else
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
@@ -224,42 +229,42 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     end
 
                 elseif Sys.iswindows()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     end
 
                 else
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     end
 
@@ -279,25 +284,25 @@ cd(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("../deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/linux/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/linux/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
 
                 elseif Sys.iswindows()
                     @static if VERSION <= v"1.0.0"
-                        include("../deps/SnoopCompile/precompile/windows/1.0.0/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.0.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("../deps/SnoopCompile/precompile/windows/1.4.1/precompile_TestPackage.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
@@ -308,52 +313,42 @@ cd(@__DIR__)
             end
             """), includer_text)
         end
-
+        rm(includer_path)
     end
 
-    using Pkg;
-    package_name = "TestPackage"
-    package_path = joinpath(pwd(),"$package_name.jl")
-    Pkg.develop(PackageSpec(path=package_path))
-
-    package_name2 = "TestPackage2"
-    package_path2 = joinpath(pwd(),"$package_name2.jl")
-    Pkg.develop(PackageSpec(path=package_path2))
-
-    package_name3 = "TestPackage3"
-    package_path3 = joinpath(pwd(),"$package_name3.jl")
-    Pkg.develop(PackageSpec(path=package_path3))
 
     if VERSION >=  v"1.2"
+
+        using Pkg
+        for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3"])
+            Pkg.develop(PackageSpec(path=joinpath(bottestdir,"$package_name.jl")))
+            @eval $(Symbol("package_rootpath", i)) = goodjoinpath(bottestdir,"$($package_name).jl")
+        end
+
         @testset "snoopi_bot" begin
-            cd(package_path)
 
-            include("TestPackage.jl/deps/SnoopCompile/snoopi_bot.jl")
+            include("$package_rootpath1/deps/SnoopCompile/snoopi_bot.jl")
 
-            @test isfile("deps/SnoopCompile/precompile/precompile_TestPackage.jl")
+            @test isfile("$package_rootpath1/deps/SnoopCompile/precompile/precompile_TestPackage1.jl")
 
-            precompile_text = Base.read("deps/SnoopCompile/precompile/precompile_TestPackage.jl", String)
+            precompile_text = Base.read("$package_rootpath1/deps/SnoopCompile/precompile/precompile_TestPackage1.jl", String)
 
             @test occursin("hello", precompile_text)
             @test occursin("domath", precompile_text)
         end
 
         @testset "snoopi_bench" begin
-            cd(package_path)
-
-            include("TestPackage.jl/deps/SnoopCompile/snoopi_bench.jl")
+            include("$package_rootpath1/deps/SnoopCompile/snoopi_bench.jl")
         end
 
         @testset "snoopi_bot_multios" begin
-            cd(package_path2)
-
             os, osfun = SnoopCompile.detectOS()
 
-            include("TestPackage2.jl/deps/SnoopCompile/snoopi_bot_multios.jl")
+            include("$package_rootpath2/deps/SnoopCompile/snoopi_bot_multios.jl")
 
-            @test isfile("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
+            @test isfile("$package_rootpath2/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
 
-            precompile_text = Base.read("deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
+            precompile_text = Base.read("$package_rootpath2/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
 
             if os == "windows"
                 @test occursin("hello2", precompile_text)
@@ -365,21 +360,17 @@ cd(@__DIR__)
         end
 
         @testset "snoopi_bench-multios" begin
-            cd(package_path2)
-
-            include("TestPackage2.jl/deps/SnoopCompile/snoopi_bench.jl")
+            include("$package_rootpath2/deps/SnoopCompile/snoopi_bench.jl")
         end
 
         @testset "snoopi_bot_multiversion" begin
-            cd(package_path3)
-
             os, osfun = SnoopCompile.detectOS()
 
-            include("TestPackage3.jl/deps/SnoopCompile/snoopi_bot_multiversion.jl")
+            include("$package_rootpath3/deps/SnoopCompile/snoopi_bot_multiversion.jl")
 
-            @test isfile("deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl")
+            @test isfile("$package_rootpath3/deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl")
 
-            precompile_text = Base.read("deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl", String)
+            precompile_text = Base.read("$package_rootpath3/deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl", String)
 
             if VERSION > v"1.3"
                 @test occursin("hello3", precompile_text)
@@ -397,11 +388,18 @@ cd(@__DIR__)
         end
 
         @testset "snoopi_bench-multiversion" begin
-            cd(package_path3)
-            include("TestPackage3.jl/deps/SnoopCompile/snoopi_bench.jl")
+            include("$package_rootpath3/deps/SnoopCompile/snoopi_bench.jl")
         end
 
         # workflow.yml file is tested online:
         # https://github.com/aminya/Example.jl/actions
+
+        for package_name in ["TestPackage1", "TestPackage2", "TestPackage3"]
+            Pkg.rm(package_name)
+        end
+        Pkg.resolve()
     end
+
+    # just in case
+    cd(snoopcompiledir)
 end

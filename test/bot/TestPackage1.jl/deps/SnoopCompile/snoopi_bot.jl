@@ -1,4 +1,4 @@
 using SnoopCompile
 
 # using runtests:
-@snoopi_bot BotConfig("TestPackage3")
+@snoopi_bot BotConfig("TestPackage1")
