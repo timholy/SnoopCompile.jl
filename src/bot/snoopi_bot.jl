@@ -1,5 +1,4 @@
-function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
-
+function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
     package_name = config.package_name
     blacklist = config.blacklist
     os = config.os
@@ -10,6 +9,10 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
     precompiles_rootpath = config.precompiles_rootpath
     subst = config.subst
     tmin = config.tmin
+
+    if test_modul != Main && string(test_modul) == package_name
+        @error "Your example/test shouldn't be in the same module!. Use `Main` instead."
+    end
 
     ################################################################
     package_rootpath = dirname(dirname(package_path))
@@ -36,20 +39,20 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
         ################################################################
         using SnoopCompile
         ################################################################
-        precompile_deactivator($package_path);
+        SnoopCompile.precompile_deactivator($package_path);
         ################################################################
 
         ### Log the compiles
-        # data = Core.eval($modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
+        # data = Core.eval($test_modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
         # TODO use code directly for now
-        empty!(__inf_timing__)
-        start_timing()
+        empty!(SnoopCompile.__inf_timing__)
+        SnoopCompile.start_timing()
         try
             $snoop_script
         finally
-            stop_timing()
+            SnoopCompile.stop_timing()
         end
-        data = sort_timed_inf($tmin)
+        data = SnoopCompile.sort_timed_inf($tmin)
 
         ################################################################
         ### Parse the compiles and generate precompilation scripts
@@ -60,21 +63,115 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompile_folder, onlypackage)
         ################################################################
-        precompile_activator($package_path)
+        SnoopCompile.precompile_activator($package_path)
     end
     return out
 end
 
+function _snoopi_bot(config::BotConfig, test_modul::Module)
+
+    package_name = config.package_name
+    package_rootpath = dirname(dirname(pathof_noload(package_name)))
+    runtestpath = "$package_rootpath/test/runtests.jl"
+
+    package = Symbol(package_name)
+    snoop_script = quote
+        using $(package)
+        include($runtestpath)
+    end
+    return _snoopi_bot(config, snoop_script, test_modul)
+end
+
+################################################################
+
+"""
+    snoopi_bot(config::BotConfig, path_to_exmple_script::String, test_modul = Main)
+
+This function automatically generates precompile files and includes them in the package. This macro does most of the operations that `SnoopCompile` is capable of automatically.
+
+See the https://timholy.github.io/SnoopCompile.jl/stable/bot/ for more information.
+
+# Example
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is in the same directory that the macro is called.
+snoopi_bot( BotConfig("MatLang"), "exmaple_script.jl" )
+```
+
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is at "deps/SnoopCompile/example_script.jl"
+example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "deps", "SnoopCompile", "example_script.jl")
+
+snoopi_bot( BotConfig("MatLang"), example_path )
+```
+
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is at "src/example_script.jl"
+example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "src", "example_script.jl")
+snoopi_bot( BotConfig("MatLang"), example_path )
+```
+"""
+function snoopi_bot(config::BotConfig, path_to_exmple_script::String, test_modul::Module = Main)
+    snoop_script = quote
+        include($path_to_exmple_script)
+    end
+    out =  _snoopi_bot(config, snoop_script, test_modul)
+    Core.eval( test_modul, out )
+end
+
+################################################################
+"""
+    snoopi_bot(config::BotConfig, test_modul::Module = Main)
+
+If you do not have additional examples, you can use your runtests.jl file:
+
+# Example
+```julia
+using SnoopCompile
+
+# using runtests:
+snoopi_bot( BotConfig("MatLang") )
+```
+"""
+function snoopi_bot(config::BotConfig, test_modul::Module = Main)
+    out = _snoopi_bot(config, test_modul)
+    Core.eval( test_modul, out )
+end
+
+################################################################
+
+"""
+    snoopi_bot(config::BotConfig, expression::Expr, test_modul::Module = Main)
+
+You can pass an expression directly. This is useful for simple experssions like `:(using MatLang)`.
+
+However:
+
+!!! warning
+    Don't use this for complex expressions. The functionality isn't guaranteed. Especially if you
+    - interpolate into it
+    - use macros directly inside it
+"""
+function snoopi_bot(config::BotConfig, snoop_script::Expr, test_modul::Module  = Main)
+    out = _snoopi_bot(config, snoop_script, test_modul)
+    Core.eval( test_modul, out )
+end
+
+################################################################
 
 """
     @snoopi_bot config::BotConfig  snoop_script::Expr
+    @snoopi_bot config::BotConfig
 
-macro that generates precompile files and includes them in the package. Calls other bot functions.
+!!! warning
+    This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`.
 
 # Examples
-
-`@snoopi_bot` the examples that call the package functions.
-
 ```julia
 using SnoopCompile
 
@@ -88,64 +185,50 @@ using SnoopCompile
 end
 ```
 """
-macro snoopi_bot(configExpr, snoop_script)
+macro snoopi_bot(configExpr, snoop_script::Expr)
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`."
     config = eval(configExpr)
-    out = snoopi_bot(__module__, config, snoop_script)
+    out = _snoopi_bot(config, snoop_script, __module__)
     return out
 end
 
-macro snoopi_bot(package_name::String, snoop_script)
+macro snoopi_bot(package_name::String, snoop_script::Expr)
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`."
+
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
-
-    out = snoopi_bot(__module__, config, snoop_script)
+    out = _snoopi_bot(config, snoop_script, __module__)
     return out
 end
-
-################################################################
-
-function snoopi_bot(modul, config::BotConfig)
-
-    package_name = config.package_name
-    package_rootpath = dirname(dirname(pathof_noload(package_name)))
-    runtestpath = "$package_rootpath/test/runtests.jl"
-
-    package = Symbol(package_name)
-    snoop_script = quote
-        using $(package)
-        include($runtestpath)
-    end
-    out = snoopi_bot(modul, config, snoop_script)
-    return out
-end
-
 
 """
     @snoopi_bot config::BotConfig
 
-If you do not have additional examples, you can use your runtests.jl file. To do that use:
+!!! warning
+    This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig)`.
 
+Ues tests for snooping:
 ```julia
-using SnoopCompile
-
-# using runtests:
 @snoopi_bot BotConfig("MatLang")
 ```
 """
 macro snoopi_bot(configExpr)
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig)`."
+
     config = eval(configExpr)
-    out = snoopi_bot(__module__, config)
+    out = _snoopi_bot(config, __module__)
     return out
 end
 
 macro snoopi_bot(package_name::String)
     f, l = __source__.file, __source__.line
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig)`."
+
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
-
-    out = snoopi_bot(__module__, config)
+    out = _snoopi_bot(config, __module__)
     return out
 end
