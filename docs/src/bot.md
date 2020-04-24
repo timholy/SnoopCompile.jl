@@ -2,13 +2,89 @@
 
 You can use SnoopCompile bot to automatically and continuously create precompile files. This bot can be used offline or online.
 
-One should add 3 things to a package to make the bot work:
+Follow these steps to setup SnoopCompile bot:
 
+## 1 - Example/Test script
+
+You should have `example_script.jl` that "exercises" the functionality you'd like to precompile.
+
+**Recommendation**: add `example_script.jl` under `deps/SnoopCompile` (or at the same path that is referenced in the calls in section 2 and 3).
+
+One option is to use your package's `"runtests.jl"` file. In this case, a simpler syntax is offered. See section 2 and 3.
+
+## 2 - Call `snoopi_bot` function
+
+Call the `snoopi_bot` function to generate precompile signatures.
+
+**Recommendation**:
+ - add a `snoopi_bot.jl` under `deps/SnoopCompile` (or at the same path that is referenced in yaml file).
+ - or call the function directly from the yaml file.
+
+This call should be like:
+
+```julia
+using SnoopCompile
+
+snoopi_bot(
+  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
+  "example_script.jl",
+)
+```
+
+[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The above example shows an example of a `BotConfig` that supports multiple os, multiple version, and also has a function in its backlist.
+
+[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bot.jl)
+
+If you do not have additional examples, you can use your runtests.jl file using this syntax:
+
+```julia
+using SnoopCompile
+
+# using runtests:
+snoopi_bot( BotConfig("MatLang") )
+```
+
+[Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
 ----------------------------------
 
-## 1 - GitHub Action file (only for online run)
+## 3 - Call `snoopi_bench` function
 
-create a workflow file with this path in your repository `.github/workflows/SnoopCompile.yml` and use the following content:
+Call the `snoopi_bench` function to measure the effect of adding precompile files,
+
+**Recommendation**:
+ - add a `snoopi_bench.jl` under `deps/SnoopCompile` (or at the same path that is referenced in yaml file).
+ - or call the function directly from the yaml file.
+
+Benchmarking the inference time of example_script
+```julia
+
+using SnoopCompile
+
+println("Benchmarking the inference time of example_script")
+snoopi_bench(
+  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
+  "example_script.jl",
+)
+```
+
+Benchmarking the inference time of the tests
+```julia
+println("Benchmarking the inference time of the tests")
+snoopi_bench(BotConfig("MatLang"))
+```
+
+Benchmarking inference time of loading
+```julia
+println("Benchmarking inference time of loading")
+snoopi_bench( BotConfig("MatLang"), :(using MatLang) ) # this syntax should be avoided for complex expressions
+```
+
+[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
+
+
+## 4 - GitHub Action file (only for online run)
+
+In your repository, create a workflow file under `.github/workflows/SnoopCompile.yml`, and use the following content:
 
 ```yaml
 name: SnoopCompile
@@ -100,72 +176,3 @@ jobs:
 For example for MatLang package:
 
 [Link](https://github.com/juliamatlab/MatLang/blob/master/.github/workflows/SnoopCompile.yml)
-
-----------------------------------
-
-## 2 - Precompile script
-
-Add a `snoopi_bot.jl` file under `deps/SnoopCompile`. The content of the file should be a script that "exercises" the functionality you'd like to precompile. One option is to use your package's `"runtests.jl"` file, or you can write a custom script for this purpose.
-
-[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The following example shows an example of a BotConfig that supports multiple os, multiple version, and also has a function in its backlist.
-
-```julia
-@snoopi_bot BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = nothing, version = ["1.4.1", "1.2", "1.0.5"], else_version = "1.4.1" )
-```
-
-An example with custom script that call the functions:
-
-```julia
-using SnoopCompile
-
-@snoopi_bot BotConfig("MatLang") begin
-  using MatLang
-  MatLang_rootpath = dirname(dirname(pathof("MatLang")))
-
-  include("\$MatLang_rootpath/examples/Language_Fundamentals/usage_Matrices_and_Arrays.jl")
-  include("\$MatLang_rootpath/examples/Language_Fundamentals/Data_Types/usage_Numeric_Types.jl")
-end
-```
-[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bot.jl)
-
-or if you do not have additional examples, you can use your runtests.jl file using this syntax:
-
-```julia
-using SnoopCompile
-
-# using runtests:
-@snoopi_bot BotConfig("MatLang")
-```
-
-[Also look at this](https://timholy.github.io/SnoopCompile.jl/stable/snoopi/#Precompile-scripts-1)
-----------------------------------
-
-## 3 - Benchmark Script
-
-To measure the effect of adding precompile files. Add a `snoopi_bench.jl`. The content of this file can be the following:
-
-Benchmarking the load infer time
-```julia
-println("loading infer benchmark")
-
-@snoopi_bench BotConfig("MatLang") using MatLang
-```
-
-Benchmarking the example infer time
-```julia
-println("examples infer benchmark")
-
-@snoopi_bench BotConfig("MatLang") begin
-    using MatLang
-    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
-
-    include("\$MatLang_rootpath/examples/Language_Fundamentals/usage_Matrices_and_Arrays.jl")
-    include("\$MatLang_rootpath/examples/Language_Fundamentals/Data_Types/usage_Numeric_Types.jl")
-end
-```
-
-Benchmarking the tests:
-```julia
-@snoopi_bench BotConfig("MatLang")
-```
-[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
