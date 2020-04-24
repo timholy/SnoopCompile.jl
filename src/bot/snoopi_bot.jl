@@ -38,16 +38,25 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
         ################################################################
 
         ### Log the compiles
-        data = Core.eval($modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
+        # data = Core.eval($modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
+        # TODO use code directly for now
+        empty!(__inf_timing__)
+        start_timing()
+        try
+            $snoop_script
+        finally
+            stop_timing()
+        end
+        data = sort_timed_inf($tmin)
 
         ################################################################
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
         if !haskey(pc, packageSym)
-            @error "no precompile signature is detected. Don't load the package before snooping. Restart your Julia session."
+            @error "no precompile signature is found for $package_name. Don't load the package before snooping. Restart your Julia session."
         end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompile.write($precompile_folder,onlypackage)
+        SnoopCompile.write($precompile_folder, onlypackage)
         ################################################################
         precompile_activator($package_path)
     end

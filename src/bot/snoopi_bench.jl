@@ -63,11 +63,24 @@ function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
     package_path = pathof_noload(package_name)
 
     ################################################################
-    juliaCode = quote
+    # quote end generates $ which doesn't work in commands
+    # TODO no escape is done for snoop_script!!!
+    # TODO
+    # data = Core.eval(  $modul, snoopi($(esc(snoop_script)))  )
+    # TODO use code directly for now
+    # no filter in the benchmark
+    juliaCode = """
         using SnoopCompile
-        data = Core.eval(  $modul, snoopi($(esc(snoop_script)))  )
+        empty!(SnoopCompile.__inf_timing__)
+        SnoopCompile.start_timing()
+        try
+            $(string(snoop_script));
+        finally
+            SnoopCompile.stop_timing()
+        end
+        data = SnoopCompile.sort_timed_inf(0.0)
         @info(timesum(data))
-    end
+    """
     julia_cmd = `julia --project=@. -e $juliaCode`
     out = quote
         package_sym = Symbol($package_name)
