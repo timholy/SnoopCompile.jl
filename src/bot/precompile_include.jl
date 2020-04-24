@@ -188,7 +188,9 @@ function _multiversion(package_name, precompiles_rootpath, version_in, else_vers
     for (iVersion, eachversion) in enumerate(version)
 
         if iVersion == 1
-            version_phrase = "@static if VERSION <= v\"$eachversion\""
+            version_phrase = """@static if VERSION < v\"1.2.0\"
+                    # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                elseif VERSION <= v\"$eachversion\""""
         elseif iVersion == version_length
             version_phrase = "else"
         else
