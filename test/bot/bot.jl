@@ -320,7 +320,7 @@ bottestdir = GoodPath(@__DIR__)
     if VERSION >=  v"1.2"
 
         using Pkg
-        for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3"])
+        for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"])
             Pkg.develop(PackageSpec(path=joinpath(bottestdir,"$package_name.jl")))
             @eval $(Symbol("package_rootpath", i)) = goodjoinpath(bottestdir,"$($package_name).jl")
         end
@@ -391,13 +391,29 @@ bottestdir = GoodPath(@__DIR__)
             include("$package_rootpath3/deps/SnoopCompile/snoopi_bench.jl")
         end
 
-        # workflow.yml file is tested online:
-        # https://github.com/aminya/Example.jl/actions
+        @testset "snoopi_bot_function_form" begin
 
-        for package_name in ["TestPackage1", "TestPackage2", "TestPackage3"]
+            include("$package_rootpath4/deps/SnoopCompile/snoopi_bot.jl")
+
+            @test isfile("$package_rootpath4/deps/SnoopCompile/precompile/precompile_TestPackage4.jl")
+
+            precompile_text = Base.read("$package_rootpath4/deps/SnoopCompile/precompile/precompile_TestPackage4.jl", String)
+
+            @test occursin("hello4", precompile_text)
+            @test occursin("domath4", precompile_text)
+        end
+
+        @testset "snoopi_bench_function_form" begin
+            include("$package_rootpath4/deps/SnoopCompile/snoopi_bench.jl")
+        end
+
+        for package_name in ["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"]
             Pkg.rm(package_name)
         end
         Pkg.resolve()
+
+        # workflow yaml file is tested online:
+        # https://github.com/aminya/Example.jl/actions
     end
 
     # just in case
