@@ -273,7 +273,7 @@ function add_includer(package_name::AbstractString, package_path::AbstractString
             code = """
             include("precompile_includer.jl")
             """
-            insert!(package_lines,endline-1,code) # add new empty line before the end
+            insert!(package_lines,endline,code) # add new empty line before the end
         catch e
             @error("Error occured during writing", e)
             return nothing
