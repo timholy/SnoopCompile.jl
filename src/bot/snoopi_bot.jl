@@ -91,12 +91,16 @@ This function automatically generates precompile files and includes them in the 
 
 See the https://timholy.github.io/SnoopCompile.jl/stable/bot/ for more information.
 
+# Arguments:
+- config: see [`BotConfg`](@ref)
+- path_to_exmple_script: Try to make an absolute path using `@__DIR__` and `pathof_noload`. If the bot doesn't find the script right away, it will search for it.
+
 # Example
 ```julia
 using SnoopCompile
 
 # exmaple_script.jl is in the same directory that the macro is called.
-snoopi_bot( BotConfig("MatLang"), "exmaple_script.jl" )
+snoopi_bot( BotConfig("MatLang"), "\$(@__DIR__)/exmaple_script.jl")
 ```
 
 ```julia
@@ -117,6 +121,8 @@ snoopi_bot( BotConfig("MatLang"), example_path )
 ```
 """
 function snoopi_bot(config::BotConfig, path_to_exmple_script::String, test_modul::Module = Main)
+    # search for the script! - needed because of confusing paths when referencing pattern_or_file in CI
+    path_to_exmple_script = searchdirsboth([pwd(),dirname(dirname(config.package_path))], path_to_exmple_script)
     snoop_script = quote
         include($path_to_exmple_script)
     end

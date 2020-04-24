@@ -27,7 +27,7 @@ using SnoopCompile
 
 snoopi_bot(
   BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
-  "example_script.jl",
+  "\$(@__DIR__)/example_script.jl",
 )
 ```
 
@@ -63,7 +63,7 @@ using SnoopCompile
 println("Benchmarking the inference time of example_script")
 snoopi_bench(
   BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
-  "example_script.jl",
+  "\$(@__DIR__)/example_script.jl",
 )
 ```
 
