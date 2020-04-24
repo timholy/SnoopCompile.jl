@@ -38,6 +38,8 @@ Example: `version = [v"1.1", v"1.4.1"]`
 
 Example: `else_version = v"1.4.1"`
 
+- `tmin`: Methods that take less time than `tmin` will not be reported. Defaults to 0.0.
+
 # Example
 ```julia
 # A full example:
@@ -70,6 +72,7 @@ struct BotConfig
     version::Union{Vector{VersionNumber}, Nothing}
     else_version::Union{VersionNumber, Nothing}
     precompiles_rootpath::AbstractString
+    tmin::AbstractFloat
 end
 
 function BotConfig(
@@ -80,6 +83,7 @@ function BotConfig(
     version::Union{Vector{VersionNumber}, Nothing} = nothing,
     else_version::Union{VersionNumber, Nothing} = nothing,
     precompiles_rootpath::AbstractString = "$(dirname(dirname(pathof_noload(package_name))))/deps/SnoopCompile/precompile",
+    tmin::AbstractFloat = 0.0,
     )
 
     return BotConfig(package_name, blacklist, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)

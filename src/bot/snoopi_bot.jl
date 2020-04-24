@@ -8,6 +8,7 @@ function snoopi_bot(modul::Module, config::BotConfig, snoop_script)
     version = config.version
     else_version = config.else_version
     precompiles_rootpath = config.precompiles_rootpath
+    tmin = config.tmin
     ################################################################
     package_path = pathof_noload(package_name)
     package_rootpath = dirname(dirname(package_path))
