@@ -57,7 +57,7 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
     end
 end
 ################################################################
-function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
+function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module = Main)
 
     package_name = config.package_name
     package_path = config.package_path
@@ -66,7 +66,7 @@ function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
     # quote end generates $ which doesn't work in commands
     # TODO no escape is done for snoop_script!!!
     # TODO
-    # data = Core.eval(  $modul, snoopi($(esc(snoop_script)))  )
+    # data = Core.eval(  $test_modul, snoopi($(esc(snoop_script)))  )
     # TODO use code directly for now
     # no filter in the benchmark
     juliaCode = """
@@ -94,14 +94,14 @@ function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
         @info("""Precompile Deactivated Inference Benchmark
         ------------------------
         """)
-        precompile_deactivator($package_path);
+        SnoopCompile.precompile_deactivator($package_path);
         ### Log the compiles
         run($julia_cmd)
         ################################################################
         @info("""Precompile Activated Inference Benchmark
         ------------------------
         """)
-        precompile_activator($package_path);
+        SnoopCompile.precompile_activator($package_path);
         ### Log the compiles
         run($julia_cmd)
         @info("""*******************
@@ -112,11 +112,106 @@ function snoopi_bench(modul::Module, config::BotConfig, snoop_script::Expr)
     return out
 end
 
+function _snoopi_bench(config::BotConfig, test_modul::Module = Main)
+
+    package_name = config.package_name
+    package_rootpath = dirname(dirname(config.package_path))
+
+    package = Symbol(package_name)
+    runtestpath = "$package_rootpath/test/runtests.jl"
+
+    snoop_script = quote
+        using $(package);
+        include($runtestpath);
+    end
+    out = _snoopi_bench(config, snoop_script, test_modul)
+    return out
+end
+
+################################################################
+"""
+    snoopi_bench(config::BotConfig, path_to_exmple_script::String, test_modul::Module = Main)
+
+Performs an inference time benchmark by activation and deactivation of the precompilation.
+
+See the https://timholy.github.io/SnoopCompile.jl/stable/bot/ for more information.
+
+# Example
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is in the same directory that the macro is called.
+snoopi_bench( BotConfig("MatLang"), "exmaple_script.jl")
+```
+
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is at "deps/SnoopCompile/example_script.jl"
+example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "deps", "SnoopCompile", "example_script.jl")
+
+snoopi_bench( BotConfig("MatLang"), example_path)
+```
+
+```julia
+using SnoopCompile
+
+# exmaple_script.jl is at "src/example_script.jl"
+example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "src", "example_script.jl")
+snoopi_bench( BotConfig("MatLang"), example_path)
+```
+"""
+function snoopi_bench(config::BotConfig, path_to_exmple_script::String, test_modul::Module  = Main)
+    snoop_script = quote
+        include($path_to_exmple_script)
+    end
+    out = _snoopi_bench(config, snoop_script, test_modul)
+    Core.eval( test_modul, out )
+end
+
+"""
+    snoopi_bench(config::BotConfig, test_modul::Module = Main)
+
+If you do not have additional examples, you can use your runtests.jl file:
+
+# Example
+```julia
+using SnoopCompile
+
+# using runtests:
+snoopi_bench( BotConfig("MatLang") )
+```
+"""
+function snoopi_bench(config::BotConfig, test_modul::Module = Main)
+    out = _snoopi_bench(config, test_modul)
+    Core.eval( test_modul, out )
+end
+
+"""
+    snoopi_bench(config::BotConfig, expression::Expr, test_modul::Module = Main)
+
+You can pass an expression directly. This is useful for simple experssions like `:(using MatLang)`.
+
+However:
+
+!!! warning
+    Don't use this for complex expressions. The functionality isn't guaranteed. Especially if you
+    - interpolate into it
+    - use macros directly inside it
+"""
+function snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module  = Main)
+    out = _snoopi_bench(config, snoop_script, test_modul)
+    Core.eval( test_modul, out )
+end
+
 ################################################################
 """
     @snoopi_bench botconfig::BotConfig, snoop_script::Expr
 
-Performs an infertime benchmark by activating and deactivating the _precompile_()
+
+!!! warning
+    This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead.
+
 # Examples
 Benchmarking the load infer time
 ```julia
@@ -143,40 +238,30 @@ end
 ```
 """
 macro snoopi_bench(configExpr, snoop_script)
+    @warn "This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead."
+
     config = eval(configExpr)
-    out = snoopi_bench(__module__, config, snoop_script)
+    out = _snoopi_bench(config, snoop_script, __module__)
     return out
 end
 
 macro snoopi_bench(package_name::AbstractString, snoop_script)
+    @warn "This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead."
+
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
 
-    out = snoopi_bench(__module__, config, snoop_script)
-    return out
-end
-
-################################################################
-function snoopi_bench(modul::Module, config::BotConfig)
-
-    package_name = config.package_name
-    package_rootpath = dirname(dirname(config.package_path))
-
-    package = Symbol(package_name)
-    runtestpath = "$package_rootpath/test/runtests.jl"
-
-    snoop_script = quote
-        using $(package);
-        include($runtestpath);
-    end
-    out = snoopi_bench(modul, config, snoop_script)
+    out = _snoopi_bench(config, snoop_script, __module__)
     return out
 end
 
 """
     @snoopi_bench config::BotConfig
+
+!!! warning
+    This macro isn't recommend. Use the function form instead: `snoopi_bench(config::BotConfig)`.
 
 Benchmarking the infer time of the tests:
 ```julia
@@ -184,17 +269,21 @@ Benchmarking the infer time of the tests:
 ```
 """
 macro snoopi_bench(configExpr)
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bench(config::BotConfig)`."
+
     config = eval(configExpr)
-    out = snoopi_bench(__module__, config)
+    out = _snoopi_bench(config, __module__)
     return out
 end
 
 macro snoopi_bench(package_name::AbstractString)
+    @warn "This macro isn't recommend. Use the function form instead: `snoopi_bench(config::BotConfig)`."
+
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
 
-    out = snoopi_bench(__module__, config)
+    out = _snoopi_bench(config, __module__)
     return out
 end
