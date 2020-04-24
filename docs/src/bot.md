@@ -26,7 +26,7 @@ This call should be like:
 using SnoopCompile
 
 snoopi_bot(
-  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
+  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], else_os = "linux", version = [v"1.4.1", v"1.2"]),
   "\$(@__DIR__)/example_script.jl",
 )
 ```
@@ -62,7 +62,7 @@ using SnoopCompile
 
 println("Benchmarking the inference time of example_script")
 snoopi_bench(
-  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], version = ["1.4.1", "1.2"], else_version = "1.4.1" ),
+  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], else_os = "linux", version = [v"1.4.1", v"1.2"]),
   "\$(@__DIR__)/example_script.jl",
 )
 ```
@@ -109,8 +109,7 @@ jobs:
         # Uncomment other versions if you want multi-version signatures (should exactly match BotConfig.version):
         version:
           - '1.4.1'
-          # - '1.2.0'
-          # - '1.0.5'
+          # - '1.2.0' # min
         # Uncomment other options if you want multi-os signatures (currently only these are supported by Github):
         os:
           - ubuntu-latest
@@ -122,7 +121,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: ${{ matrix.julia-version }}
+          version: ${{ matrix.version }}
       - name: Install dependencies
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate();'

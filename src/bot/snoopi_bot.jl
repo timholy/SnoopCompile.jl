@@ -13,6 +13,9 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
     if test_modul != Main && string(test_modul) == package_name
         @error "Your example/test shouldn't be in the same module!. Use `Main` instead."
     end
+    if !isnothing(version) && any(version .< v"1.2")
+        @error "`@snoopi_bot` is only supported for Julia 1.2 and above."
+    end
 
     ################################################################
     package_rootpath = dirname(dirname(package_path))
@@ -25,13 +28,13 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         if isnothing(version)
             precompile_folder = precompiles_rootpath
         else
-            precompile_folder = "$precompiles_rootpath/$(VERSION)"
+            precompile_folder = "$precompiles_rootpath/$VERSION"
         end
     else
         if isnothing(version)
             precompile_folder = "$precompiles_rootpath/$(detectOS()[1])"
         else
-            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$(VERSION)"
+            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$VERSION"
         end
     end
     out = quote
@@ -58,10 +61,11 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
         if !haskey(pc, packageSym)
-            @error "no precompile signature is found for $package_name. Don't load the package before snooping. Restart your Julia session."
+            @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
         end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompile.write($precompile_folder, onlypackage)
+        @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
         SnoopCompile.precompile_activator($package_path)
     end

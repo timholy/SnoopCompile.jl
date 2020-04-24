@@ -62,6 +62,9 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
     package_name = config.package_name
     package_path = config.package_path
 
+    if !isnothing(config.version) && any(config.version .< v"1.2")
+        @error "`@snoopi_bench` is only supported for Julia 1.2 and above."
+    end
     ################################################################
     # quote end generates $ which doesn't work in commands
     # TODO no escape is done for snoop_script!!!
