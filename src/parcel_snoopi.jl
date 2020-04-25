@@ -346,7 +346,12 @@ function exhaustive_remover!(pcI::AbstractVector, topmod)
     idx = Int[]
     for (iLine, line) in enumerate(pcI)
         try
-            Core.eval(topmod, Meta.parse(line))
+            if topmod === Core
+                #https://github.com/timholy/SnoopCompile.jl/issues/76
+                Core.eval(Main, Meta.parse(line))
+            else
+                Core.eval(topmod, Meta.parse(line))
+            end
         catch e
             @warn("Faulty precompile sentence: $line", exception = e, _module = topmod, _file = "precompile_$topmod.jl", _line = iLine)
             push!(idx, iLine)
