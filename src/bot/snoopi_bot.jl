@@ -58,6 +58,7 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         data = SnoopCompile.sort_timed_inf($tmin)
 
         ################################################################
+        @info "Processsing the generated precompile signatures"
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist)
         if !haskey(pc, packageSym)
