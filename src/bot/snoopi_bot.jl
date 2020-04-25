@@ -41,6 +41,10 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         packageSym = Symbol($package_name)
         ################################################################
         using SnoopCompile
+
+        # Environment variable to detect SnoopCompile bot
+        global SnoopCompile_ENV = true
+
         ################################################################
         SnoopCompile.precompile_deactivator($package_path);
         ################################################################
@@ -69,6 +73,8 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
         SnoopCompile.precompile_activator($package_path)
+
+        global SnoopCompile_ENV = false
     end
     return out
 end
@@ -147,6 +153,13 @@ using SnoopCompile
 
 # using runtests:
 snoopi_bot( BotConfig("MatLang") )
+```
+
+To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
+```julia
+if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
+    # the tests you want to skip in SnoopCompile environment
+end
 ```
 """
 function snoopi_bot(config::BotConfig, test_modul::Module = Main)

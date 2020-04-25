@@ -74,6 +74,7 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
     # no filter in the benchmark
     juliaCode = """
         using SnoopCompile
+        global SnoopCompile_ENV = true
         empty!(SnoopCompile.__inf_timing__)
         SnoopCompile.start_timing()
         try
@@ -83,6 +84,7 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
         end
         data = SnoopCompile.sort_timed_inf(0.0)
         @info(timesum(data))
+        global SnoopCompile_ENV = false
     """
     julia_cmd = `julia --project=@. -e $juliaCode`
     out = quote
@@ -189,6 +191,13 @@ using SnoopCompile
 
 # using runtests:
 snoopi_bench( BotConfig("MatLang") )
+```
+
+To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
+```julia
+if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
+    # the tests you want to skip
+end
 ```
 """
 function snoopi_bench(config::BotConfig, test_modul::Module = Main)

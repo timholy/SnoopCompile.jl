@@ -73,6 +73,13 @@ println("Benchmarking the inference time of the tests")
 snoopi_bench(BotConfig("MatLang"))
 ```
 
+To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
+```julia
+if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
+  # the tests you want to skip in SnoopCompile environment
+end
+```
+
 Benchmarking inference time of loading
 ```julia
 println("Benchmarking inference time of loading")
@@ -80,7 +87,6 @@ snoopi_bench( BotConfig("MatLang"), :(using MatLang) ) # this syntax should be a
 ```
 
 [Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
-
 
 ## 4 - GitHub Action file (only for online run)
 
