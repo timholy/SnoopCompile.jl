@@ -220,7 +220,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         # If we haven't yet started the list for this module, initialize
         topmodname = nameof(topmod)
         if !haskey(pc, topmodname)
-            pc[topmodname] = String[]
+            pc[topmodname] = Set{String}()
             # For testing our precompile directives, we might need to have lookup available
             if VERSION >= v"1.4.0-DEV.215" && topmod !== Core && !isdefined(topmod, :__bodyfunction__)
                 Core.eval(topmod, lookup_kwbody_ex)
@@ -306,7 +306,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             pc[topmodname] = exhaustive_remover!(pc[topmodname], topmod)
         end
     end
-    return pc
+    return Dict(mod=>collect(lines) for (mod, lines) in pc)
 end
 
 """
@@ -359,4 +359,15 @@ function exhaustive_remover!(pcI::AbstractVector, topmod)
     end
     deleteat!(pcI, idx)
     return pcI
+end
+
+function blacklist_remover!(pcI::AbstractSet, blacklist)
+    # We can't just use `setdiff!` because this is a substring search
+    todelete = Set{eltype(pcI)}()
+    for line in pcI
+        if any(occursin.(blacklist, line))
+            push!(todelete, line)
+        end
+    end
+    return setdiff!(pcI, todelete)
 end
