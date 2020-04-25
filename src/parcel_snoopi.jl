@@ -201,6 +201,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
+    sym_module = Dict{Symbol, Module}() # 1-1 association between modules and module name
     for (t, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
@@ -219,6 +220,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         end
         # If we haven't yet started the list for this module, initialize
         topmodname = nameof(topmod)
+        sym_module[topmodname] = topmod
         if !haskey(pc, topmodname)
             pc[topmodname] = Set{String}()
             # For testing our precompile directives, we might need to have lookup available
@@ -306,7 +308,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         pc[mod] = blacklist_remover!(pc[mod], blacklist)
         # exhaustive remover
         if exhaustive
-            pc[mod] = exhaustive_remover!(pc[mod], mod)
+            pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
         end
     end
     return  Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
@@ -346,8 +348,7 @@ const default_blacklist = Set([
 """
 Removes everything that can't eval.
 """
-function exhaustive_remover!(pcI::AbstractSet, mod)
-    modul = Base.root_module(Base.__toplevel__, mod)
+function exhaustive_remover!(pcI::AbstractSet, modul::Module)
     todelete = Set{eltype(pcI)}()
     for (iLine, line) in enumerate(pcI)
         try
