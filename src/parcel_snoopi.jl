@@ -193,7 +193,11 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     return nothing
 end
 
-function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
+    subst = Vector{Pair{String, String}}(),
+    blacklist = String[],
+    exhaustive::Bool = false)
+
     pc = Dict{Symbol, Vector{String}}()      # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
@@ -297,6 +301,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=
         else
             add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
+        if exhaustive
+            pc[topmodname] = exhaustive_remover!(pc[topmodname], topmod)
+        end
     end
     return pc
 end
@@ -316,6 +323,23 @@ function blacklist_remover!(pcI, blacklist)
     idx = Int[]
     for (iLine, line) in enumerate(pcI)
         if any(occursin.(blacklist, line))
+            push!(idx, iLine)
+        end
+    end
+    deleteat!(pcI, idx)
+    return pcI
+end
+
+"""
+Removes everything that can't eval.
+"""
+function exhaustive_remover!(pcI, topmod)
+    idx = Int[]
+    for (iLine, line) in enumerate(pcI)
+        try
+            Core.eval(topmod, Meta.parse(line))
+        catch e
+            @warn("Faulty precompile sentence: $line", exception = e, _module = topmod, _file = "precompile_$topmod.jl", _line = iLine)
             push!(idx, iLine)
         end
     end

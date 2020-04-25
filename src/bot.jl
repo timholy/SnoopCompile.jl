@@ -18,6 +18,8 @@ You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile sentences
 
+- `exhaustive`: passing `true` enables exhaustive testing of each precompilation signature, however, it slows down the processing stage. Defaults to `false`. Use this feature if SnoopCompile benchmark or your CI fails. This feature also prints the errors, which can help to find the `blacklist`s indivudally and disble `exhaustive` for the next runs.
+
 - `os`: A vector of of Strings (or RegExp) to give the list of os that you want to generate precompile signatures for. Each element will call a `Sys.is\$eachos()` function.
 
 Example: `os = ["windows", "linux"]`
@@ -68,6 +70,7 @@ BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.1"])
 struct BotConfig
     package_name::AbstractString
     blacklist::Vector{UStrings}
+    exhaustive::Bool
     os::Union{Vector{String}, Nothing}
     else_os::Union{String, Nothing}
     version::Union{Vector{VersionNumber}, Nothing}
@@ -81,6 +84,7 @@ end
 function BotConfig(
     package_name::AbstractString;
     blacklist::AbstractVector = String[],
+    exhaustive::Bool = false,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{VersionNumber}, Nothing} = nothing,
@@ -91,7 +95,7 @@ function BotConfig(
     tmin::AbstractFloat = 0.0,
     )
 
-    return BotConfig(package_name, blacklist, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
+    return BotConfig(package_name, blacklist, exhaustive, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
 include("bot/botutils.jl")
