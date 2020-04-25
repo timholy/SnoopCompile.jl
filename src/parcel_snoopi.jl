@@ -141,7 +141,7 @@ tupletypestring(fstr::AbstractString, params::AbstractVector{<:AbstractString}) 
 
 tuplestring(params) = isempty(params) ? "()" : '(' * join(params, ',') * ",)"
 
-wrap_precompile(ttstr::AbstractString) = "precompile(" * ttstr * ')'
+wrap_precompile(ttstr::AbstractString) = "Base.precompile(" * ttstr * ')' # use `Base.` to avoid conflict with Core and Pkg
 
 function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "")
     ttstr = tupletypestring(fstr, params)
