@@ -125,14 +125,16 @@ bottestdir = GoodPath(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
+                include("$precompiles_rootpath_rel/precompile_TestPackage0.jl")
                 _precompile_()
             else
-                @static if VERSION <= v"1.2.0"
-                    include("$precompiles_rootpath_rel//1.2.0/precompile_$package_name.jl")
+                @static if VERSION < v"1.2.0"
+                    # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                elseif VERSION <= v"1.2.0"
+                    include("$precompiles_rootpath_rel//1.2.0/precompile_TestPackage0.jl")
                     _precompile_()
                 elseif VERSION <= v"1.4.1"
-                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
+                    include("$precompiles_rootpath_rel//1.4.1/precompile_TestPackage0.jl")
                     _precompile_()
                 else
                 end
@@ -155,7 +157,9 @@ bottestdir = GoodPath(@__DIR__)
                 include("$precompiles_rootpath_rel/precompile_$package_name.jl")
                 _precompile_()
             else
-                @static if VERSION <= v"1.2.0"
+                @static if VERSION < v"1.2.0"
+                    # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                elseif VERSION <= v"1.2.0"
                     include("$precompiles_rootpath_rel//1.2.0/precompile_$package_name.jl")
                     _precompile_()
                 elseif VERSION <= v"1.4.1"
@@ -184,7 +188,9 @@ bottestdir = GoodPath(@__DIR__)
                 _precompile_()
             else
                 @static if Sys.islinux()
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -194,7 +200,9 @@ bottestdir = GoodPath(@__DIR__)
                     end
 
                 elseif Sys.iswindows()
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/windows/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -204,7 +212,9 @@ bottestdir = GoodPath(@__DIR__)
                     end
 
                 else
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -233,7 +243,9 @@ bottestdir = GoodPath(@__DIR__)
                 _precompile_()
             else
                 @static if Sys.islinux()
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -245,7 +257,9 @@ bottestdir = GoodPath(@__DIR__)
                     end
 
                 elseif Sys.iswindows()
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/windows/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -257,7 +271,9 @@ bottestdir = GoodPath(@__DIR__)
                     end
 
                 else
-                    @static if VERSION <= v"1.2.0"
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
                         include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
@@ -284,25 +300,29 @@ bottestdir = GoodPath(@__DIR__)
             @static if !should_precompile
                 # nothing
             elseif !ismultios && !ismultiversion
-                include("$precompiles_rootpath_rel/precompile_$package_name.jl")
+                include("$precompiles_rootpath_rel/precompile_TestPackage0.jl")
                 _precompile_()
             else
                 @static if Sys.islinux()
-                    @static if VERSION <= v"1.2.0"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
+                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_TestPackage0.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_TestPackage0.jl")
                         _precompile_()
                     else
                     end
 
                 elseif Sys.iswindows()
-                    @static if VERSION <= v"1.2.0"
-                        include("$precompiles_rootpath_rel/windows/1.2.0/precompile_$package_name.jl")
+                    @static if VERSION < v"1.2.0"
+                        # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                    elseif VERSION <= v"1.2.0"
+                        include("$precompiles_rootpath_rel/windows/1.2.0/precompile_TestPackage0.jl")
                         _precompile_()
                     elseif VERSION <= v"1.4.1"
-                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_TestPackage0.jl")
                         _precompile_()
                     else
                     end
