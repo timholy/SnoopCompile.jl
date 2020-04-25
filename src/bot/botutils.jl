@@ -1,10 +1,14 @@
+using FilePathsBase
+
 export GoodPath
 # to convert WindowsPath before they get inside the SnoopCompile code
-GoodPath(x::String) = replace(x, "\\" => "/")
+# GoodPath(inp::String) = inp |> Path |> _GoodPath |> string
+# _GoodPath(path::WindowsPath) = PosixPath((path.drive, path.segments...))
+# _GoodPath(path) = path
+GoodPath(x::String) = replace(x, "\\" => "/") # doesn't remove / from the end of the strings
 goodjoinpath(args...) = GoodPath(joinpath(args...))
 
 ################################################################
-using FilePathsBase
 """
      searchdir(rootpath::String, pattern::AbstractString)
 a function to search a directory.
