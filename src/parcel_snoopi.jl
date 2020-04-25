@@ -198,7 +198,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     blacklist = String[],
     exhaustive::Bool = false)
 
-    pc = Dict{Symbol, Vector{String}}()      # output
+    pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
     for (t, mi) in reverse(tinf)
@@ -299,18 +299,17 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
     end
+
     # loop over the output
-    for modul in keys(pc)
+    for mod in keys(pc)
         # blacklist remover
-        pc[modul] = blacklist_remover!(pc[modul], blacklist)
-        # removes duplicates
-        pc[modul] = unique(pc[modul])
+        pc[mod] = blacklist_remover!(pc[mod], blacklist)
         # exhaustive remover
         if exhaustive
-            pc[modul] = exhaustive_remover!(pc[modul], topmod)
+            pc[mod] = exhaustive_remover!(pc[mod], mod)
         end
     end
-    return Dict(mod=>collect(lines) for (mod, lines) in pc)
+    return  Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
 end
 
 """
@@ -320,56 +319,46 @@ By default it considers some strings as blacklist such as `r"\\bMain\\b"`.
 
 # Examples
 ```julia
-blacklist = ["hi","bye"]
-pcI = ["good","bad","hi","bye","no"]
+blacklist = Set(["hi","bye"])
+pcI = Set(["good","bad","hi","bye","no"])
 
 SnoopCompile.blacklist_remover!(pcI, blacklist)
 ```
 """
-function blacklist_remover!(pcI::AbstractVector, blacklist)
-    all_blacklist = vcat(blacklist, default_blacklist)
-    idx = Int[]
-    for (iLine, line) in enumerate(pcI)
+function blacklist_remover!(pcI::AbstractSet, blacklist)
+    all_blacklist = union(blacklist, default_blacklist)
+
+    # We can't just use `setdiff!` because this is a substring search
+    todelete = Set{eltype(pcI)}()
+    for line in pcI
         if any(occursin.(all_blacklist, line))
-            push!(idx, iLine)
+            push!(todelete, line)
         end
     end
-    deleteat!(pcI, idx)
-    return pcI
+    return setdiff!(pcI, todelete)
 end
 
 # These are found by running `exhaustive_remover!` on some packages
-const default_blacklist = [
+const default_blacklist = Set([
     r"\bMain\b",
-]
+])
 
 """
 Removes everything that can't eval.
 """
-function exhaustive_remover!(pcI::AbstractVector, topmod)
-    idx = Int[]
+function exhaustive_remover!(pcI::AbstractSet, mod)
+    modul = Base.root_module(Base.__toplevel__, mod)
+    todelete = Set{eltype(pcI)}()
     for (iLine, line) in enumerate(pcI)
         try
-            if topmod === Core
+            if modul === Core
                 #https://github.com/timholy/SnoopCompile.jl/issues/76
                 Core.eval(Main, Meta.parse(line))
             else
-                Core.eval(topmod, Meta.parse(line))
+                Core.eval(modul, Meta.parse(line))
             end
         catch e
-            @warn("Faulty precompile sentence: $line", exception = e, _module = topmod, _file = "precompile_$topmod.jl", _line = iLine)
-            push!(idx, iLine)
-        end
-    end
-    deleteat!(pcI, idx)
-    return pcI
-end
-
-function blacklist_remover!(pcI::AbstractSet, blacklist)
-    # We can't just use `setdiff!` because this is a substring search
-    todelete = Set{eltype(pcI)}()
-    for line in pcI
-        if any(occursin.(blacklist, line))
+            @warn("Faulty precompile sentence: $line", exception = e, _module = modul, _file = "precompile_$modul.jl", _line = iLine)
             push!(todelete, line)
         end
     end
