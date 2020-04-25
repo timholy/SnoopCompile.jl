@@ -231,9 +231,6 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         p = tt.parameters[1]   # the portion of the signature related to the function itself
         paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
 
-        # blacklist remover
-        pc[topmodname] = blacklist_remover!(pc[topmodname], blacklist)
-
         if any(str->occursin('#', str), paramrepr)
             @debug "Skipping $tt due to argument types having anonymous bindings"
             continue
@@ -301,9 +298,16 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         else
             add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
-        pc[topmodname] = unique(pc[topmodname]) # removes duplicates
+    end
+    # loop over the output
+    for modul in keys(pc)
+        # blacklist remover
+        pc[modul] = blacklist_remover!(pc[modul], blacklist)
+        # removes duplicates
+        pc[modul] = unique(pc[modul])
+        # exhaustive remover
         if exhaustive
-            pc[topmodname] = exhaustive_remover!(pc[topmodname], topmod)
+            pc[modul] = exhaustive_remover!(pc[modul], topmod)
         end
     end
     return pc
