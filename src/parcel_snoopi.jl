@@ -310,7 +310,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
 end
 
 """
-Search and removes blacklist from pcI
+Search and removes blacklist from pcI.
+
+By default it considers some strings as blacklist such as `r"\\bMain\\b"`.
 
 # Examples
 ```julia
@@ -320,10 +322,11 @@ pcI = ["good","bad","hi","bye","no"]
 SnoopCompile.blacklist_remover!(pcI, blacklist)
 ```
 """
-function blacklist_remover!(pcI, blacklist)
+function blacklist_remover!(pcI::AbstractVector, blacklist)
+    all_blacklist = vcat(blacklist, default_blacklist)
     idx = Int[]
     for (iLine, line) in enumerate(pcI)
-        if any(occursin.(blacklist, line))
+        if any(occursin.(all_blacklist, line))
             push!(idx, iLine)
         end
     end
@@ -331,10 +334,15 @@ function blacklist_remover!(pcI, blacklist)
     return pcI
 end
 
+# These are found by running `exhaustive_remover!` on some packages
+const default_blacklist = [
+    r"\bMain\b",
+]
+
 """
 Removes everything that can't eval.
 """
-function exhaustive_remover!(pcI, topmod)
+function exhaustive_remover!(pcI::AbstractVector, topmod)
     idx = Int[]
     for (iLine, line) in enumerate(pcI)
         try
