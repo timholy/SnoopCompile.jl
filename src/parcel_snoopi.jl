@@ -301,6 +301,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         else
             add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
         end
+        pc[topmodname] = unique(pc[topmodname]) # removes duplicates
         if exhaustive
             pc[topmodname] = exhaustive_remover!(pc[topmodname], topmod)
         end
