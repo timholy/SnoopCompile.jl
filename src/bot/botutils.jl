@@ -1,3 +1,34 @@
+"""
+    detectOS()
+
+Returns Operating System of a machine as a string as the 1st output and the osfun as the 2nd output.
+"""
+function detectOS()
+allos_funs = [
+         Sys.iswindows,
+         Sys.isapple,
+         Sys.islinux,
+         Sys.isbsd,
+         Sys.isdragonfly,
+         Sys.isfreebsd,
+         Sys.isnetbsd,
+         Sys.isopenbsd,
+         Sys.isjsvm]
+    os = ""
+    osfun = allos_funs[1] # temp
+    for osfun in allos_funs
+        if osfun()
+            os = string(osfun)[3:end]
+            break
+        end
+    end
+    if os == ""
+        @error "os is not detected"
+    end
+    return os, osfun
+end
+################################################################
+
 using FilePathsBase
 
 export GoodPath
@@ -58,6 +89,9 @@ Searches for the file rather a path.
 """
 searchdirsfile(rootpaths::Array{String}, file::AbstractString) = searchdirs(rootpaths, basename(file))
 
+"""
+search for the script! - needed because of confusing paths when referencing pattern_or_file in CI
+"""
 function searchdirsboth(rootpaths::Array{String}, pattern_or_file::AbstractString)
     if isfile(pattern_or_file)
         return pattern_or_file

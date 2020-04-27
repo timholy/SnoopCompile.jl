@@ -1,34 +1,4 @@
 """
-    detectOS()
-
-Returns Operating System of a machine as a string as the 1st output and the osfun as the 2nd output.
-"""
-function detectOS()
-allos_funs = [
-         Sys.iswindows,
-         Sys.isapple,
-         Sys.islinux,
-         Sys.isbsd,
-         Sys.isdragonfly,
-         Sys.isfreebsd,
-         Sys.isnetbsd,
-         Sys.isopenbsd,
-         Sys.isjsvm]
-    os = ""
-    osfun = allos_funs[1] # temp
-    for osfun in allos_funs
-        if osfun()
-            os = string(osfun)[3:end]
-            break
-        end
-    end
-    if os == ""
-        @error "os is not detected"
-    end
-    return os, osfun
-end
-################################################################
-"""
     new_includer_file(
         package_name::AbstractString,
         package_path:: AbstractString,
