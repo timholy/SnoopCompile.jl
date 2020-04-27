@@ -31,24 +31,8 @@ function new_includer_file(
     # this is the only path that is written to the disk by the bot, and it should be relative to make it generic.
     precompiles_rootpath = GoodPath(relpath(precompiles_rootpath_in, dirname(package_path)))
 
-    ## Standardize different names from Github actions, Travis, etc
-    # https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources
-    if !isnothing(os)
-        os[occursin.("macos", os)] .= "apple"
-        os[occursin.("osx", os)] .= "apple"
-        os[occursin.("apple", os)] .= "apple"
-        os[occursin.("ubuntu", os)] .= "linux"
-        os[occursin.("linux", os)] .= "linux"
-        os[occursin.("windows", os)] .= "windows"
-    end
-    if !isnothing(else_os)
-        occursin.("macos", else_os) ? else_os = "apple" : nothing
-        occursin.("osx", else_os) ? else_os = "apple" : nothing
-        occursin.("apple", else_os) ? else_os = "apple" : nothing
-        occursin.("ubuntu", else_os) ? else_os = "linux" : nothing
-        occursin.("linux", else_os) ? else_os = "linux" : nothing
-        occursin.("windows", else_os) ? else_os = "windows" : nothing
-    end
+    os = standardize_osname(os)
+    else_os = standardize_osname(else_os)
 
     # find multistr, ismultiversion, ismultios
     if isnothing(os)

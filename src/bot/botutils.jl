@@ -28,6 +28,31 @@ allos_funs = [
     return os, osfun
 end
 ################################################################
+"""
+Standardize different names from Github actions, Travis, etc
+
+https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources
+"""
+function standardize_osname(os::Vector{String})
+    os[occursin.("macos", os)] .= "apple"
+    os[occursin.("osx", os)] .= "apple"
+    os[occursin.("apple", os)] .= "apple"
+    os[occursin.("ubuntu", os)] .= "linux"
+    os[occursin.("linux", os)] .= "linux"
+    os[occursin.("windows", os)] .= "windows"
+    return os
+end
+function standardize_osname(else_os::String)
+    occursin.("macos", else_os) ? else_os = "apple" : nothing
+    occursin.("osx", else_os) ? else_os = "apple" : nothing
+    occursin.("apple", else_os) ? else_os = "apple" : nothing
+    occursin.("ubuntu", else_os) ? else_os = "linux" : nothing
+    occursin.("linux", else_os) ? else_os = "linux" : nothing
+    occursin.("windows", else_os) ? else_os = "windows" : nothing
+    return else_os
+end
+standardize_osname(input::Nothing) = input
+################################################################
 
 using FilePathsBase
 
