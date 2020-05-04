@@ -213,6 +213,6 @@ end
         eval_local_function(2)
         eval_local_function(3)
     end
-    pc = SnoopCompile.parcel(tinf)
-    @test count(isequal("precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
+    pc = SnoopCompile.parcel(tinf, remove_blacklist = false)
+    @test count(isequal("Base.precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
 end

@@ -196,6 +196,7 @@ end
 function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     subst = Vector{Pair{String, String}}(),
     blacklist = String[],
+    remove_blacklist::Bool = true,
     exhaustive::Bool = false)
 
     pc = Dict{Symbol, Set{String}}()         # output
@@ -305,7 +306,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     # loop over the output
     for mod in keys(pc)
         # blacklist remover
-        pc[mod] = blacklist_remover!(pc[mod], blacklist)
+        if remove_blacklist
+            pc[mod] = blacklist_remover!(pc[mod], blacklist)
+        end
         # exhaustive remover
         if exhaustive
             pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
