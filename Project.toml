@@ -15,12 +15,12 @@ julia = "1"
 
 [extras]
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4" # ColorTypes tests need it
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
-MatLang = "05b439c0-bb3c-11e9-1d8d-1f0a9ebca87a"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Pkg", "ColorTypes", "Test", "FixedPointNumbers", "JLD", "SparseArrays", "MatLang"]
+test = [ "Test", "Pkg", "ColorTypes", "Documenter", "FixedPointNumbers", "JLD", "SparseArrays"]
