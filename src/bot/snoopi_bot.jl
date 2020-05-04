@@ -51,7 +51,7 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         ################################################################
 
         ### Log the compiles
-        # data = Core.eval($test_modul, SnoopCompile.snoopi($(Meta.quot(snoop_script))))
+        # data = Core.eval($test_modul, SnoopCompile._snoopi($(Meta.quot(snoop_script))))
         # TODO use code directly for now
         empty!(SnoopCompile.__inf_timing__)
         SnoopCompile.start_timing()

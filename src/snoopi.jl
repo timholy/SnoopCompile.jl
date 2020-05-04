@@ -55,7 +55,7 @@ macro snoopi(args...)
     return _snoopi(cmd, tmin)
 end
 
-function snoopi(cmd::Expr, tmin = 0.0)
+function _snoopi(cmd::Expr, tmin = 0.0)
     return quote
         empty!(__inf_timing__)
         start_timing()

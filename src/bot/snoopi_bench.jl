@@ -10,7 +10,7 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
     # quote end generates $ which doesn't work in commands
     # TODO no escape is done for snoop_script!!!
     # TODO
-    # data = Core.eval(  $test_modul, snoopi($(esc(snoop_script)))  )
+    # data = Core.eval(  $test_modul, _snoopi($(esc(snoop_script)))  )
     # TODO use code directly for now
     # no filter in the benchmark
     juliaCode = """
