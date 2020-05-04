@@ -20,20 +20,29 @@ Call the `snoopi_bot` function to generate precompile signatures.
  - add a `snoopi_bot.jl` under `deps/SnoopCompile` (or at the same path that is referenced in yaml file).
  - or call the function directly from the yaml file.
 
+
+ [`BotConfig`](@ref) is used to pass the settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The below example shows an example of a `BotConfig` that supports multiple os, multiple version, and also has a function in its backlist.
+
 This call should be like:
 
 ```julia
 using SnoopCompile
 
+botconfig = BotConfig(
+  "Zygote";
+  os = ["linux", "windows", "macos"],
+  version = [v"1.4.1", v"1.3.1"],
+  blacklist = ["SqEuclidean"],
+  exhaustive = false,
+)
+
 snoopi_bot(
-  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], else_os = "linux", version = [v"1.4.1", v"1.2"]),
-  "\$(@__DIR__)/example_script.jl",
+  botconfig,
+  "$(@__DIR__)/example_script.jl",
 )
 ```
 
-[`BotConfig`](@ref) can be used to passing extra settings to the bot. See [`BotConfig`](@ref) documentation to learn more. The above example shows an example of a `BotConfig` that supports multiple os, multiple version, and also has a function in its backlist.
-
-[Ref]( https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bot.jl)
+[Zygote example](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/deps/SnoopCompile/snoopi_bot.jl)
 
 If you do not have additional examples, you can use your runtests.jl file using this syntax:
 
@@ -60,10 +69,18 @@ Benchmarking the inference time of example_script
 
 using SnoopCompile
 
+botconfig = BotConfig(
+  "Zygote";
+  os = ["linux", "windows", "macos"],
+  version = [v"1.4.1", v"1.3.1"],
+  blacklist = ["SqEuclidean"],
+  exhaustive = false,
+)
+
 println("Benchmarking the inference time of example_script")
 snoopi_bench(
-  BotConfig("MatLang"; blacklist = ["badfun"], os = ["linux", "windows", "macos"], else_os = "linux", version = [v"1.4.1", v"1.2"]),
-  "\$(@__DIR__)/example_script.jl",
+  botconfig,
+  "$(@__DIR__)/example_script.jl",
 )
 ```
 
@@ -86,7 +103,7 @@ println("Benchmarking inference time of loading")
 snoopi_bench( BotConfig("MatLang"), :(using MatLang) ) # this syntax should be avoided for complex expressions
 ```
 
-[Ref](https://github.com/juliamatlab/MatLang/blob/master/deps/SnoopCompile/snoopi_bench.jl)
+[Zygote example](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/deps/SnoopCompile/snoopi_bench.jl)
 
 ## 4 - GitHub Action file (only for online run)
 
@@ -95,12 +112,13 @@ In your repository, create a workflow file under `.github/workflows/SnoopCompile
 ```yaml
 name: SnoopCompile
 
-# Only runs on pushes. Edit based on your taste.
+
+# Edit based on your repository.
 on:
   push:
     branches:
       # - 'master'
-  # pull_request:
+  # pull_request:  # comment for big repositories
 
 defaults:
   run:
@@ -111,16 +129,17 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         # Uncomment other versions if you want multi-version signatures (should exactly match BotConfig.version):
         version:
           - '1.4.1'
+          - '1.3.1'
           # - '1.2.0' # min
-        # Uncomment other options if you want multi-os signatures (currently only these are supported by Github):
         os:
           - ubuntu-latest
-          # - windows-latest
-          # - macos-latest
+          - windows-latest
+          - macos-latest
         arch:
           - x64
     steps:
@@ -165,9 +184,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update precompile_*.jl file
           # committer: YOUR NAME <yourEmail@something.com> # Change `committer` to your name and your email.
-          title: "[AUTO] Update precompiles'"
+          title: "[AUTO] Update precompiles"
           labels: SnoopCompile
-          branch: "SnoopCompile"
+          branch: "SnoopCompile_AutoPR"
 
 
   Skip:
@@ -178,6 +197,6 @@ jobs:
         run: echo skip ci
 ```
 
-For example for MatLang package:
+For example for Zygote package:
 
-[Link](https://github.com/juliamatlab/MatLang/blob/master/.github/workflows/SnoopCompile.yml)
+[Link](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/.github/workflows/SnoopCompile.yml)
