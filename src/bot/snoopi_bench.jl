@@ -13,7 +13,7 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
     # data = Core.eval(  $test_modul, _snoopi($(esc(snoop_script)))  )
     # TODO use code directly for now
     # no filter in the benchmark
-    juliaCode = """
+    julia_code_inference = """
         using SnoopCompile
         global SnoopCompile_ENV = true
         empty!(SnoopCompile.__inf_timing__)
@@ -24,35 +24,50 @@ function _snoopi_bench(config::BotConfig, snoop_script::Expr, test_modul::Module
             SnoopCompile.stop_timing()
         end
         data = SnoopCompile.sort_timed_inf(0.0)
-        @info( string(timesum(data, :ms)) * " ms")
+        @info( "\n Inference time (ms): \t" * string(timesum(data, :ms)))
         global SnoopCompile_ENV = false
     """
-    julia_cmd = `julia --project=@. -e $juliaCode`
+    julia_cmd_inference = `julia --project=@. -e $julia_code_inference`
+
+
+    julia_code_timev = """
+    using $package_name
+    @timev begin
+        $(string(snoop_script));
+    end
+    @info("The above is @timev result (This has some noise).")
+    """
+    julia_cmd_timev = `julia --project=@. -e $julia_code_timev`
+
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
         using SnoopCompile
-        @info("""*******************
+        @info("""------------------------
         Benchmark Started
-        *******************
+        ------------------------
         """)
         ################################################################
-        @info("""Precompile Deactivated Inference Benchmark
+        @info("""------------------------
+        Precompile Deactivated Benchmark
         ------------------------
         """)
         SnoopCompile.precompile_deactivator($package_path);
         ### Log the compiles
-        run($julia_cmd)
+        run($julia_cmd_inference)
+        run($julia_cmd_timev)
         ################################################################
-        @info("""Precompile Activated Inference Benchmark
+        @info("""------------------------
+        Precompile Activated Benchmark
         ------------------------
         """)
         SnoopCompile.precompile_activator($package_path);
         ### Log the compiles
-        run($julia_cmd)
-        @info("""*******************
+        run($julia_cmd_inference)
+        run($julia_cmd_timev)
+        @info("""------------------------
         Benchmark Finished
-        *******************
+        ------------------------
         """)
     end
     return out
