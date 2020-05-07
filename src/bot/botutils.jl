@@ -58,7 +58,7 @@ function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}}, unit::Symbo
     if unit == :s
         t = round(t, digits = 6)
     elseif unit == :ms
-        t = round(t * 100, digits = 3)
+        t = round(t * 1000, digits = 3)
     else
         throw(ArgumentError("unit should be `:s` or `:ms`"))
     end
