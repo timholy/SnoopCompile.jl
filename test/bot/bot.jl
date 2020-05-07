@@ -407,8 +407,12 @@ bottestdir = GoodPath(@__DIR__)
             end
         end
 
-        @testset "snoopi_bench-multiversion" begin
-            include("$package_rootpath3/deps/SnoopCompile/snoopi_bench.jl")
+        if VERSION <=  v"1.4.1"
+            @testset "snoopi_bench-multiversion" begin
+                include("$package_rootpath3/deps/SnoopCompile/snoopi_bench.jl")
+            end
+        else
+            @warn "else version is set to 1.2, so we should not run the benchmark test on nightly, when we have not generated such files yet (unlike in the realworld tests)."
         end
 
         @testset "snoopi_bot_function_form" begin
