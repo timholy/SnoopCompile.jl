@@ -3,6 +3,11 @@ export BotConfig, snoopi_bot, snoopi_bench, @snoopi_bot, @snoopi_bench
 if VERSION <=  v"1.1"
     isnothing(x) = x == nothing
 end
+if VERSION <=  v"1.2"
+    Base.print(io, ::Nothing) = Base.print(io, "")
+    Base.print(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Nothing) = Base.print(io, "")
+    Base.string(::Nothing) = ""
+end
 ################################################################
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
