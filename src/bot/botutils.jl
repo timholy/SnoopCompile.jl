@@ -86,13 +86,10 @@ allos_funs = [
     for osfun in allos_funs
         if osfun()
             os = string(osfun)[3:end]
-            break
+            return os, osfun
         end
     end
-    if os == ""
-        @error "os is not detected"
-    end
-    return os, osfun
+    @error "os is not detected"
 end
 ################################################################
 """
