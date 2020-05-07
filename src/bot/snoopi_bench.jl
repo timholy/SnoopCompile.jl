@@ -164,7 +164,7 @@ end
 """
     snoopi_bench(config::BotConfig, expression::Expr, test_modul::Module = Main)
 
-You can pass an expression directly. This is useful for simple experssions like `:(using MatLang)`.
+You can pass an expression directly. This is useful for simple expressions like `:(using MatLang)`.
 
 However:
 
