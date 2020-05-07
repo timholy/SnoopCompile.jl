@@ -21,7 +21,7 @@ println(timesum(data, :ms))
 ## Manual Benchmark (withtout using [`@snoopi_bench`](@ref))
 - dev your package
 
-- comment the precompile part of your package (`include()` and `_precompile_()`)
+- comment out the precompile part of your package (`include()` and `_precompile_()`)
 - run the following benchmark
 - restart Julia
 
