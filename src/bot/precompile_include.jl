@@ -139,20 +139,20 @@ function _multiversion(package_name, precompiles_rootpath, version_in, else_vers
 
     version_length = length(version)
     multiversionstr = ""
-    for (iVersion, eachversion) in enumerate(version)
+    for (iversion, eachversion) in enumerate(version)
 
-        if iVersion == 1
+        if iversion == 1
             version_phrase = """@static if VERSION < v\"1.2.0\"
                     # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
                 elseif VERSION <= v\"$eachversion\""""
-        elseif iVersion == version_length
+        elseif iversion == version_length
             version_phrase = "else"
         else
             version_phrase = "elseif VERSION <= v\"$eachversion\""
         end
         multiversionstr = multiversionstr * "$version_phrase \n"
 
-        if  iVersion == version_length && isnothing(else_version)
+        if  iversion == version_length && isnothing(else_version)
             continue
         end
 

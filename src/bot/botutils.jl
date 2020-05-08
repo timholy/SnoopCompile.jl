@@ -34,9 +34,9 @@ println(timesum(data, :ms))
 using SnoopCompile
 
 println("Package load time:")
-loadSnoop = @snoopi using MatLang
+loadsnoop = @snoopi using MatLang
 
-timesum(loadSnoop)
+timesum(loadsnoop)
 
 println("Running Examples/Tests:")
 runSnoop = @snoopi begin
