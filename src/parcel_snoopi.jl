@@ -353,7 +353,7 @@ Removes everything that can't eval.
 """
 function exhaustive_remover!(pcI::AbstractSet, modul::Module)
     todelete = Set{eltype(pcI)}()
-    for (iLine, line) in enumerate(pcI)
+    for line in pcI
         try
             if modul === Core
                 #https://github.com/timholy/SnoopCompile.jl/issues/76
@@ -362,7 +362,7 @@ function exhaustive_remover!(pcI::AbstractSet, modul::Module)
                 Core.eval(modul, Meta.parse(line))
             end
         catch e
-            @warn("Faulty precompile sentence: $line", exception = e, _module = modul, _file = "precompile_$modul.jl", _line = iLine)
+            @warn("Faulty precompile sentence: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
             push!(todelete, line)
         end
     end
