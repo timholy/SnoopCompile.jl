@@ -2,23 +2,41 @@ export @snoopi
 
 const __inf_timing__ = Tuple{Float64,Core.MethodInstance}[]
 
-function typeinf_ext_timed(linfo::Core.MethodInstance, params::Core.Compiler.Params)
-    tstart = time()
-    ret = Core.Compiler.typeinf_ext(linfo, params)
-    tstop = time()
-    push!(__inf_timing__, (tstop-tstart, linfo))
-    return ret
-end
-function typeinf_ext_timed(linfo::Core.MethodInstance, world::UInt)
-    tstart = time()
-    ret = Core.Compiler.typeinf_ext(linfo, world)
-    tstop = time()
-    push!(__inf_timing__, (tstop-tstart, linfo))
-    return ret
+if isdefined(Core.Compiler, :Params)
+    function typeinf_ext_timed(linfo::Core.MethodInstance, params::Core.Compiler.Params)
+        tstart = time()
+        ret = Core.Compiler.typeinf_ext(linfo, params)
+        tstop = time()
+        push!(__inf_timing__, (tstop-tstart, linfo))
+        return ret
+    end
+    function typeinf_ext_timed(linfo::Core.MethodInstance, world::UInt)
+        tstart = time()
+        ret = Core.Compiler.typeinf_ext(linfo, world)
+        tstop = time()
+        push!(__inf_timing__, (tstop-tstart, linfo))
+        return ret
+    end
+    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+else
+    function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
+        tstart = time()
+        ret = Core.Compiler.typeinf_ext_toplevel(interp, linfo)
+        tstop = time()
+        push!(__inf_timing__, (tstop-tstart, linfo))
+        return ret
+    end
+    function typeinf_ext_timed(linfo::Core.MethodInstance, world::UInt)
+        tstart = time()
+        ret = Core.Compiler.typeinf_ext_toplevel(linfo, world)
+        tstop = time()
+        push!(__inf_timing__, (tstop-tstart, linfo))
+        return ret
+    end
+    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
 end
 
 @noinline start_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
-@noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
 
 function sort_timed_inf(tmin)
     data = __inf_timing__
@@ -68,8 +86,13 @@ function __init__()
     # typeinf_ext_timed must be compiled before it gets run
     # We do this in __init__ to make sure it gets compiled to native code
     # (the *.ji file stores only the inferred code)
-    precompile(typeinf_ext_timed, (Core.MethodInstance, Core.Compiler.Params))
-    precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+    if isdefined(Core.Compiler, :Params)
+        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, Core.Compiler.Params))
+        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+    else
+        @assert precompile(typeinf_ext_timed, (Core.Compiler.NativeInterpreter, Core.MethodInstance))
+        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+    end
     precompile(start_timing, ())
     precompile(stop_timing, ())
     nothing
