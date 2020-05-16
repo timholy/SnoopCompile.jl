@@ -33,9 +33,11 @@ Example: `os = ["windows", "linux"]`
 
 Example: `else_os = "linux"`
 
-- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for. The versions are sorted automatically and each element will call a `VERSION <=\$eachversion` function. If you don't want to precompile for other versions pass nothing.
+- `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for.
 
 Example: `version = [v"1.1", v"1.4.1"]`
+
+It is assumed that the generated precompile signatures are valid for patch versions of Julia (e.g. giving v"1.4.2" assumses v"1.4.0" to v"1.4.9").
 
 - `else_vresion`: If you want to use a specific version for any other version, give `else_version` the name of that version.
 

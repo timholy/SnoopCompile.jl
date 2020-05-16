@@ -127,7 +127,7 @@ end
 
 
 """
-Helper function for multiversion code generation
+Helper function for multi Julia version code generation
 """
 function _multiversion(package_name, precompiles_rootpath, version_in, else_version, eachos = "")
     version = similar(version_in, Any)
@@ -142,13 +142,17 @@ function _multiversion(package_name, precompiles_rootpath, version_in, else_vers
     for (iversion, eachversion) in enumerate(version)
 
         if iversion == 1
+            lowerbound = VersionNumber(eachversion.major, eachversion.minor, 0)
+            higherbound = VersionNumber(eachversion.major, eachversion.minor, 9)
             version_phrase = """@static if VERSION < v\"1.2.0\"
-                    # nothing - `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
-                elseif VERSION <= v\"$eachversion\""""
+                    # no precompiling, `snoopi_bot` isn't supported for `VERSION < v"1.2"` yet.
+                elseif v\"$lowerbound\" <= VERSION <= v\"$higherbound\""""
         elseif iversion == version_length
             version_phrase = "else"
         else
-            version_phrase = "elseif VERSION <= v\"$eachversion\""
+            lowerbound = VersionNumber(eachversion.major, eachversion.minor, 0)
+            higherbound = VersionNumber(eachversion.major, eachversion.minor, 9)
+            version_phrase = "elseif v\"$lowerbound\" <= VERSION <= v\"$higherbound\""
         end
         multiversionstr = multiversionstr * "$version_phrase \n"
 
