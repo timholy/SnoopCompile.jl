@@ -1,4 +1,4 @@
-export BotConfig, snoop_bot, snoop_bench, snoopi_bot, snoopc_bot, snoopi_bench, snoopc_bench, snoopv_bench
+export BotConfig, snoop_bot, snoop_bench, snoopi_bot, snoopc_bot, snoopi_bench, snoopv_bench
 
 if VERSION <=  v"1.1"
     isnothing(x) = x == nothing

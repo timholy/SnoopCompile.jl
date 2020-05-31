@@ -24,21 +24,6 @@ function _snoopi_bench(snoop_script)
     """
 end
 
-function _snoopc_bench(snoop_script)
-    return """
-        using SnoopCompile
-        global SnoopCompile_ENV = true
-    
-        @snoopc "/tmp/compiles.log" begin
-            $(string(snoop_script));
-        end
-        data = SnoopCompile.read("/tmp/compiles.log")[2]
-        
-        @info( "\n Inference time (ms): \t" * string(timesum(data, :ms)))
-        global SnoopCompile_ENV = false
-    """
-end
-
 function _snoopv_bench(snoop_script, package_name)
     return """
         using $package_name
@@ -57,7 +42,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     # automatic (based on Julia version)
     if snooping_type == :auto
         if VERSION < v"1.2"
-            snooping_type = :snoopc
+            snooping_type = :snoopv
         else
             snooping_type = :snoopi
         end
@@ -65,8 +50,6 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
 
     if snooping_type == :snoopi
         snooping_code = _snoopi_bench(snoop_script)
-    elseif snooping_type == :snoopc
-        snooping_code = _snoopc_bench(snoop_script)
     elseif snooping_type == :snoopv
         snooping_code = _snoopv_bench(snoop_script, package_name)
     else
@@ -221,13 +204,6 @@ Similar to [`snoop_bench`](@ref) but uses `snoopi` specifically.
 """
 function snoopi_bench(args...)
     snoop_bench(args...; snooping_type = :snoopi)
-end
-
-"""
-Similar to [`snoop_bench`](@ref) but uses `snoopc` specifically.
-"""
-function snoopc_bench(args...)
-    snoop_bench(args...; snooping_type = :snoopc)
 end
 
 """

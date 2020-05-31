@@ -114,9 +114,8 @@ snoop_bench( BotConfig("MatLang"), :(using MatLang) ) # this syntax should be av
 `snoop_bench` has three variants:
 - `snoopi_bench`: benchmarks the inference time.
   This is the default behavior of `snoop_bench` for Julia >= 1.2
-- `snoopc_bench`: benchmarks the compiling time.
-  This is the default behavior of `snoop_bench` for Julia < 1.2
-- `snoopv_bench`: tracks the time using `@timev`.
+- `snoopv_bench`: tracks the time using `@timev`. This is the default behavior of `snoop_bench` for Julia < 1.2
+
 
 ## 4 - GitHub Action file (only for online run)
 
