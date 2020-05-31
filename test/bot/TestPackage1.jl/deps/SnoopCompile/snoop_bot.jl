@@ -1,4 +1,4 @@
 using SnoopCompile
 
 # using runtests:
-snoopi_bot(BotConfig("TestPackage1"))
+snoop_bot(BotConfig("TestPackage1"))

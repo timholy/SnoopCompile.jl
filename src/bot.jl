@@ -1,4 +1,4 @@
-export BotConfig, snoopi_bot, snoopi_bench
+export BotConfig, snoop_bot, snoop_bench, snoopi_bot, snoopc_bot, snoopi_bench, snoopc_bench, snoopv_bench
 
 if VERSION <=  v"1.1"
     isnothing(x) = x == nothing
@@ -108,6 +108,6 @@ end
 include("bot/botutils.jl")
 include("bot/precompile_include.jl")
 include("bot/precompile_activation.jl")
-include("bot/snoopi_bot.jl")
-include("bot/snoopi_bench.jl")
+include("bot/snoop_bot.jl")
+include("bot/snoop_bench.jl")
 include("bot/deprecations.jl")

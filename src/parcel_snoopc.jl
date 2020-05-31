@@ -118,8 +118,16 @@ end
 
 Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory `prefix`, one file per module.
 """
-function parcel(calls::AbstractVector{String}; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parcel(calls::AbstractVector{String};
+    subst=Vector{Pair{String, String}}(),
+    blacklist=String[],
+    remove_blacklist::Bool = true,
+    exhaustive::Bool = false)
+    
     pc = Dict{Symbol, Vector{String}}()
+    
+    sym_module = Dict{Symbol, Module}() # 1-1 association between modules and module name
+    
     for c in calls
         local keep, pcstring, topmod
         keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
@@ -130,7 +138,20 @@ function parcel(calls::AbstractVector{String}; subst=Vector{Pair{String, String}
         end
         prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
         push!(pc[topmod], prefix * "precompile($pcstring)")
+        
+        # code from parcel_snoopi
+        # TODO moduleof a symobl!
+        # eval(topmod) # throws error for Test
+        # sym_module[topmod] = moduleof(topmod)
     end
+
+    # TODO
+    # for mod in keys(pc)
+    #     # exhaustive remover
+    #     if exhaustive
+    #         pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
+    #     end
+    # end
     return pc
 end
 

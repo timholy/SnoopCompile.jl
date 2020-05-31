@@ -1,4 +1,30 @@
-function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
+# Snooping functions
+function _snoopi_bot(snoop_script, tmin)
+    return quote
+        # data = Core.eval($test_modul, SnoopCompile._snoopi($(Meta.quot(snoop_script))))
+        # TODO use code directly for now
+        
+        empty!(SnoopCompile.__inf_timing__)
+        SnoopCompile.start_timing()
+        try
+            $snoop_script
+        finally
+            SnoopCompile.stop_timing()
+        end
+        data = SnoopCompile.sort_timed_inf($tmin)
+    end
+end
+
+function _snoopc_bot(snoop_script)
+    return quote
+        @snoopc "/tmp/compiles.log" begin
+            $snoop_script
+        end
+        data = SnoopCompile.read("/tmp/compiles.log")[2]
+    end
+end
+
+function _snoop_bot(config::BotConfig, snoop_script, test_modul::Module; snooping_type::Symbol)
     package_name = config.package_name
     blacklist = config.blacklist
     exhaustive = config.exhaustive
@@ -13,9 +39,6 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
 
     if test_modul != Main && string(test_modul) == package_name
         @error "Your example/test shouldn't be in the same module!. Use `Main` instead."
-    end
-    if !isnothing(version) && any(version .< v"1.2")
-        @error "`@snoopi_bot` is only supported for Julia 1.2 and above."
     end
 
     ################################################################
@@ -38,6 +61,24 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
             precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$VERSION"
         end
     end
+    
+    # automatic (based on Julia version)
+    if snooping_type == :auto
+        if VERSION < v"1.2"
+            snooping_type = :snoopc
+        else
+            snooping_type = :snoopi
+        end
+    end
+
+    if snooping_type == :snoopi
+        snooping_code = _snoopi_bot(snoop_script, tmin)
+    elseif snooping_type == :snoopc
+        snooping_code = _snoopc_bot(snoop_script)
+    else
+        error("snooping_type $snooping_type is unkown")
+    end
+    
     out = quote
         packageSym = Symbol($package_name)
         ################################################################
@@ -51,16 +92,7 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
         ################################################################
 
         ### Log the compiles
-        # data = Core.eval($test_modul, SnoopCompile._snoopi($(Meta.quot(snoop_script))))
-        # TODO use code directly for now
-        empty!(SnoopCompile.__inf_timing__)
-        SnoopCompile.start_timing()
-        try
-            $snoop_script
-        finally
-            SnoopCompile.stop_timing()
-        end
-        data = SnoopCompile.sort_timed_inf($tmin)
+        $snooping_code
 
         ################################################################
         @info "Processsing the generated precompile signatures"
@@ -80,7 +112,7 @@ function _snoopi_bot(config::BotConfig, snoop_script, test_modul::Module)
     return out
 end
 
-function _snoopi_bot(config::BotConfig, test_modul::Module)
+function _snoop_bot(config::BotConfig, test_modul::Module; snooping_type::Symbol)
 
     package_name = config.package_name
     package_rootpath = dirname(dirname(pathof_noload(package_name)))
@@ -91,15 +123,17 @@ function _snoopi_bot(config::BotConfig, test_modul::Module)
         using $(package)
         include($runtestpath)
     end
-    return _snoopi_bot(config, snoop_script, test_modul)
+    return _snoop_bot(config, snoop_script, test_modul; snooping_type = snooping_type)
 end
 
 ################################################################
 
 """
-    snoopi_bot(config::BotConfig, path_to_exmple_script::String, test_modul = Main)
+    snoop_bot(config::BotConfig, path_to_exmple_script::String, test_modul = Main)
 
 This function automatically generates precompile files and includes them in the package. This macro does most of the operations that `SnoopCompile` is capable of automatically.
+
+This function chooses the snooping type based on the Julia version.
 
 See the https://timholy.github.io/SnoopCompile.jl/stable/bot/ for more information.
 
@@ -112,7 +146,7 @@ See the https://timholy.github.io/SnoopCompile.jl/stable/bot/ for more informati
 using SnoopCompile
 
 # exmaple_script.jl is in the same directory that the macro is called.
-snoopi_bot( BotConfig("MatLang"), "\$(@__DIR__)/exmaple_script.jl")
+snoop_bot( BotConfig("MatLang"), "\$(@__DIR__)/exmaple_script.jl")
 ```
 
 ```julia
@@ -121,7 +155,7 @@ using SnoopCompile
 # exmaple_script.jl is at "deps/SnoopCompile/example_script.jl"
 example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "deps", "SnoopCompile", "example_script.jl")
 
-snoopi_bot( BotConfig("MatLang"), example_path )
+snoop_bot( BotConfig("MatLang"), example_path )
 ```
 
 ```julia
@@ -129,22 +163,22 @@ using SnoopCompile
 
 # exmaple_script.jl is at "src/example_script.jl"
 example_path = joinpath(dirname(dirname(pathof_noload("MatLang"))), "src", "example_script.jl")
-snoopi_bot( BotConfig("MatLang"), example_path )
+snoop_bot( BotConfig("MatLang"), example_path )
 ```
 """
-function snoopi_bot(config::BotConfig, path_to_exmple_script::String, test_modul::Module = Main)
+function snoop_bot(config::BotConfig, path_to_exmple_script::String, test_modul::Module = Main; snooping_type::Symbol = :auto)
     # search for the script! - needed because of confusing paths when referencing pattern_or_file in CI
     path_to_exmple_script = searchdirsboth([pwd(),dirname(dirname(config.package_path))], path_to_exmple_script)
     snoop_script = quote
         include($path_to_exmple_script)
     end
-    out =  _snoopi_bot(config, snoop_script, test_modul)
+    out =  _snoop_bot(config, snoop_script, test_modul; snooping_type = snooping_type)
     Core.eval( test_modul, out )
 end
 
 ################################################################
 """
-    snoopi_bot(config::BotConfig, test_modul::Module = Main)
+    snoop_bot(config::BotConfig, test_modul::Module = Main)
 
 If you do not have additional examples, you can use your runtests.jl file:
 
@@ -153,7 +187,7 @@ If you do not have additional examples, you can use your runtests.jl file:
 using SnoopCompile
 
 # using runtests:
-snoopi_bot( BotConfig("MatLang") )
+snoop_bot( BotConfig("MatLang") )
 ```
 
 To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
@@ -163,15 +197,15 @@ if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
 end
 ```
 """
-function snoopi_bot(config::BotConfig, test_modul::Module = Main)
-    out = _snoopi_bot(config, test_modul)
+function snoop_bot(config::BotConfig, test_modul::Module = Main; snooping_type::Symbol = :auto)
+    out = _snoop_bot(config, test_modul; snooping_type = snooping_type)
     Core.eval( test_modul, out )
 end
 
 ################################################################
 
 """
-    snoopi_bot(config::BotConfig, expression::Expr, test_modul::Module = Main)
+    snoop_bot(config::BotConfig, expression::Expr, test_modul::Module = Main)
 
 You can pass an expression directly. This is useful for simple experssions like `:(using MatLang)`.
 
@@ -182,9 +216,24 @@ However:
     - interpolate into it
     - use macros directly inside it
 """
-function snoopi_bot(config::BotConfig, snoop_script::Expr, test_modul::Module  = Main)
-    out = _snoopi_bot(config, snoop_script, test_modul)
+function snoop_bot(config::BotConfig, snoop_script::Expr, test_modul::Module  = Main; snooping_type::Symbol = :auto)
+    out = _snoop_bot(config, snoop_script, test_modul; snooping_type = snooping_type)
     Core.eval( test_modul, out )
+end
+
+################################################################
+"""
+Similar to [`snoop_bot`](@ref) but uses `snoopi` specifically.
+"""
+function snoopi_bot(args...)
+    snoop_bot(args...; snooping_type = :snoopi)
+end
+
+"""
+Similar to [`snoop_bot`](@ref) but uses `snoopc` specifically.
+"""
+function snoopc_bot(args...)
+    snoop_bot(args...; snooping_type = :snoopc)
 end
 
 ################################################################
