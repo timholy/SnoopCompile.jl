@@ -17,10 +17,10 @@ end
 
 function _snoopc_bot(snoop_script)
     return quote
-        @snoopc "/tmp/compiles.log" begin
+        @snoopc "compiles.log" begin
             $snoop_script
         end
-        data = SnoopCompile.read("/tmp/compiles.log")[2]
+        data = SnoopCompile.read("compiles.log")[2]
     end
 end
 
