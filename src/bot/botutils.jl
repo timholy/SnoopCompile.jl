@@ -75,17 +75,24 @@ allos_funs = [
          Sys.iswindows,
          Sys.isapple,
          Sys.islinux,
-         Sys.isbsd,
-         Sys.isdragonfly,
-         Sys.isfreebsd,
-         Sys.isnetbsd,
-         Sys.isopenbsd,
-         Sys.isjsvm]
+         Sys.isbsd]
+    if VERSION >= v"1.1"
+        for o in [Sys.isdragonfly,
+                  Sys.isfreebsd,
+                  Sys.isnetbsd,
+                  Sys.isopenbsd]
+            push!(allos_funs, o)
+        end
+    end
+    if VERSION >= v"1.2"
+        push!(allos_funs, Sys.isjsvm)
+    end
+    
     os = ""
     osfun = allos_funs[1] # temp
     for osfun in allos_funs
         if osfun()
-            os = string(osfun)[3:end]
+            os = split(string(osfun), '.')[end][3:end]
             return os, osfun
         end
     end
