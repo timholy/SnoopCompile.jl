@@ -1,6 +1,6 @@
 export @snoopi
 
-const __inf_timing__ = Tuple{Float64,Core.MethodInstance}[]
+const __inf_timing__ = Tuple{Float64,MethodInstance}[]
 
 if isdefined(Core.Compiler, :Params)
     function typeinf_ext_timed(linfo::Core.MethodInstance, params::Core.Compiler.Params)

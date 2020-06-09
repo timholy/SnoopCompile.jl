@@ -1,6 +1,7 @@
 module SnoopCompile
 
 using Serialization, OrderedCollections
+using Core: MethodInstance, CodeInfo
 
 export timesum  # @snoopi and @snoopc are exported from their files of definition
 
@@ -19,5 +20,9 @@ include("parcel_snoopc.jl")
 
 include("write.jl")
 include("bot.jl")
+
+if VERSION >= v"1.6.0-DEV.154"
+    include("invalidations.jl")
+end
 
 end # module

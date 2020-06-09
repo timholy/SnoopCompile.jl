@@ -87,3 +87,7 @@ end
 
 include("colortypes.jl")
 include("bot/bot.jl")
+
+if isdefined(SnoopCompile, :invalidation_trees)
+    include("snoopr.jl")
+end

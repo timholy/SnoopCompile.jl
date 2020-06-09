@@ -193,7 +193,7 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     return nothing
 end
 
-function parcel(tinf::AbstractVector{Tuple{Float64,Core.MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parcel(tinf::AbstractVector{Tuple{Float64,MethodInstance}}; subst=Vector{Pair{String, String}}(), blacklist=String[])
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
