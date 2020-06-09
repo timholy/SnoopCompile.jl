@@ -56,15 +56,21 @@ using SnoopCompile
 snoop_bot(BotConfig("MyPackage"))
 ```
 
+!!! note
+    Some of your regular tests may not be appropriate for `snoop_bot`.
+    `snoop_bot` sets a global variable `SnoopCompile_ENV` to `true` during snooping,
+    and sets it to `false` when finished.
+    You can exploit this in your tests to determine whether snooping is on:
+
+    ```julia
+    if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
+        # Tests that you want to run only when not snooping
+    end
+    ```
+
 Finally, you could use package loading as the only operation,
 with `snoop_bot(config, :(using MyPackage))`.
 
-To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
-```julia
-if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
-  # the tests you want to skip in SnoopCompile environment
-end
-```
 `snoop_bot` uses different strategies depending on the Julia version:
 
 - On Julia 1.2 or higher, it identifies methods for precompilation based on [`@snoopi`](@ref macro-snoopi);

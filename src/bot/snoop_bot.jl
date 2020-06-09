@@ -169,13 +169,11 @@ end
 """
     snoop_bot(config::BotConfig, test_modul::Module = Main)
 
-To selectively exclude some of your tests from running by SnoopCompile bot, use the global SnoopCompile_ENV::Bool variable.
-```julia
-if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
-    # the tests you want to skip in SnoopCompile environment
-end
-```
 Generate precompile statements using the package's `runtests.jl` file.
+
+During snooping, `snoop_bot` sets the global variable `SnoopCompile_ENV` to `true`.
+If needed, your `runtests.jl` can check for the existence and value of this variable to
+customize test behavior specifically for snooping.
 """
 function snoop_bot(config::BotConfig, test_modul::Module = Main; snoop_mode::Symbol = :auto)
     out = _snoop_bot_expr(config, test_modul; snoop_mode = snoop_mode)
