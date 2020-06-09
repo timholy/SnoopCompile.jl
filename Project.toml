@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "1.2.3"
+version = "1.2.4"
 
 [deps]
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
