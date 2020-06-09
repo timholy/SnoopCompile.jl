@@ -44,7 +44,7 @@ end
 timesum(runSnoop)
 ```
 """
-function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}})
+function timesum(snoop::Vector{Tuple{Float64, MethodInstance}})
     if isempty(snoop)
         return 0.0
     else
