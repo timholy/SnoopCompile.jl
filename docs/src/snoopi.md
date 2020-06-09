@@ -1,4 +1,4 @@
-# Snooping on inference: `@snoopi`
+# [Snooping on inference: `@snoopi`](@id macro-snoopi)
 
 The most useful tool is a macro, `@snoopi`, which is only available on Julia 1.2 or higher.
 
@@ -36,7 +36,7 @@ is much more general (i.e., defined for `AbstractArray`) than the `MethodInstanc
 (defined for `Array{Float16,1}`). This is because precompilation happens only for
 concrete objects passed as arguments.
 
-## Precompile scripts
+## [Precompile scripts](@id pcscripts)
 
 You can use `@snoopi` to come up with a list of precompile-worthy functions.
 A recommended approach is to write a script that "exercises" the functionality
@@ -73,7 +73,7 @@ julia> using SnoopCompile
 julia> inf_timing = @snoopi tmin=0.01 include("snoopfpn.jl")
 2-element Array{Tuple{Float64,Core.MethodInstance},1}:
  (0.03108978271484375, MethodInstance for *(::Normed{UInt8,8}, ::Normed{UInt8,8}))
- (0.04189491271972656, MethodInstance for Normed{UInt8,8}(::Float64))             
+ (0.04189491271972656, MethodInstance for Normed{UInt8,8}(::Float64))
 ```
 
 Here, note the `tmin=0.01`, which causes any methods that take less than 10ms of inference
