@@ -52,13 +52,13 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         if isnothing(version)
             precompile_folder = precompiles_rootpath
         else
-            precompile_folder = "$precompiles_rootpath/$VERSION"
+            precompile_folder = "$precompiles_rootpath/$(VersionFloat(VERSION))"
         end
     else
         if isnothing(version)
             precompile_folder = "$precompiles_rootpath/$(detectOS()[1])"
         else
-            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$VERSION"
+            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$(VersionFloat(VERSION))"
         end
     end
 

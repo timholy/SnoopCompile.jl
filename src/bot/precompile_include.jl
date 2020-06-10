@@ -159,7 +159,7 @@ function _multiversion(package_name, precompiles_rootpath, version_in, else_vers
         end
 
         multiversionstr = multiversionstr * """
-            include("$precompiles_rootpath/$eachos/$eachversion/precompile_$package_name.jl")
+            include("$precompiles_rootpath/$eachos/$(VersionFloat(eachversion))/precompile_$package_name.jl")
             _precompile_()
         """
     end # for version
