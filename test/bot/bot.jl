@@ -129,10 +129,10 @@ bottestdir = GoodPath(@__DIR__)
                 _precompile_()
             else
                 @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                    include("$precompiles_rootpath_rel//1.2.0/precompile_TestPackage0.jl")
+                    include("$precompiles_rootpath_rel//1.2/precompile_TestPackage0.jl")
                     _precompile_()
                 elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                    include("$precompiles_rootpath_rel//1.4.1/precompile_TestPackage0.jl")
+                    include("$precompiles_rootpath_rel//1.4/precompile_TestPackage0.jl")
                     _precompile_()
                 else
                 end
@@ -156,13 +156,13 @@ bottestdir = GoodPath(@__DIR__)
                 _precompile_()
             else
                 @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                    include("$precompiles_rootpath_rel//1.2.0/precompile_$package_name.jl")
+                    include("$precompiles_rootpath_rel//1.2/precompile_$package_name.jl")
                     _precompile_()
                 elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
+                    include("$precompiles_rootpath_rel//1.4/precompile_$package_name.jl")
                     _precompile_()
                 else
-                    include("$precompiles_rootpath_rel//1.4.1/precompile_$package_name.jl")
+                    include("$precompiles_rootpath_rel//1.4/precompile_$package_name.jl")
                     _precompile_()
                 end
 
@@ -185,30 +185,30 @@ bottestdir = GoodPath(@__DIR__)
             else
                 @static if Sys.islinux()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
 
                 elseif Sys.iswindows()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/windows/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
 
                 else
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
                     end
@@ -234,37 +234,37 @@ bottestdir = GoodPath(@__DIR__)
             else
                 @static if Sys.islinux()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     end
 
                 elseif Sys.iswindows()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/windows/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4/precompile_$package_name.jl")
                         _precompile_()
                     end
 
                 else
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.2/precompile_$package_name.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     else
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_$package_name.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_$package_name.jl")
                         _precompile_()
                     end
 
@@ -289,20 +289,20 @@ bottestdir = GoodPath(@__DIR__)
             else
                 @static if Sys.islinux()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/linux/1.2.0/precompile_TestPackage0.jl")
+                        include("$precompiles_rootpath_rel/linux/1.2/precompile_TestPackage0.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/linux/1.4.1/precompile_TestPackage0.jl")
+                        include("$precompiles_rootpath_rel/linux/1.4/precompile_TestPackage0.jl")
                         _precompile_()
                     else
                     end
 
                 elseif Sys.iswindows()
                     @static if v"1.2.0" <= VERSION <= v"1.2.9"
-                        include("$precompiles_rootpath_rel/windows/1.2.0/precompile_TestPackage0.jl")
+                        include("$precompiles_rootpath_rel/windows/1.2/precompile_TestPackage0.jl")
                         _precompile_()
                     elseif v"1.4.0" <= VERSION <= v"1.4.9"
-                        include("$precompiles_rootpath_rel/windows/1.4.1/precompile_TestPackage0.jl")
+                        include("$precompiles_rootpath_rel/windows/1.4/precompile_TestPackage0.jl")
                         _precompile_()
                     else
                     end
@@ -367,9 +367,9 @@ bottestdir = GoodPath(@__DIR__)
 
         include("$package_rootpath3/deps/SnoopCompile/snoop_bot_multiversion.jl")
 
-        @test isfile("$package_rootpath3/deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl")
+        @test isfile("$package_rootpath3/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl")
 
-        precompile_text = Base.read("$package_rootpath3/deps/SnoopCompile/precompile/$VERSION/precompile_TestPackage3.jl", String)
+        precompile_text = Base.read("$package_rootpath3/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl", String)
 
         if VERSION > v"1.3"
             @test occursin("hello3", precompile_text)

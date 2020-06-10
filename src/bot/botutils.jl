@@ -270,3 +270,13 @@ function addtestdep()
         end
     end
 end
+
+################################################################
+"""
+Get the float version from semver version
+```
+julia> VersionFloat(v"1.4.2")
+"1.4"
+```
+"""
+VersionFloat(v::VersionNumber) = join(split(string(v),'.')[1:2],'.')
