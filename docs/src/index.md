@@ -5,6 +5,13 @@ functions and argument types it's compiling.  From these lists of methods,
 you can generate lists of `precompile` directives that may reduce the latency between
 loading packages and using them to do "real work."
 
+SnoopCompile can also detect and analyze *method cache invalidations*,
+which occur when new method definitions alter dispatch in a way that forces Julia to discard previously-compiled code.
+Any later usage of invalidated methods requires recompilation.
+Invalidation can trigger a domino effect, in which all users of invalidated code also become invalidated, propagating all the way back to the top-level call.
+When a source of invalidation can be identified and either eliminated or mitigated,
+you can reduce the amount of work that the compiler needs to repeat and take better advantage of precompilation.
+
 ## Background
 
 Julia uses
