@@ -102,7 +102,7 @@ name: SnoopCompile
 on:
   push:
     branches:
-      - 'master'
+    #  - 'master'  # NOTE: to run the bot only on pushes to master 
 
 defaults:
   run:
