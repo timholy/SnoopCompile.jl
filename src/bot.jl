@@ -29,7 +29,6 @@ You may supply the following optional **keyword** arguments:
   and then disabling `exhaustive` for future runs.
 
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
-  Each element will call a `Sys.is\$eachos()` function.
 
 Example: `os = ["windows", "linux"]`
 
