@@ -15,39 +15,6 @@ data = @snoopi begin
 end
 println(timesum(data, :ms))
 ```
-
-## Manual Benchmark
-
-- dev your package
-
-- comment out the precompile part of your package (`include()` and `_precompile_()`)
-- run the following benchmark
-- restart Julia
-
-- uncomment the precompile part of your package (`include()` and `_precompile_()`)
-- run the following benchmark
-- restart Julia
-
-### Benchmark
-
-```julia
-using SnoopCompile
-
-println("Package load time:")
-loadsnoop = @snoopi using MatLang
-
-timesum(loadsnoop)
-
-println("Running Examples/Tests:")
-tinf = @snoopi begin
-    using MatLang
-
-    MatLang_rootpath = dirname(dirname(pathof("MatLang")))
-    include("\$MatLang_rootpath/test/runtests.jl")
-end
-
-timesum(tinf)
-```
 """
 function timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}}, unit::Symbol = :s)
     if isempty(snoop)
