@@ -64,7 +64,7 @@ snoop_bot(BotConfig("MyPackage"))
 
     ```julia
     if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
-        # Tests that you want to run only when not snooping
+        # Tests that you want to skip when snooping
     end
     ```
 
