@@ -116,7 +116,7 @@ bottestdir = GoodPath(@__DIR__)
         end
 
         @testset "no os, no else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.2", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.2", v"1.4.2"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=false", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -143,7 +143,7 @@ bottestdir = GoodPath(@__DIR__)
 
 
         @testset "no os, no else_os, yes version, yes else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.2", v"1.4.1"], v"1.4.1")
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, nothing, nothing, [v"1.2", v"1.4.2"], v"1.4.2")
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=false", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -171,7 +171,7 @@ bottestdir = GoodPath(@__DIR__)
         end
 
         @testset "yes os, yes else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.2", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.2", v"1.4.2"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -220,7 +220,7 @@ bottestdir = GoodPath(@__DIR__)
         end
 
         @testset "yes os, yes else_os, yes version, yes else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.2", v"1.4.1"], v"1.4.1")
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], "linux", [v"1.2", v"1.4.2"], v"1.4.2")
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)
@@ -275,7 +275,7 @@ bottestdir = GoodPath(@__DIR__)
         end
 
         @testset "yes os, no else_os, yes version, no else_version" begin
-            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], nothing, [v"1.2", v"1.4.1"], nothing)
+            SnoopCompile.new_includer_file(package_name, package_path, precompiles_rootpath, ["linux", "windows"], nothing, [v"1.2", v"1.4.2"], nothing)
             includer_text = stripall(Base.read(includer_path, String))
             @test occursin("ismultios=true", includer_text)
             @test occursin("ismultiversion=true", includer_text)

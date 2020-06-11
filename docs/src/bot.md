@@ -37,7 +37,7 @@ using SnoopCompile
 botconfig = BotConfig(
   "Zygote";                            # package name (the one this configuration lives in)
   os = ["linux", "windows", "macos"],  # operating systems for which to precompile
-  version = [v"1.4.1", v"1.3.1"],      # supported Julia versions
+  version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
   blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
   exhaustive = false,                  # do not remove statements that fail to eval
 )
@@ -116,7 +116,7 @@ jobs:
       fail-fast: false
       matrix:
         version:   # NOTE: the versions below should match those in your botconfig
-          - '1.4.1'
+          - '1.4.2'
           - '1.3.1'
         os:        # NOTE: should match the os setting of your botconfig
           - ubuntu-latest

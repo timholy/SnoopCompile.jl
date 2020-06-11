@@ -41,14 +41,14 @@ Example: `else_os = "linux"`
 
 - `version`: A vector of of Julia versions used to generate precompile signatures.
 
-Example: `version = [v"1.1", v"1.4.1", "nightly"]`
+Example: `version = [v"1.1", v"1.4.2", "nightly"]`
 
 It is assumed that the generated precompile signatures are valid for patch versions of Julia (e.g. giving v"1.4.2" supports v"1.4.0" to v"1.4.9").
 
 - `else_version`: the Julia version used to generate the default signatures for other `version`s.
 Not passing this argument skips precompilation on any Julia version other than those explicitly listed in `version`.
 
-Example: `else_version = v"1.4.1"`
+Example: `else_version = v"1.4.2"`
 
 - `package_path`: path to the main `.jl` file of the package (similar to `pathof`).
   Default path is `pathof_noload(package_name)`.
@@ -65,7 +65,7 @@ Example: `else_version = v"1.4.1"`
 # Example
 ```julia
 # A full example:
-BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.1", "1.2", "1.0.5"], else_version = "1.4.1" )
+BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.2", "1.2", "1.0.5"], else_version = "1.4.2" )
 
 # Different examples for other possibilities:
 BotConfig("MatLang")
@@ -76,11 +76,11 @@ BotConfig("MatLang", os = ["linux", "windows"])
 
 BotConfig("MatLang", os = ["windows", "linux"], else_os = "linux")
 
-BotConfig("MatLang", version = [v"1.1", v"1.4.1"])
+BotConfig("MatLang", version = [v"1.1", v"1.4.2"])
 
-BotConfig("MatLang", version = [v"1.1", v"1.4.1"], else_version = v"1.4.1")
+BotConfig("MatLang", version = [v"1.1", v"1.4.2"], else_version = v"1.4.2")
 
-BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.1"])
+BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.2"])
 ```
 """
 struct BotConfig
