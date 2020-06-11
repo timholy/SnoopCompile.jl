@@ -34,7 +34,7 @@ Example: `os = ["windows", "linux"]`
 
 - `else_os`: If you want to use a specific operating system's precompile file as the default,
   set `else_os` to the name of that os.
-  Setting this to `nothing` disables precompilation on any operating system other than those
+  Not passing this argument skips precompilation on any operating system other than those
   explicitly listed in `os`.
 
 Example: `else_os = "linux"`
