@@ -420,4 +420,6 @@ bottestdir = GoodPath(@__DIR__)
 
     # just in case
     cd(snoopcompiledir)
+    
+    include("botutils.jl")
 end

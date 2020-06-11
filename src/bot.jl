@@ -35,7 +35,7 @@ Example: `else_os = "linux"`
 
 - `version`: A vector of of versions to give the list of versions that you want to generate precompile signatures for.
 
-Example: `version = [v"1.1", v"1.4.1"]`
+Example: `version = [v"1.1", v"1.4.1", "nightly"]`
 
 It is assumed that the generated precompile signatures are valid for patch versions of Julia (e.g. giving v"1.4.2" assumses v"1.4.0" to v"1.4.9").
 
@@ -94,13 +94,20 @@ function BotConfig(
     exhaustive::Bool = false,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
-    version::Union{Vector{VersionNumber}, Nothing} = nothing,
-    else_version::Union{VersionNumber, Nothing} = nothing,
+    version::Union{Vector{<:Union{VersionNumber,String}}, Nothing} = nothing,
+    else_version::Union{VersionNumber, String, Nothing} = nothing,
     package_path::AbstractString = pathof_noload(package_name),
     precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
     subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
     tmin::AbstractFloat = 0.0,
     )
+    
+    if !isnothing(version)
+        version = JuliaVersionNumber.(version)
+    end
+    if !isnothing(else_version)
+        else_version = JuliaVersionNumber(else_version)
+    end
 
     return BotConfig(package_name, blacklist, exhaustive, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end

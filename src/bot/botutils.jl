@@ -280,3 +280,35 @@ julia> VersionFloat(v"1.4.2")
 ```
 """
 VersionFloat(v::VersionNumber) = join(split(string(v),'.')[1:2],'.')
+
+# https://github.com/JuliaLang/julia/pull/36223:
+"""
+    JuliaVersionNumber(v::String)
+    JuliaVersionNumber(v::VersionNumber)
+returns the Julia version number by following the same specifications as VersionNumber.
+`JuliaVersionNumber` will fetch the latest nightly version number if `"nightly"` or `"latest"` is given as the input.
+# Examples
+```julia
+julia> JuliaVersionNumber("nightly")
+v"1.6.0-DEV"
+```
+```jldoctest
+julia> JuliaVersionNumber("1.2.3")
+v"1.2.3"
+julia> JuliaVersionNumber(v"1.2.3")
+v"1.2.3"
+```
+"""
+JuliaVersionNumber(v::VersionNumber) = v
+function JuliaVersionNumber(v::String)
+    if in(v, ["nightly", "latest"])
+        version_path = download(
+            "https://raw.githubusercontent.com/JuliaLang/julia/master/VERSION",
+            joinpath(tempdir(), "VERSION.txt"),
+        )
+        version_str = replace(Base.read(version_path, String), "\n" => "")
+        return VersionNumber(version_str)
+    else
+        return VersionNumber(v)
+    end
+end
