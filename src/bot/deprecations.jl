@@ -5,7 +5,7 @@ export  @snoopi_bot, @snoopi_bench
     @snoopi_bot config::BotConfig
 
 !!! warning
-    This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`.
+    This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_example_script::String)`.
 
 # Examples
 ```julia
@@ -22,14 +22,14 @@ end
 ```
 """
 macro snoopi_bot(configExpr, snoop_script::Expr)
-    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`.")
+    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_example_script::String)`.")
     config = eval(configExpr)
     out = _snoopi_bot(config, snoop_script, __module__)
     return out
 end
 
 macro snoopi_bot(package_name::String, snoop_script::Expr)
-    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_exmple_script::String)`.")
+    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bot(config::BotConfig, path_to_example_script::String)`.")
 
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
@@ -76,7 +76,7 @@ end
 
 
 !!! warning
-    This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead.
+    This method isn't recommend. Use `snoopi_bench(config::BotConfig, path_to_example_script::String)` instead.
 
 # Examples
 Benchmarking the load infer time
@@ -104,22 +104,22 @@ end
 ```
 """
 macro snoopi_bench(configExpr, snoop_script)
-    Base.depwarn("This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead.")
+    Base.depwarn("This method isn't recommend. Use `snoop_bench(config::BotConfig, path_to_example_script::String)` instead.")
 
     config = eval(configExpr)
-    out = _snoopi_bench(config, snoop_script, __module__)
+    out = _snoopi_bench_cmd(config, snoop_script, __module__)
     return out
 end
 
 macro snoopi_bench(package_name::AbstractString, snoop_script)
-    Base.depwarn("This method isn't recommend. Use `@snoopi_bench(config::BotConfig, path_to_exmple_script::String)` instead.")
+    Base.depwarn("This method isn't recommend. Use `snoop_bench(config::BotConfig, path_to_example_script::String)` instead.")
 
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
 
-    out = _snoopi_bench(config, snoop_script, __module__)
+    out = _snoopi_bench_cmd(config, snoop_script, __module__)
     return out
 end
 
@@ -135,22 +135,22 @@ Benchmarking the infer time of the tests:
 ```
 """
 macro snoopi_bench(configExpr)
-    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bench(config::BotConfig)`.")
+    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoop_bench(config::BotConfig)`.")
 
     config = eval(configExpr)
-    out = _snoopi_bench(config, __module__)
+    out = _snoopi_bench_cmd(config, __module__)
     return out
 end
 
 macro snoopi_bench(package_name::AbstractString)
-    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoopi_bench(config::BotConfig)`.")
+    Base.depwarn("This macro isn't recommend. Use the function form instead: `snoop_bench(config::BotConfig)`.")
 
     f, l = __source__.file, __source__.line
     @warn "Replace `\"$package_name\"` with `BotConfig(\"$package_name\")`. That syntax will be deprecated in future versions. \n Happens at $f:$l"
 
     config = BotConfig(package_name)
 
-    out = _snoopi_bench(config, __module__)
+    out = _snoopi_bench_cmd(config, __module__)
     return out
 end
 
@@ -160,12 +160,12 @@ end
 # deprecation and backward compatiblity
 macro snoopiBot(args...)
      f, l = __source__.file, __source__.line
-     Base.depwarn("`@snoopiBot` at $f:$l is deprecated, rename the macro to `@snoopi_bot`.", Symbol("@snoopiBot"))
+     Base.depwarn("`@snoopiBot` at $f:$l and its replacement `@snoopi_bot` are deprecated.", Symbol("@snoopiBot"))
      return esc(:(@snoopi_bot($(args...))))
 end
 macro snoopiBench(args...)
     f, l = __source__.file, __source__.line
-    Base.depwarn("`@snoopiBench` at $f:$l is deprecated, rename the macro to `@snoopi_bench`.", Symbol("@snoopiBench"))
+    Base.depwarn("`@snoopiBench` at $f:$l and its replacement `@snoopi_bench` are deprecated.", Symbol("@snoopiBench"))
     return esc(:(@snoopi_bench($(args...))))
 end
 

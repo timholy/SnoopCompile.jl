@@ -319,35 +319,37 @@ bottestdir = GoodPath(@__DIR__)
 
 
     using Pkg
+    package_rootpath = Symbol[]
     for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"])
         Pkg.develop(PackageSpec(path=joinpath(bottestdir,"$package_name.jl")))
-        @eval $(Symbol("package_rootpath", i)) = goodjoinpath(bottestdir,"$($package_name).jl")
+        push!(package_rootpath, Symbol(goodjoinpath(bottestdir,"$package_name.jl")))
     end
+    @show package_rootpath
 
     @testset "snoop_bot" begin
 
-        include("$package_rootpath1/deps/SnoopCompile/snoop_bot.jl")
+        include("$(package_rootpath[1])/deps/SnoopCompile/snoop_bot.jl")
 
-        @test isfile("$package_rootpath1/deps/SnoopCompile/precompile/precompile_TestPackage1.jl")
+        @test isfile("$(package_rootpath[1])/deps/SnoopCompile/precompile/precompile_TestPackage1.jl")
 
-        precompile_text = Base.read("$package_rootpath1/deps/SnoopCompile/precompile/precompile_TestPackage1.jl", String)
+        precompile_text = Base.read("$(package_rootpath[1])/deps/SnoopCompile/precompile/precompile_TestPackage1.jl", String)
 
         @test occursin("hello", precompile_text)
         @test occursin("domath", precompile_text)
     end
 
     @testset "snoop_bench" begin
-        include("$package_rootpath1/deps/SnoopCompile/snoop_bench.jl")
+        include("$(package_rootpath[1])/deps/SnoopCompile/snoop_bench.jl")
     end
 
     @testset "snoop_bot_multios" begin
         os, osfun = SnoopCompile.detectOS()
 
-        include("$package_rootpath2/deps/SnoopCompile/snoop_bot_multios.jl")
+        include("$(package_rootpath[2])/deps/SnoopCompile/snoop_bot_multios.jl")
 
-        @test isfile("$package_rootpath2/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
+        @test isfile("$(package_rootpath[2])/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
 
-        precompile_text = Base.read("$package_rootpath2/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
+        precompile_text = Base.read("$(package_rootpath[2])/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
 
         if os == "windows"
             @test occursin("hello2", precompile_text)
@@ -359,17 +361,17 @@ bottestdir = GoodPath(@__DIR__)
     end
 
     @testset "snoop_bench-multios" begin
-        include("$package_rootpath2/deps/SnoopCompile/snoop_bench.jl")
+        include("$(package_rootpath[2])/deps/SnoopCompile/snoop_bench.jl")
     end
 
     @testset "snoop_bot_multiversion" begin
         os, osfun = SnoopCompile.detectOS()
 
-        include("$package_rootpath3/deps/SnoopCompile/snoop_bot_multiversion.jl")
+        include("$(package_rootpath[3])/deps/SnoopCompile/snoop_bot_multiversion.jl")
 
-        @test isfile("$package_rootpath3/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl")
+        @test isfile("$(package_rootpath[3])/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl")
 
-        precompile_text = Base.read("$package_rootpath3/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl", String)
+        precompile_text = Base.read("$(package_rootpath[3])/deps/SnoopCompile/precompile/$(SnoopCompile.VersionFloat(VERSION))/precompile_TestPackage3.jl", String)
 
         if VERSION > v"1.3"
             @test occursin("hello3", precompile_text)
@@ -386,9 +388,9 @@ bottestdir = GoodPath(@__DIR__)
         end
     end
 
-    if VERSION <=  v"1.4.2"
+    if VERSION <=  v"1.4.2"   # What is this about?
         @testset "snoop_bench-multiversion" begin
-            include("$package_rootpath3/deps/SnoopCompile/snoop_bench.jl")
+            include("$(package_rootpath[3])/deps/SnoopCompile/snoop_bench.jl")
         end
     else
         @warn "else version is set to 1.2, so we should not run the benchmark test on nightly, when we have not generated such files yet (unlike in the realworld tests)."
@@ -396,18 +398,18 @@ bottestdir = GoodPath(@__DIR__)
 
     @testset "snoop_bot_function_form" begin
 
-        include("$package_rootpath4/deps/SnoopCompile/snoop_bot.jl")
+        include("$(package_rootpath[4])/deps/SnoopCompile/snoop_bot.jl")
 
-        @test isfile("$package_rootpath4/deps/SnoopCompile/precompile/precompile_TestPackage4.jl")
+        @test isfile("$(package_rootpath[4])/deps/SnoopCompile/precompile/precompile_TestPackage4.jl")
 
-        precompile_text = Base.read("$package_rootpath4/deps/SnoopCompile/precompile/precompile_TestPackage4.jl", String)
+        precompile_text = Base.read("$(package_rootpath[4])/deps/SnoopCompile/precompile/precompile_TestPackage4.jl", String)
 
         @test occursin("hello4", precompile_text)
         @test occursin("domath4", precompile_text)
     end
 
     @testset "snoop_bench_function_form" begin
-        include("$package_rootpath4/deps/SnoopCompile/snoop_bench.jl")
+        include("$(package_rootpath[4])/deps/SnoopCompile/snoop_bench.jl")
     end
 
     for package_name in ["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"]

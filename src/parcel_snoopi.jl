@@ -349,11 +349,26 @@ const default_blacklist = Set([
 ])
 
 """
-Removes everything that can't eval.
+    exhaustive_remover!(pcstatements, modul::Module)
+
+Removes everything statement in `pcstatements` can't be `eval`ed in `modul`.
+
+# Example
+
+```jldoctest; setup=:(using SnoopCompile), filter=r":\\d\\d\\d"
+julia> pcstatements = ["precompile(sum, (Vector{Int},))", "precompile(sum, (CustomVector{Int},))"];
+
+julia> SnoopCompile.exhaustive_remover!(pcstatements, Base)
+┌ Warning: Faulty precompile statement: precompile(sum, (CustomVector{Int},))
+│   exception = UndefVarError: CustomVector not defined
+└ @ Base precompile_Base.jl:375
+1-element Array{String,1}:
+ "precompile(sum, (Vector{Int},))"
+```
 """
-function exhaustive_remover!(pcI::AbstractSet, modul::Module)
-    todelete = Set{eltype(pcI)}()
-    for line in pcI
+function exhaustive_remover!(pcstatements, modul::Module)
+    todelete = Set{eltype(pcstatements)}()
+    for line in pcstatements
         try
             if modul === Core
                 #https://github.com/timholy/SnoopCompile.jl/issues/76
@@ -362,9 +377,9 @@ function exhaustive_remover!(pcI::AbstractSet, modul::Module)
                 Core.eval(modul, Meta.parse(line))
             end
         catch e
-            @warn("Faulty precompile sentence: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
+            @warn("Faulty precompile statement: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
             push!(todelete, line)
         end
     end
-    return setdiff!(pcI, todelete)
+    return setdiff!(pcstatements, todelete)
 end
