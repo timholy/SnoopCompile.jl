@@ -205,7 +205,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     subst = Vector{Pair{String, String}}(),
     blacklist = String[],
     remove_blacklist::Bool = true,
-    exhaustive::Bool = false)
+    check_eval::Bool = false)
 
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
@@ -317,8 +317,8 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         if remove_blacklist
             pc[mod] = blacklist_remover!(pc[mod], blacklist)
         end
-        # exhaustive remover
-        if exhaustive
+        # check_eval remover
+        if check_eval
             pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
         end
     end

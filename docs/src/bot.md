@@ -39,7 +39,7 @@ botconfig = BotConfig(
   os = ["linux", "windows", "macos"],  # operating systems for which to precompile
   version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
   blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
-  exhaustive = false,                  # do not remove statements that fail to eval
+  check_eval = false,                  # do not remove statements that fail to eval
 )
 
 snoop_bot(

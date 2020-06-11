@@ -122,7 +122,7 @@ function parcel(calls::AbstractVector{String};
     subst=Vector{Pair{String, String}}(),
     blacklist=String[],
     remove_blacklist::Bool = true,
-    exhaustive::Bool = false)
+    check_eval::Bool = false)
     
     pc = Dict{Symbol, Vector{String}}()
     
@@ -147,8 +147,8 @@ function parcel(calls::AbstractVector{String};
 
     # TODO
     # for mod in keys(pc)
-    #     # exhaustive remover
-    #     if exhaustive
+    #     # check_eval remover
+    #     if check_eval
     #         pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
     #     end
     # end

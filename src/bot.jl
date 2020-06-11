@@ -22,11 +22,11 @@ You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile statements
 
-- `exhaustive`: passing `true` discards precompile statements that cannot be `eval`ed.
+- `check_eval`: passing `true` discards precompile statements that cannot be `eval`ed.
   However, it slows down the processing stage.
   Defaults to `false`. Use this feature if SnoopCompile benchmark or your CI fails.
   This feature also prints the errors, which you can fix by `blacklist`ing the offending statements
-  and then disabling `exhaustive` for future runs.
+  and then disabling `check_eval` for future runs.
 
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
 
@@ -86,7 +86,7 @@ BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.2"])
 struct BotConfig
     package_name::AbstractString
     blacklist::Vector{UStrings}
-    exhaustive::Bool
+    check_eval::Bool
     os::Union{Vector{String}, Nothing}
     else_os::Union{String, Nothing}
     version::Union{Vector{VersionNumber}, Nothing}
@@ -100,7 +100,7 @@ end
 function BotConfig(
     package_name::AbstractString;
     blacklist::AbstractVector = String[],
-    exhaustive::Bool = false,
+    check_eval::Bool = false,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{<:Union{VersionNumber,String}}, Nothing} = nothing,
@@ -118,7 +118,7 @@ function BotConfig(
         else_version = JuliaVersionNumber(else_version)
     end
 
-    return BotConfig(package_name, blacklist, exhaustive, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
+    return BotConfig(package_name, blacklist, check_eval, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
 include("bot/botutils.jl")
