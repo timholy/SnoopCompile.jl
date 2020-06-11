@@ -128,7 +128,12 @@ end
 function can_eval(mod::Module, str::AbstractString)
     try
         ex = Meta.parse(str)
-        Core.eval(mod, ex)
+        if mod === Core
+            #https://github.com/timholy/SnoopCompile.jl/issues/76
+            Core.eval(Main, ex)
+        else
+            Core.eval(mod, ex)
+        end
     catch
         return false
     end
