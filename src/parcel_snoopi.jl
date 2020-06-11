@@ -134,10 +134,10 @@ function can_eval(mod::Module, str::AbstractString)
         else
             Core.eval(mod, ex)
         end
-    catch
-        return false
+    catch e
+        return false, e
     end
-    return true
+    return true, nothing
 end
 
 tupletypestring(params) = "Tuple{" * join(params, ',') * '}'
@@ -150,10 +150,11 @@ wrap_precompile(ttstr::AbstractString) = "Base.precompile(" * ttstr * ')' # use 
 
 function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "")
     ttstr = tupletypestring(fstr, params)
-    if can_eval(mod, ttstr)
+    can, exc = can_eval(mod, ttstr)
+    if can
         push!(pclist, prefix*wrap_precompile(ttstr))
     else
-        @debug "Module $mod: skipping $tt due to eval failure"
+        @debug "Module $mod: skipping $tt due to eval failure" exception=exc _module=mod _file="precompile_$mod.jl"
     end
     return pclist
 end
@@ -179,7 +180,8 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     fparent = getfield(m.module, nameparent)
     pttstr = tuplestring(paramrepr[m.nkw+2:end])
     whichstr = "which($(repr(fparent)), $pttstr)"
-    if can_eval(topmod, whichstr)
+    can1, exc1 = can_eval(topmod, whichstr)
+    if can1
         ttstr = tuplestring(paramrepr)
         pcstr = """
         let fbody = try __lookup_kwbody__($whichstr) catch missing end
@@ -187,13 +189,14 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
                     precompile($fstr, $ttstr)
                 end
             end"""  # extra indentation because `write` will indent 1st line
-        if can_eval(topmod, pcstr)
+        can2, exc2 = can_eval(topmod, pcstr)
+        if can2
             return pcstr
         else
-            @debug "Module $topmod: skipping $tt due to kwbody lookup failure"
+            @debug "Module $topmod: skipping $tt due to kwbody lookup failure" exception=exc2 _module=topmod _file="precompile_$topmod.jl"
         end
     else
-        @debug "Module $topmod: skipping $tt due to kwbody caller lookup failure"
+        @debug "Module $topmod: skipping $tt due to kwbody caller lookup failure" exception=exc1 _module=topmod _file="precompile_$topmod.jl"
     end
     return nothing
 end
