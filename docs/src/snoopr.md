@@ -156,6 +156,34 @@ MethodInstance for pointer(::String, ::Integer) (1027 children)
 
 Many nodes in this tree have multiple "child" branches.
 
+## Filtering invalidations
+
+Some methods trigger widespread invalidation.
+If you don't have time to fix all of them, you might want to focus on a specific set of invalidations.
+For instance, you might be the author of `PkgA` and you've noted that loading `PkgB` invalidates a lot of `PkgA`'s code.
+In that case, you might want to find just those invalidations triggered in your package.
+You can find them with [`filtermod`](@ref):
+
+```
+trees = invalidation_trees(@snoopr using PkgB)
+ftrees = filtermod(PkgA, trees)
+```
+
+`filtermod` only selects trees where the root method was defined in the specified module.
+
+A more selective yet exhaustive tool is [`findcaller`](@ref), which allows you to find the path through the trees to a particular method:
+
+```
+f(data)                             # run once to force compilation
+m = @which f(data)
+using SnoopCompile
+trees = invalidation_trees(@snoopr using SomePkg)
+invs = findcaller(m, trees)
+```
+
+When you don't know which method to choose, but know an operation that got slowed down by loading `SomePkg`, you can use `@snoopi` to find methods that needed to be recompiled. See [`findcaller`](@ref) for further details.
+
+
 ## Avoiding or fixing invalidations
 
 Invalidations occur in situations like our `call2f(c64)` example, where we changed our mind about what value `f` should return for `Float64`.

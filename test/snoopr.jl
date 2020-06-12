@@ -5,6 +5,22 @@ f(x::Int)  = 1
 f(x::Bool) = 2
 applyf(container) = f(container[1])
 callapplyf(container) = applyf(container)
+
+# "multi-caller". Mimics invalidations triggered by defining ==(::SomeType, ::Any)
+mc(x, y) = false
+mc(x::Int, y::Int) = x === y
+mc(x::Symbol, y::Symbol) = x === y
+function mcc(container, y)
+    x = container[1]
+    return mc(x, y)
+end
+function mcc(container, y, extra)
+    x = container[1]
+    return mc(x, y) + extra
+end
+mccc1(container, y) = mcc(container, y)
+mccc2(container, y) = mcc(container, y, 10)
+
 end
 
 @testset "@snoopr" begin
@@ -104,4 +120,23 @@ end
     ftree = only(ftrees)
     @test ftree.backedges == tree.backedges
     @test isempty(ftree.mt_backedges)
+
+    cai = Any[1]
+    cas = Any[:sym]
+    @test SnooprTests.mccc1(cai, 1)
+    @test !SnooprTests.mccc1(cai, 2)
+    @test !SnooprTests.mccc1(cas, 1)
+    @test SnooprTests.mccc2(cai, 1) == 11
+    @test SnooprTests.mccc2(cai, 2) == 10
+    @test SnooprTests.mccc2(cas, 1) == 10
+    trees = invalidation_trees(@snoopr SnooprTests.mc(x::AbstractFloat, y::Int) = x == y)
+    node = only(trees).backedges[1]
+    @test length(node.children) == 2
+    m = which(SnooprTests.mccc1, (Any, Any))
+    ft = findcaller(m, trees)
+    fnode = only(ft.backedges)
+    while !isempty(fnode.children)
+        fnode = only(fnode.children)
+    end
+    @test fnode.mi.def === m
 end
