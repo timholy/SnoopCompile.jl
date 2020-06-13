@@ -45,7 +45,7 @@ There are more complete example illustrating potential options in the `examples/
 
 When calling the `@snoopc` macro, a new julia process is spawned using the function `Base.julia_cmd()`.
 Advanced users may want to tweak the flags passed to this process to suit specific needs.
-This can be done by passing an array of flags of the form `["--flag1", "--flag2"]` as the first argument to the `@snoop` macro.
+This can be done by passing an array of flags of the form `["--flag1", "--flag2"]` as the first argument to the `@snoopc` macro.
 For instance, if you want to pass the `--project=/path/to/dir` flag to the process, to cause the julia process to load the project specified by the path, a snoop script may look like:
 ```julia
 using SnoopCompile

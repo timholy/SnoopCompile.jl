@@ -1,4 +1,4 @@
-export @snoopr, invalidation_trees, filtermod
+export @snoopr, invalidation_trees, filtermod, findcaller
 
 dummy() = nothing
 dummy()
@@ -169,13 +169,42 @@ function Base.show(io::IO, invalidations::MethodInvalidations)
     iscompact && print(io, ';')
 end
 
-# `list` is in RPN format, with the "reason" coming after the items
-# Here is a brief summary of the cause and resulting entries
-# delete_method:
-#   [zero or more (mi, "invalidate_mt_cache") pairs..., zero or more (depth1 tree, loctag) pairs..., method, loctag] with loctag = "jl_method_table_disable"
-# method insertion:
-#   [zero or more (depth0 tree, sig) pairs..., same info as with delete_method except loctag = "jl_method_table_insert"]
+"""
+    trees = invalidation_trees(list)
 
+Parse `list`, as captured by [`@snoopr`](@ref), into a set of invalidation trees, where parents nodes
+were called by their children.
+
+# Example
+
+```julia
+julia> f(x::Int)  = 1
+f (generic function with 1 method)
+
+julia> f(x::Bool) = 2
+f (generic function with 2 methods)
+
+julia> applyf(container) = f(container[1])
+applyf (generic function with 1 method)
+
+julia> callapplyf(container) = applyf(container)
+callapplyf (generic function with 1 method)
+
+julia> c = Any[1]
+1-element Array{Any,1}:
+ 1
+
+julia> callapplyf(c)
+1
+
+julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
+1-element Array{SnoopCompile.MethodInvalidations,1}:
+ insert f(::AbstractFloat) in Main at REPL[36]:1 invalidated:
+   mt_backedges: 1: signature Tuple{typeof(f),Any} triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific
+```
+
+See the documentation for further details.
+"""
 function invalidation_trees(list)
     function checkreason(reason, loctag)
         if loctag == "jl_method_table_disable"
@@ -281,7 +310,115 @@ function filtermod(mod::Module, invs::MethodInvalidations)
     return MethodInvalidations(invs.method, invs.reason, mt_backedges, backedges, copy(invs.mt_cache))
 end
 
+"""
+    invs = findcaller(method::Method, trees)
 
+Find a path through `trees` that reaches `method`. Returns a single `MethodInvalidations` object.
+
+# Examples
+
+Suppose you know that loading package `SomePkg` triggers invalidation of `f(data)`.
+You can find the specific source of invalidation as follows:
+
+```
+f(data)                             # run once to force compilation
+m = @which f(data)
+using SnoopCompile
+trees = invalidation_trees(@snoopr using SomePkg)
+invs = findcaller(m, trees)
+```
+
+If you don't know which method to look for, but know some operation that has had added latency,
+you can look for methods using `@snoopi`. For example, suppose that loading `SomePkg` makes the
+next `using` statement slow. You can find the source of trouble with
+
+```
+julia> using SnoopCompile
+
+julia> trees = invalidation_trees(@snoopr using SomePkg);
+
+julia> tinf = @snoopi using SomePkg            # this second `using` will need to recompile code invalidated above
+1-element Array{Tuple{Float64,Core.MethodInstance},1}:
+ (0.08518409729003906, MethodInstance for require(::Module, ::Symbol))
+
+julia> m = tinf[1][2].def
+require(into::Module, mod::Symbol) in Base at loading.jl:887
+
+julia> findcaller(m, trees)
+insert ==(x, y::SomeType) in SomeOtherPkg at /path/to/code:100 invalidated:
+   backedges: 1: superseding ==(x, y) in Base at operators.jl:83 with MethodInstance for ==(::Symbol, ::Any) (16 children) more specific
+```
+"""
+function findcaller(meth::Method, trees::AbstractVector{MethodInvalidations})
+    for tree in trees
+        ret = findcaller(meth, tree)
+        ret === nothing || return ret
+    end
+    return nothing
+end
+
+function findcaller(meth::Method, invs::MethodInvalidations)
+    function newtree(vectree)
+        root0 = pop!(vectree)
+        root = InstanceTree(root0.mi, root0.depth)
+        return newtree!(root, vectree)
+    end
+    function newtree!(parent, vectree)
+        isempty(vectree) && return getroot(parent)
+        child = pop!(vectree)
+        newp = InstanceTree(child.mi, parent, child.depth)
+        push!(parent.children, newp)
+        return newtree!(newp, vectree)
+    end
+
+    for (sig, node) in invs.mt_backedges
+        ret = findcaller(meth, node)
+        ret === nothing && continue
+        return MethodInvalidations(invs.method, invs.reason, [Pair{Any,InstanceTree}(sig, newtree(ret))], InstanceTree[], copy(invs.mt_cache))
+    end
+    for node in invs.backedges
+        ret = findcaller(meth, node)
+        ret === nothing && continue
+        return MethodInvalidations(invs.method, invs.reason, Pair{Any,InstanceTree}[], [newtree(ret)], copy(invs.mt_cache))
+    end
+    return nothing
+end
+
+function findcaller(meth::Method, tree::InstanceTree)
+    meth === tree.mi.def && return [tree]
+    for child in tree.children
+        ret = findcaller(meth, child)
+        if ret !== nothing
+            push!(ret, tree)
+            return ret
+        end
+    end
+    return nothing
+end
+
+"""
+    list = @snoopr expr
+
+Capture method cache invalidations triggered by evaluating `expr`.
+`list` is a sequence of invalidated `Core.MethodInstance`s together with "explanations," consisting
+of integers (encoding depth) and strings (documenting the source of an invalidation).
+
+Unless you are working at a low level, you essentially always want to pass `list`
+directly to [`invalidation_trees`](@ref).
+
+# Extended help
+
+`list` is in a format where the "reason" comes after the items.
+Method deletion results in the sequence
+
+    [zero or more (mi, "invalidate_mt_cache") pairs..., zero or more (depth1 tree, loctag) pairs..., method, loctag] with loctag = "jl_method_table_disable"
+
+where `mi` means a `MethodInstance`. `depth1` means a sequence starting at `depth=1`.
+
+Method insertion results in the sequence
+
+    [zero or more (depth0 tree, sig) pairs..., same info as with delete_method except loctag = "jl_method_table_insert"]
+"""
 macro snoopr(expr)
     quote
         local invalidations = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
