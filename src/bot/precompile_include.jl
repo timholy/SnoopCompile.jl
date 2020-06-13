@@ -61,7 +61,7 @@ function new_includer_file(
     should_precompile = true
 
 
-    # Don't edit the following! Instead change the script for `snoopi_bot`.
+    # Don't edit the following! Instead change the script for `snoop_bot`.
     ismultios = $ismultios
     ismultiversion = $ismultiversion
     # precompile_enclosure
