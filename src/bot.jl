@@ -22,10 +22,6 @@ You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile statements
 
-- `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
-
-In some cases, you may use the printed errors of this feature to `blacklist` the offending statements and then set `check_eval=false` for the future runs to increase the snooping performance.
-
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
 
 Example: `os = ["windows", "linux"]`
@@ -59,6 +55,11 @@ Example: `else_version = v"1.4.2"`
 
 - `tmin`: Methods that take less time than `tmin` to be inferred will not be added to the
   precompile statements. Defaults to 0.
+
+- `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
+
+In rare cases, you may want to do this manually by using the printed errors of this feature to `blacklist` the offending statements and then set `check_eval=false` for the future runs to increase the snooping performance.
+
 
 # Example
 ```julia
