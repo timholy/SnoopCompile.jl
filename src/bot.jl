@@ -22,12 +22,6 @@ You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile statements
 
-- `exhaustive`: passing `true` discards precompile statements that cannot be `eval`ed.
-  However, it slows down the processing stage.
-  Defaults to `false`. Use this feature if SnoopCompile benchmark or your CI fails.
-  This feature also prints the errors, which you can fix by `blacklist`ing the offending statements
-  and then disabling `exhaustive` for future runs.
-
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
 
 Example: `os = ["windows", "linux"]`
@@ -62,6 +56,11 @@ Example: `else_version = v"1.4.2"`
 - `tmin`: Methods that take less time than `tmin` to be inferred will not be added to the
   precompile statements. Defaults to 0.
 
+- `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
+
+In rare cases, you may want to do this manually by using the printed errors of this feature to `blacklist` the offending statements and then set `check_eval=false` for the future runs to increase the snooping performance.
+
+
 # Example
 ```julia
 # A full example:
@@ -86,7 +85,7 @@ BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.2"])
 struct BotConfig
     package_name::AbstractString
     blacklist::Vector{UStrings}
-    exhaustive::Bool
+    check_eval::Bool
     os::Union{Vector{String}, Nothing}
     else_os::Union{String, Nothing}
     version::Union{Vector{VersionNumber}, Nothing}
@@ -100,7 +99,7 @@ end
 function BotConfig(
     package_name::AbstractString;
     blacklist::AbstractVector = String[],
-    exhaustive::Bool = false,
+    check_eval::Bool = true,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{<:Union{VersionNumber,String}}, Nothing} = nothing,
@@ -118,7 +117,7 @@ function BotConfig(
         else_version = JuliaVersionNumber(else_version)
     end
 
-    return BotConfig(package_name, blacklist, exhaustive, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
+    return BotConfig(package_name, blacklist, check_eval, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
 include("bot/botutils.jl")

@@ -125,14 +125,28 @@ while true
     end
 end
 
-function can_eval(mod::Module, str::AbstractString)
-    try
-        ex = Meta.parse(str)
-        Core.eval(mod, ex)
-    catch
-        return false
+"""
+    can_eval(mod::Module, str::AbstractString, check_eval::Bool=true)
+
+Checks if the precompilation statement can be evaled.
+
+In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
+"""
+function can_eval(mod::Module, str::AbstractString, check_eval::Bool=true)
+    if check_eval
+        try
+            ex = Meta.parse(str)
+            if mod === Core
+                #https://github.com/timholy/SnoopCompile.jl/issues/76
+                Core.eval(Main, ex)
+            else
+                Core.eval(mod, ex)
+            end
+        catch e
+            return false, e
+        end
     end
-    return true
+    return true, nothing
 end
 
 tupletypestring(params) = "Tuple{" * join(params, ',') * '}'
@@ -143,12 +157,20 @@ tuplestring(params) = isempty(params) ? "()" : '(' * join(params, ',') * ",)"
 
 wrap_precompile(ttstr::AbstractString) = "Base.precompile(" * ttstr * ')' # use `Base.` to avoid conflict with Core and Pkg
 
-function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "")
+"""
+     add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
+
+Adds the precompilation statements only if they can be evaled. It uses [`can_eval`](@ref) internally.
+
+In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
+"""
+function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
     ttstr = tupletypestring(fstr, params)
-    if can_eval(mod, ttstr)
+    can, exc = can_eval(mod, ttstr, check_eval)
+    if can
         push!(pclist, prefix*wrap_precompile(ttstr))
     else
-        @debug "Module $mod: skipping $tt due to eval failure"
+        @debug "Module $mod: skipping $tt due to eval failure" exception=exc _module=mod _file="precompile_$mod.jl"
     end
     return pclist
 end
@@ -166,7 +188,7 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
     end
 end
 
-function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
+function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
     if !isdefined(m.module, nameparent)   # TODO: replace debugging with error-handling
         @show m m.name
@@ -174,7 +196,8 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     fparent = getfield(m.module, nameparent)
     pttstr = tuplestring(paramrepr[m.nkw+2:end])
     whichstr = "which($(repr(fparent)), $pttstr)"
-    if can_eval(topmod, whichstr)
+    can1, exc1 = can_eval(topmod, whichstr, check_eval)
+    if can1
         ttstr = tuplestring(paramrepr)
         pcstr = """
         let fbody = try __lookup_kwbody__($whichstr) catch missing end
@@ -182,13 +205,14 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
                     precompile($fstr, $ttstr)
                 end
             end"""  # extra indentation because `write` will indent 1st line
-        if can_eval(topmod, pcstr)
+        can2, exc2 = can_eval(topmod, pcstr, check_eval)
+        if can2
             return pcstr
         else
-            @debug "Module $topmod: skipping $tt due to kwbody lookup failure"
+            @debug "Module $topmod: skipping $tt due to kwbody lookup failure" exception=exc2 _module=topmod _file="precompile_$topmod.jl"
         end
     else
-        @debug "Module $topmod: skipping $tt due to kwbody caller lookup failure"
+        @debug "Module $topmod: skipping $tt due to kwbody caller lookup failure" exception=exc1 _module=topmod _file="precompile_$topmod.jl"
     end
     return nothing
 end
@@ -197,7 +221,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     subst = Vector{Pair{String, String}}(),
     blacklist = String[],
     remove_blacklist::Bool = true,
-    exhaustive::Bool = false)
+    check_eval::Bool = true)
 
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
@@ -252,9 +276,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             # Keyword function
             fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
             fkw = "Core.kwftype(typeof($mmod.$fname))"
-            add_if_evals!(pc[topmodname], topmod, fkw, paramrepr, tt)
+            add_if_evals!(pc[topmodname], topmod, fkw, paramrepr, tt; check_eval=check_eval)
         elseif mkwbody !== nothing
-            ret = handle_kwbody(topmod, m, paramrepr, tt)
+            ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
             if ret !== nothing
                 push!(pc[topmodname], ret)
             end
@@ -275,11 +299,11 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                     mkwc = match(kwbodyrex, cname)
                     if mkwc === nothing
                         getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
-                        add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt)
+                        add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt; check_eval=check_eval)
                     else
                         if VERSION >= v"1.4.0-DEV.215"
                             getgen = "which(Core.kwfunc($cmod.$(mkwc.captures[1])),$csigstr).generator.gen"
-                            ret = handle_kwbody(topmod, caller, cparamrepr, tt) #, getgen)
+                            ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
                             if ret !== nothing
                                 push!(pc[topmodname], ret)
                             end
@@ -287,7 +311,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                             # Bail and treat as if anonymous
                             prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
                             fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-                            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix)
+                            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval=check_eval)
                         end
                     end
                     break
@@ -297,9 +321,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             # Anonymous function, wrap in an `isdefined`
             prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
             fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix)
+            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval = check_eval)
         else
-            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
+            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval)
         end
     end
 
@@ -308,10 +332,6 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         # blacklist remover
         if remove_blacklist
             pc[mod] = blacklist_remover!(pc[mod], blacklist)
-        end
-        # exhaustive remover
-        if exhaustive
-            pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
         end
     end
     return  Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
@@ -347,39 +367,3 @@ end
 const default_blacklist = Set([
     r"\bMain\b",
 ])
-
-"""
-    exhaustive_remover!(pcstatements, modul::Module)
-
-Removes everything statement in `pcstatements` can't be `eval`ed in `modul`.
-
-# Example
-
-```jldoctest; setup=:(using SnoopCompile), filter=r":\\d\\d\\d"
-julia> pcstatements = ["precompile(sum, (Vector{Int},))", "precompile(sum, (CustomVector{Int},))"];
-
-julia> SnoopCompile.exhaustive_remover!(pcstatements, Base)
-┌ Warning: Faulty precompile statement: precompile(sum, (CustomVector{Int},))
-│   exception = UndefVarError: CustomVector not defined
-└ @ Base precompile_Base.jl:375
-1-element Array{String,1}:
- "precompile(sum, (Vector{Int},))"
-```
-"""
-function exhaustive_remover!(pcstatements, modul::Module)
-    todelete = Set{eltype(pcstatements)}()
-    for line in pcstatements
-        try
-            if modul === Core
-                #https://github.com/timholy/SnoopCompile.jl/issues/76
-                Core.eval(Main, Meta.parse(line))
-            else
-                Core.eval(modul, Meta.parse(line))
-            end
-        catch e
-            @warn("Faulty precompile statement: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
-            push!(todelete, line)
-        end
-    end
-    return setdiff!(pcstatements, todelete)
-end
