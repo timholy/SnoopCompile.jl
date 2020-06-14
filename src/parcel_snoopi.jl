@@ -333,10 +333,6 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         if remove_blacklist
             pc[mod] = blacklist_remover!(pc[mod], blacklist)
         end
-        # check_eval remover
-        if check_eval
-            pc[mod] = exhaustive_remover!(pc[mod], sym_module[mod])
-        end
     end
     return  Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
 end
@@ -371,39 +367,3 @@ end
 const default_blacklist = Set([
     r"\bMain\b",
 ])
-
-"""
-    exhaustive_remover!(pcstatements, modul::Module)
-
-Removes everything statement in `pcstatements` can't be `eval`ed in `modul`.
-
-# Example
-
-```jldoctest; setup=:(using SnoopCompile), filter=r":\\d\\d\\d"
-julia> pcstatements = ["precompile(sum, (Vector{Int},))", "precompile(sum, (CustomVector{Int},))"];
-
-julia> SnoopCompile.exhaustive_remover!(pcstatements, Base)
-┌ Warning: Faulty precompile statement: precompile(sum, (CustomVector{Int},))
-│   exception = UndefVarError: CustomVector not defined
-└ @ Base precompile_Base.jl:375
-1-element Array{String,1}:
- "precompile(sum, (Vector{Int},))"
-```
-"""
-function exhaustive_remover!(pcstatements, modul::Module)
-    todelete = Set{eltype(pcstatements)}()
-    for line in pcstatements
-        try
-            if modul === Core
-                #https://github.com/timholy/SnoopCompile.jl/issues/76
-                Core.eval(Main, Meta.parse(line))
-            else
-                Core.eval(modul, Meta.parse(line))
-            end
-        catch e
-            @warn("Faulty precompile statement: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
-            push!(todelete, line)
-        end
-    end
-    return setdiff!(pcstatements, todelete)
-end
