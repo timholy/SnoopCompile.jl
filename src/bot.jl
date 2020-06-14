@@ -22,11 +22,9 @@ You may supply the following optional **keyword** arguments:
 
 - `blacklist` : A vector of of Strings (or RegExp) to remove some precompile statements
 
-- `check_eval`: passing `true` discards precompile statements that cannot be `eval`ed.
-  However, it slows down the processing stage.
-  Defaults to `false`. Use this feature if SnoopCompile benchmark or your CI fails.
-  This feature also prints the errors, which you can fix by `blacklist`ing the offending statements
-  and then disabling `check_eval` for future runs.
+- `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
+
+In some cases, you may use the printed errors of this feature to `blacklist` the offending statements and then set `check_eval=false` for the future runs to increase the snooping performance.
 
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
 
@@ -100,7 +98,7 @@ end
 function BotConfig(
     package_name::AbstractString;
     blacklist::AbstractVector = String[],
-    check_eval::Bool = false,
+    check_eval::Bool = true,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
     version::Union{Vector{<:Union{VersionNumber,String}}, Nothing} = nothing,

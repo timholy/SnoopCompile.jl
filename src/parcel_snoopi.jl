@@ -125,17 +125,26 @@ while true
     end
 end
 
-function can_eval(mod::Module, str::AbstractString)
-    try
-        ex = Meta.parse(str)
-        if mod === Core
-            #https://github.com/timholy/SnoopCompile.jl/issues/76
-            Core.eval(Main, ex)
-        else
-            Core.eval(mod, ex)
+"""
+    can_eval(mod::Module, str::AbstractString, check_eval::Bool=true)
+
+Checks if the precompilation statement can be evaled.
+
+In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
+"""
+function can_eval(mod::Module, str::AbstractString, check_eval::Bool=true)
+    if check_eval
+        try
+            ex = Meta.parse(str)
+            if mod === Core
+                #https://github.com/timholy/SnoopCompile.jl/issues/76
+                Core.eval(Main, ex)
+            else
+                Core.eval(mod, ex)
+            end
+        catch e
+            return false, e
         end
-    catch e
-        return false, e
     end
     return true, nothing
 end
@@ -148,9 +157,16 @@ tuplestring(params) = isempty(params) ? "()" : '(' * join(params, ',') * ",)"
 
 wrap_precompile(ttstr::AbstractString) = "Base.precompile(" * ttstr * ')' # use `Base.` to avoid conflict with Core and Pkg
 
-function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "")
+"""
+     add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
+
+Adds the precompilation statements only if they can be evaled. It uses [`can_eval`](@ref) internally.
+
+In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
+"""
+function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
     ttstr = tupletypestring(fstr, params)
-    can, exc = can_eval(mod, ttstr)
+    can, exc = can_eval(mod, ttstr, check_eval)
     if can
         push!(pclist, prefix*wrap_precompile(ttstr))
     else
@@ -172,7 +188,7 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
     end
 end
 
-function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
+function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
     if !isdefined(m.module, nameparent)   # TODO: replace debugging with error-handling
         @show m m.name
@@ -180,7 +196,7 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
     fparent = getfield(m.module, nameparent)
     pttstr = tuplestring(paramrepr[m.nkw+2:end])
     whichstr = "which($(repr(fparent)), $pttstr)"
-    can1, exc1 = can_eval(topmod, whichstr)
+    can1, exc1 = can_eval(topmod, whichstr, check_eval)
     if can1
         ttstr = tuplestring(paramrepr)
         pcstr = """
@@ -189,7 +205,7 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody")
                     precompile($fstr, $ttstr)
                 end
             end"""  # extra indentation because `write` will indent 1st line
-        can2, exc2 = can_eval(topmod, pcstr)
+        can2, exc2 = can_eval(topmod, pcstr, check_eval)
         if can2
             return pcstr
         else
@@ -205,7 +221,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     subst = Vector{Pair{String, String}}(),
     blacklist = String[],
     remove_blacklist::Bool = true,
-    check_eval::Bool = false)
+    check_eval::Bool = true)
 
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
@@ -260,9 +276,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             # Keyword function
             fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
             fkw = "Core.kwftype(typeof($mmod.$fname))"
-            add_if_evals!(pc[topmodname], topmod, fkw, paramrepr, tt)
+            add_if_evals!(pc[topmodname], topmod, fkw, paramrepr, tt; check_eval=check_eval)
         elseif mkwbody !== nothing
-            ret = handle_kwbody(topmod, m, paramrepr, tt)
+            ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
             if ret !== nothing
                 push!(pc[topmodname], ret)
             end
@@ -283,11 +299,11 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                     mkwc = match(kwbodyrex, cname)
                     if mkwc === nothing
                         getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
-                        add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt)
+                        add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt; check_eval=check_eval)
                     else
                         if VERSION >= v"1.4.0-DEV.215"
                             getgen = "which(Core.kwfunc($cmod.$(mkwc.captures[1])),$csigstr).generator.gen"
-                            ret = handle_kwbody(topmod, caller, cparamrepr, tt) #, getgen)
+                            ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
                             if ret !== nothing
                                 push!(pc[topmodname], ret)
                             end
@@ -295,7 +311,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                             # Bail and treat as if anonymous
                             prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
                             fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-                            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix)
+                            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval=check_eval)
                         end
                     end
                     break
@@ -305,9 +321,9 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
             # Anonymous function, wrap in an `isdefined`
             prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
             fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix)
+            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval = check_eval)
         else
-            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt)
+            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval)
         end
     end
 
