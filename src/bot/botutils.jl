@@ -37,6 +37,12 @@ end
 
 Returns Operating System of a machine as a string and a function `os_func()` that will return
 `true` on the current OS.
+
+# Examples
+```julia
+julia> detectOS()
+("windows", Base.Sys.iswindows)
+```
 """
 function detectOS()
 allos_funs = [
@@ -45,12 +51,11 @@ allos_funs = [
          Sys.islinux,
          Sys.isbsd]
     if VERSION >= v"1.1"
-        for o in [Sys.isdragonfly,
+        allos_funs = [allos_funs...,
+                  Sys.isdragonfly,
                   Sys.isfreebsd,
                   Sys.isnetbsd,
                   Sys.isopenbsd]
-            push!(allos_funs, o)
-        end
     end
     if VERSION >= v"1.2"
         push!(allos_funs, Sys.isjsvm)

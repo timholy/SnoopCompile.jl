@@ -1,3 +1,14 @@
+
+@testset "detectOS" begin
+    if Base.Sys.iswindows()
+        @test ("windows", Base.Sys.iswindows) == SnoopCompile.detectOS()
+    elseif Base.Sys.islinux()
+        @test ("linux", Base.Sys.islinux) == SnoopCompile.detectOS()
+    elseif Base.Sys.isapple()
+        @test ("apple", Base.Sys.isapple) == SnoopCompile.detectOS()
+    end
+end
+################################################################
 # JuliaVersionNumber
 
 # https://github.com/JuliaLang/julia/pull/36223:
