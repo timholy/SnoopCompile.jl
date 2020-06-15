@@ -46,7 +46,8 @@ Not passing this argument skips precompilation on any Julia version other than t
 
 Example: `else_version = v"1.4.2"`
 
-- `yml_path`: instead of directly passing `os` and `version` to BotConfig, you can pass `yml_path` which should be the YAML path or file name.
+- `yml_path`: instead of directly passing `os` and `version` to BotConfig, you can pass `yml_path` which should be the GitHub actions YAML path or file name.
+It assumes that the job name is `SnoopCompile`.
 
 Example: `yaml_path = "SnoopCompile.yml"`
 
