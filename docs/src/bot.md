@@ -182,3 +182,10 @@ jobs:
 You can learn more about these files and the workflow process in the [documentation](https://help.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow).
 Examples of such files in projects can be found in other packages, for example
 [Zygote](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/.github/workflows/SnoopCompile.yml).
+
+
+!!! note
+
+    Upgrading from an old SnoopCompile bot:
+
+    In addition to the previous steps, you should also remove `_precompile_()` and any other code that includes a `_precompile_()` function. In the new version, SnoopCompile automatically creates the appropriate code.
