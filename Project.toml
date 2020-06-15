@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "1.4.0"
+version = "1.5.0"
 
 [deps]
 FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
