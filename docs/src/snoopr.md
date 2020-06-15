@@ -126,7 +126,7 @@ entry alone invalidates 1027 method instances:
 
 ```
 julia> sig, root = trees[end].mt_backedges[10]
-Pair{Any,SnoopCompile.InstanceTree}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
+Pair{Any,SnoopCompile.InstanceNode}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
 
 julia> root
 MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children

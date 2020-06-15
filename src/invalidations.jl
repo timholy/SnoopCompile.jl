@@ -1,7 +1,7 @@
 export @snoopr, invalidation_trees, filtermod, findcaller
 
 # Variable names:
-# - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceTree`s, a.k.a. nodes in a MethodInstance tree
+# - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
 # - `methinvs::MethodInvalidations`: the set of invalidations that occur from inserting or deleting a method
 # - `trees`: a list of `methinvs`
 
@@ -9,21 +9,21 @@ dummy() = nothing
 dummy()
 const dummyinstance = which(dummy, ()).specializations[1]
 
-mutable struct InstanceTree
+mutable struct InstanceNode
     mi::MethodInstance
     depth::Int32
-    children::Vector{InstanceTree}
-    parent::InstanceTree
+    children::Vector{InstanceNode}
+    parent::InstanceNode
 
     # Create a new tree. Creates the `root`, but returns the `leaf` holding `mi`.
-    # `root == leaf` if `depth = 0`, otherwise "dummy" nodes are inserted to get back
-    # to `depth` 0.
-    function InstanceTree(mi::MethodInstance, depth)
-        leaf = new(mi, depth, InstanceTree[])
+    # `root == leaf` if `depth = 0`, otherwise parent "dummy" nodes are inserted until
+    # the root is created at `depth` 0.
+    function InstanceNode(mi::MethodInstance, depth)
+        leaf = new(mi, depth, InstanceNode[])
         child = leaf
         while depth > 0
             depth -= 1
-            parent = new(dummyinstance, depth, InstanceTree[])
+            parent = new(dummyinstance, depth, InstanceNode[])
             push!(parent.children, child)
             child.parent = parent
             child = parent
@@ -31,27 +31,27 @@ mutable struct InstanceTree
         return leaf
     end
     # Create child with a given `parent`. Checks that the depths are consistent.
-    function InstanceTree(mi::MethodInstance, parent::InstanceTree, depth)
+    function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth)
         @assert parent.depth + Int32(1) == depth
-        child = new(mi, depth, InstanceTree[], parent)
+        child = new(mi, depth, InstanceNode[], parent)
         push!(parent.children, child)
         return child
     end
 end
 
-function getroot(node::InstanceTree)
+function getroot(node::InstanceNode)
     while isdefined(node, :parent)
         node = node.parent
     end
     return node
 end
 
-function Base.any(f, node::InstanceTree)
+function Base.any(f, node::InstanceNode)
     f(node) && return true
     return any(f, node.children)
 end
 
-function Base.show(io::IO, node::InstanceTree; methods=false, maxdepth::Int=5, minchildren::Int=round(Int, sqrt(countchildren(node))))
+function Base.show(io::IO, node::InstanceNode; methods=false, maxdepth::Int=5, minchildren::Int=round(Int, sqrt(countchildren(node))))
     if get(io, :limit, false)
         print(io, node.mi, " at depth ", node.depth, " with ", countchildren(node), " children")
     else
@@ -76,9 +76,9 @@ function Base.show(io::IO, node::InstanceTree; methods=false, maxdepth::Int=5, m
         end
     end
 end
-Base.show(node::InstanceTree; kwargs...) = show(stdout, node; kwargs...)
+Base.show(node::InstanceNode; kwargs...) = show(stdout, node; kwargs...)
 
-function countchildren(node::InstanceTree)
+function countchildren(node::InstanceNode)
     n = length(node.children)
     for child in node.children
         n += countchildren(child)
@@ -89,18 +89,18 @@ end
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :insert or :delete
-    mt_backedges::Vector{Pair{Any,InstanceTree}}   # sig=>root
-    backedges::Vector{InstanceTree}
+    mt_backedges::Vector{Pair{Any,InstanceNode}}   # sig=>root
+    backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
 end
-methinv_storage() = Pair{Any,InstanceTree}[], InstanceTree[], MethodInstance[]
+methinv_storage() = Pair{Any,InstanceNode}[], InstanceNode[], MethodInstance[]
 function MethodInvalidations(method::Method, reason::Symbol)
     MethodInvalidations(method, reason, methinv_storage()...)
 end
 
 Base.isempty(methinvs::MethodInvalidations) = isempty(methinvs.mt_backedges) && isempty(methinvs.backedges)  # ignore mt_cache
 
-countchildren(sigtree::Pair{<:Any,InstanceTree}) = countchildren(sigtree.second)
+countchildren(sigtree::Pair{<:Any,InstanceNode}) = countchildren(sigtree.second)
 
 function countchildren(methinvs::MethodInvalidations)
     n = 0
@@ -242,14 +242,14 @@ function invalidation_trees(list)
             if isa(item, Int32)
                 depth = item
                 if leaf === nothing
-                    leaf = InstanceTree(mi, depth)
+                    leaf = InstanceNode(mi, depth)
                 else
                     # Recurse back up the tree until we find the right parent
                     node = leaf
                     while node.depth >= depth
                         node = node.parent
                     end
-                    leaf = InstanceTree(mi, node, depth)
+                    leaf = InstanceNode(mi, node, depth)
                 end
             elseif isa(item, String)
                 loctag = item
@@ -312,7 +312,7 @@ function filtermod(mod::Module, trees::AbstractVector{MethodInvalidations})
 end
 
 function filtermod(mod::Module, methinvs::MethodInvalidations)
-    hasmod(mod, node::InstanceTree) = node.mi.def.module === mod
+    hasmod(mod, node::InstanceNode) = node.mi.def.module === mod
 
     mt_backedges = filter(pr->hasmod(mod, pr.second), methinvs.mt_backedges)
     backedges = filter(root->hasmod(mod, root), methinvs.backedges)
@@ -369,30 +369,30 @@ end
 function findcaller(meth::Method, methinvs::MethodInvalidations)
     function newtree(vectree)
         root0 = pop!(vectree)
-        root = InstanceTree(root0.mi, root0.depth)
+        root = InstanceNode(root0.mi, root0.depth)
         return newtree!(root, vectree)
     end
     function newtree!(parent, vectree)
         isempty(vectree) && return getroot(parent)
         child = pop!(vectree)
-        newchild = InstanceTree(child.mi, parent, child.depth)   # prune all branches except the one leading through child.mi
+        newchild = InstanceNode(child.mi, parent, child.depth)   # prune all branches except the one leading through child.mi
         return newtree!(newchild, vectree)
     end
 
     for (sig, node) in methinvs.mt_backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, [Pair{Any,InstanceTree}(sig, newtree(ret))], InstanceTree[], copy(methinvs.mt_cache))
+        return MethodInvalidations(methinvs.method, methinvs.reason, [Pair{Any,InstanceNode}(sig, newtree(ret))], InstanceNode[], copy(methinvs.mt_cache))
     end
     for node in methinvs.backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, Pair{Any,InstanceTree}[], [newtree(ret)], copy(methinvs.mt_cache))
+        return MethodInvalidations(methinvs.method, methinvs.reason, Pair{Any,InstanceNode}[], [newtree(ret)], copy(methinvs.mt_cache))
     end
     return nothing
 end
 
-function findcaller(meth::Method, node::InstanceTree)
+function findcaller(meth::Method, node::InstanceNode)
     meth === node.mi.def && return [node]
     for child in node.children
         ret = findcaller(meth, child)
