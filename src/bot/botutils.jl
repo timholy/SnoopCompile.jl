@@ -74,7 +74,7 @@ end
 ################################################################
 """
     standardize_osname(input::String)
-    standardize_osname(inputs::Vector{String}) 
+    standardize_osname(inputs::Vector{String})
 
 Standardize different names from Github actions, Travis, etc
 
@@ -185,7 +185,7 @@ function searchdirsboth(rootpaths::Array{String}, pattern_or_file::AbstractStrin
     else
         found_files = searchdirs(rootpaths, pattern_or_file)
         if length(found_files) === 0
-            found_files = searchdirsfiles(rootpaths, pattern_or_file)
+            found_files = searchdirsfile(rootpaths, pattern_or_file)
             if length(found_files) === 0
                 @error "Couldn't find $(pattern_or_file)"
             elseif length(found_files) > 1

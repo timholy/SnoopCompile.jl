@@ -115,13 +115,17 @@ function BotConfig(
 
     # Parse os and version from the yaml file
     if !isnothing(yml_path)
-        yml_path = searchdirsboth(package_path, yml_path)
+        package_root_path = dirname(dirname(package_path))
+        yml_path = searchdirsboth([ pwd(), package_root_path, "$package_root_path/.github/workflows/"], yml_path)
+        if !isfile(yml_path)
+            error("$yml_path not found")
+        end
 
         # TODO This can be an option
         workflow_job = "SnoopCompile"
 
-        yml = YAML.load_file(path)
-        matrix = yml["jobs"][job]["strategy"]["matrix"]
+        yml = YAML.load_file(yml_path)
+        matrix = yml["jobs"][workflow_job]["strategy"]["matrix"]
         if haskey(matrix, "os")
             os = matrix["os"]
         end
