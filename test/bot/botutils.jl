@@ -1,7 +1,7 @@
 @testset "pathof_noload" begin
     pnl = SnoopCompile.pathof_noload("MatLang")
     import MatLang
-    p = pathof(MatLang)
+    p = GoodPath(pathof(MatLang))
     @test p == pnl
 end
 
