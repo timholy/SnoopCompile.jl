@@ -70,6 +70,19 @@ In rare cases, you may want to do this manually by using the printed errors of t
 
 # Example
 ```julia
+botconfig1 = BotConfig(
+  "Zygote";                            # package name (the one this configuration lives in)
+  os = ["linux", "windows", "macos"],  # operating systems for which to precompile
+  version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
+  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+)
+
+botconfig2 = BotConfig(
+  "Zygote";                            # package name (the one this configuration lives in)
+  yml_path = "SnoopCompile.yml"        # parse `os` and `version` from `SnoopCompile.yml`
+  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+)
+
 # A full example:
 BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.2", "1.2", "1.0.5"], else_version = "1.4.2" )
 

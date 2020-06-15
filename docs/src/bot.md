@@ -36,8 +36,7 @@ using SnoopCompile
 
 botconfig = BotConfig(
   "Zygote";                            # package name (the one this configuration lives in)
-  os = ["linux", "windows", "macos"],  # operating systems for which to precompile
-  version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
+  yml_path = "SnoopCompile.yml"        # parse `os` and `version` from `SnoopCompile.yml`
   blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
 )
 
