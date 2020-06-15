@@ -1,5 +1,7 @@
 export BotConfig, snoop_bot, snoop_bench
 
+using YAML
+
 if VERSION <=  v"1.1"
     isnothing(x) = x === nothing
 end
@@ -108,8 +110,26 @@ function BotConfig(
     precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
     subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
     tmin::AbstractFloat = 0.0,
+    yml_path::Union{String, Nothing} = nothing
     )
-    
+
+    # Parse os and version from the yaml file
+    if !isnothing(yml_path)
+        yml_path = searchdirsboth(package_path, yml_path)
+
+        # TODO This can be an option
+        workflow_job = "SnoopCompile"
+
+        yml = YAML.load_file(path)
+        matrix = yml["jobs"][job]["strategy"]["matrix"]
+        if haskey(matrix, "os")
+            os = matrix["os"]
+        end
+        if haskey(matrix, "version")
+            version = matrix["version"]
+        end
+    end
+
     if !isnothing(version)
         version = JuliaVersionNumber.(version)
     end
