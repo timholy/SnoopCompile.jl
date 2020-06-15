@@ -320,7 +320,7 @@ bottestdir = GoodPath(@__DIR__)
 
     using Pkg
     package_rootpath = Symbol[]
-    for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"])
+    for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4", "TestPackage5"])
         Pkg.develop(PackageSpec(path=joinpath(bottestdir,"$package_name.jl")))
         push!(package_rootpath, Symbol(goodjoinpath(bottestdir,"$package_name.jl")))
     end
@@ -417,11 +417,19 @@ bottestdir = GoodPath(@__DIR__)
     end
     Pkg.resolve()
 
-        # workflow yaml file is tested online:
-        # https://github.com/aminya/Example.jl/actions
+    @testset "yaml os and version parse" begin
+        include("$(package_rootpath[5])/deps/SnoopCompile/snoop_bot.jl")
+        for bc in bcs
+            @test [v"1.4.2", v"1.3.1"] == bc.version
+            @test ["ubuntu-latest", "windows-latest", "macos-latest"] == bc.os
+        end
+    end
+
+    # workflow yaml file is tested online:
+    # https://github.com/aminya/Example.jl/actions
 
     # just in case
     cd(snoopcompiledir)
-    
+
     include("botutils.jl")
 end

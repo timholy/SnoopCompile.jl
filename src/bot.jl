@@ -1,5 +1,7 @@
 export BotConfig, snoop_bot, snoop_bench
 
+using YAML
+
 if VERSION <=  v"1.1"
     isnothing(x) = x === nothing
 end
@@ -44,6 +46,11 @@ Not passing this argument skips precompilation on any Julia version other than t
 
 Example: `else_version = v"1.4.2"`
 
+- `yml_path`: instead of directly passing `os` and `version` to BotConfig, you can pass `yml_path` which should be the GitHub actions YAML path or file name.
+It assumes that the job name is `SnoopCompile`.
+
+Example: `yaml_path = "SnoopCompile.yml"`
+
 - `package_path`: path to the main `.jl` file of the package (similar to `pathof`).
   Default path is `pathof_noload(package_name)`.
 
@@ -63,6 +70,19 @@ In rare cases, you may want to do this manually by using the printed errors of t
 
 # Example
 ```julia
+botconfig1 = BotConfig(
+  "Zygote";                            # package name (the one this configuration lives in)
+  os = ["linux", "windows", "macos"],  # operating systems for which to precompile
+  version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
+  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+)
+
+botconfig2 = BotConfig(
+  "Zygote";                            # package name (the one this configuration lives in)
+  yml_path = "SnoopCompile.yml"        # parse `os` and `version` from `SnoopCompile.yml`
+  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+)
+
 # A full example:
 BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.2", "1.2", "1.0.5"], else_version = "1.4.2" )
 
@@ -108,8 +128,30 @@ function BotConfig(
     precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
     subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
     tmin::AbstractFloat = 0.0,
+    yml_path::Union{String, Nothing} = nothing
     )
-    
+
+    # Parse os and version from the yaml file
+    if !isnothing(yml_path)
+        package_root_path = dirname(dirname(package_path))
+        yml_path = searchdirsboth([ pwd(), package_root_path, "$package_root_path/.github/workflows/"], yml_path)
+        if !isfile(yml_path)
+            error("$yml_path not found")
+        end
+
+        # TODO This can be an option
+        workflow_job = "SnoopCompile"
+
+        yml = YAML.load_file(yml_path)
+        matrix = yml["jobs"][workflow_job]["strategy"]["matrix"]
+        if haskey(matrix, "os")
+            os = matrix["os"]
+        end
+        if haskey(matrix, "version")
+            version = matrix["version"]
+        end
+    end
+
     if !isnothing(version)
         version = JuliaVersionNumber.(version)
     end

@@ -21,6 +21,7 @@ function _snoopc_bot(snoop_script)
             $snoop_script
         end
         data = SnoopCompile.read("compiles.log")[2]
+        Base.rm("compiles.log", force = true)
     end
 end
 
