@@ -17,9 +17,8 @@ function summary(trees)
     npartial = ngreater = nlesser = nambig = nequal = 0
     for methodtree in trees
         method = methodtree.method
-        invs = methodtree.invalidations
         for fn in (:mt_backedges, :backedges)
-            list = getfield(invs, fn)
+            list = getfield(methodtree, fn)
             for item in list
                 sig = nothing
                 if isa(item, Pair)
