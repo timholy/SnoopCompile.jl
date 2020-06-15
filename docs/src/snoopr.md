@@ -1,5 +1,8 @@
 # Snooping on invalidations: `@snoopr`
 
+!!! note
+    Requires `Julia 1.6.0-DEV.154` or above for running, but the result is useful for all versions.
+
 ## Recording invalidations
 
 ```@meta
