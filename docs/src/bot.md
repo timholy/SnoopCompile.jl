@@ -29,7 +29,7 @@ a file that will be incorporated into your package.
 The script that runs `snoop_bot` should be saved in your configuration directory,
 with a name like `snoop_bot.jl`.
 
-The example below (from [here](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/deps/SnoopCompile/snoop_bot.jl)) supports multiple operating systems, multiple Julia versions, and "blacklists" a function whose precompilation would be problematic:
+The example below (from [here](https://github.com/aminya/Zygote.jl/blob/SnoopCompile/deps/SnoopCompile/snoop_bot.jl)) supports multiple operating systems, multiple Julia versions, and excludes a function whose precompilation would be problematic:
 
 ```julia
 using SnoopCompile
@@ -37,7 +37,7 @@ using SnoopCompile
 botconfig = BotConfig(
   "Zygote";                            # package name (the one this configuration lives in)
   yml_path = "SnoopCompile.yml"        # parse `os` and `version` from `SnoopCompile.yml`
-  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+  exclusions = ["SqEuclidean"],        # exclude functions (by name) that would be problematic if precompiled
 )
 
 snoop_bot(
@@ -100,7 +100,7 @@ name: SnoopCompile
 on:
   push:
     branches:
-    #  - 'master'  # NOTE: to run the bot only on pushes to master 
+    #  - 'master'  # NOTE: to run the bot only on pushes to master
 
 defaults:
   run:

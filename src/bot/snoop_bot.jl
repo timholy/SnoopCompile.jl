@@ -27,7 +27,7 @@ end
 
 function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; snoop_mode::Symbol)
     package_name = config.package_name
-    blacklist = config.blacklist
+    exclusions = config.exclusions
     check_eval = config.check_eval
     os = config.os
     else_os = config.else_os
@@ -98,7 +98,7 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         ################################################################
         @info "Processsing the generated precompile signatures"
         ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompile.parcel(data, subst = $subst, blacklist = $blacklist, check_eval = $check_eval)
+        pc = SnoopCompile.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
         if !haskey(pc, packageSym)
             @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
         end

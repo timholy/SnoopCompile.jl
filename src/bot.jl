@@ -15,14 +15,14 @@ end
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
 """
-    BotConfig(package_name::AbstractString ; blacklist, os, else_os, version, else_version, package_path, precompiles_rootpath, subst, tmin)
+    BotConfig(package_name::AbstractString ; exclusions, os, else_os, version, else_version, package_path, precompiles_rootpath, subst, tmin)
 
 Construct a SnoopCompile bot configuration. `package_name` is the name of the package. This object is passed to [`snoop_bot`](@ref)
 and [`snoop_bench`](@ref).
 
 You may supply the following optional **keyword** arguments:
 
-- `blacklist` : A vector of of Strings (or RegExp) to remove some precompile statements
+- `exclusions` : A vector of of Strings (or RegExp) to exclude some functions from being precompiled
 
 - `os`: A vector of of Strings (or RegExp) to support with precompile statements.
 
@@ -65,7 +65,7 @@ Example: `yaml_path = "SnoopCompile.yml"`
 
 - `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
 
-In rare cases, you may want to do this manually by using the printed errors of this feature to `blacklist` the offending statements and then set `check_eval=false` for the future runs to increase the snooping performance.
+In rare cases (when snooping is very time consuming), you may want to do this manually by using the printed errors to add the problematic functions to `exclusions` and then set `check_eval=false` for the future runs.
 
 
 # Example
@@ -74,22 +74,22 @@ botconfig1 = BotConfig(
   "Zygote";                            # package name (the one this configuration lives in)
   os = ["linux", "windows", "macos"],  # operating systems for which to precompile
   version = [v"1.4.2", v"1.3.1"],      # supported Julia versions
-  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+  exclusions = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
 )
 
 botconfig2 = BotConfig(
   "Zygote";                            # package name (the one this configuration lives in)
   yml_path = "SnoopCompile.yml"        # parse `os` and `version` from `SnoopCompile.yml`
-  blacklist = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
+  exclusions = ["SqEuclidean"],         # exclude functions (by name) that would be problematic if precompiled
 )
 
 # A full example:
-BotConfig("MatLang", blacklist = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.2", "1.2", "1.0.5"], else_version = "1.4.2" )
+BotConfig("MatLang", exclusions = ["badfunction"], os = ["linux", "windows", "macos"], else_os = "linux", version = ["1.4.2", "1.2", "1.0.5"], else_version = "1.4.2" )
 
 # Different examples for other possibilities:
 BotConfig("MatLang")
 
-BotConfig("MatLang", blacklist = ["badfunction"])
+BotConfig("MatLang", exclusions = ["badfunction"])
 
 BotConfig("MatLang", os = ["linux", "windows"])
 
@@ -104,7 +104,7 @@ BotConfig("MatLang", os = ["linux", "windows"], version = [v"1.1", v"1.4.2"])
 """
 struct BotConfig
     package_name::AbstractString
-    blacklist::Vector{UStrings}
+    exclusions::Vector{UStrings}
     check_eval::Bool
     os::Union{Vector{String}, Nothing}
     else_os::Union{String, Nothing}
@@ -118,7 +118,7 @@ end
 
 function BotConfig(
     package_name::AbstractString;
-    blacklist::AbstractVector = String[],
+    exclusions::AbstractVector = String[],
     check_eval::Bool = true,
     os::Union{Vector{String}, Nothing} = nothing,
     else_os::Union{String, Nothing} = nothing,
@@ -128,8 +128,14 @@ function BotConfig(
     precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
     subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
     tmin::AbstractFloat = 0.0,
-    yml_path::Union{String, Nothing} = nothing
+    yml_path::Union{String, Nothing} = nothing,
+    blacklist = nothing       # deprecated keyword
     )
+
+    if blacklist !== nothing
+        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names")
+        append!(exclusions, blacklist)
+    end
 
     # Parse os and version from the yaml file
     if !isnothing(yml_path)
@@ -159,7 +165,7 @@ function BotConfig(
         else_version = JuliaVersionNumber(else_version)
     end
 
-    return BotConfig(package_name, blacklist, check_eval, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
+    return BotConfig(package_name, exclusions, check_eval, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
 include("bot/botutils.jl")

@@ -56,13 +56,13 @@ function extract_topmod(e)
     return :unknown
 end
 
-function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parse_call(line; subst=Vector{Pair{String, String}}(), exclusions=String[])
     match(anonrex, line) === nothing || return false, line, :unknown, ""
     for (k, v) in subst
         line = replace(line, k=>v)
     end
-    if any(b -> occursin(b, line), blacklist)
-        println(line, " contains a blacklisted substring")
+    if any(b -> occursin(b, line), exclusions)
+        println(line, " contains an excluded substring")
         return false, line, :unknown, ""
     end
 
@@ -114,23 +114,33 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), blacklist=String
 end
 
 """
-`pc = parcel(calls; subst=[], blacklist=[])` assigns each compile statement to the module that owns the function. Perform string substitution via `subst=["Module1"=>"Module2"]`, and omit functions in particular modules with `blacklist=["Module3"]`. On output, `pc[:Module2]` contains all the precompiles assigned to `Module2`.
+`pc = parcel(calls; subst=[], exclusions=[])` assigns each compile statement to the module that owns the function. Perform string substitution via `subst=["Module1"=>"Module2"]`, and omit functions in particular modules with `exclusions=["Module3"]`. On output, `pc[:Module2]` contains all the precompiles assigned to `Module2`.
 
 Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory `prefix`, one file per module.
 """
 function parcel(calls::AbstractVector{String};
     subst=Vector{Pair{String, String}}(),
-    blacklist=String[],
-    remove_blacklist::Bool = true,
-    check_eval::Bool = false)
-    
+    exclusions=String[],
+    remove_exclusions::Bool = true,
+    check_eval::Bool = false,
+    blacklist=nothing,                  # deprecated keyword
+    remove_blacklist=nothing)           # deprecated keyword
+
+    if blacklist !== nothing
+        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names")
+        append!(exclusions, blacklist)
+    end
+    if remove_blacklist !== nothing
+        Base.depwarn("`remove_blacklist` is deprecated, please use `remove_exclusions` to pass a list of excluded names")
+        remove_exclusions = remove_blacklist
+    end
     pc = Dict{Symbol, Vector{String}}()
-    
+
     sym_module = Dict{Symbol, Module}() # 1-1 association between modules and module name
-    
+
     for c in calls
         local keep, pcstring, topmod
-        keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
+        keep, pcstring, topmod, name = parse_call(c, subst=subst, exclusions=exclusions)
         keep || continue
         # Add to the appropriate dictionary
         if !haskey(pc, topmod)
@@ -138,7 +148,7 @@ function parcel(calls::AbstractVector{String};
         end
         prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
         push!(pc[topmod], prefix * "precompile($pcstring)")
-        
+
         # code from parcel_snoopi
         # TODO moduleof a symobl!
         # eval(topmod) # throws error for Test
@@ -156,12 +166,12 @@ function parcel(calls::AbstractVector{String};
 end
 
 """
-`pc = format_userimg(calls; subst=[], blacklist=[])` generates precompile directives intended for your base/userimg.jl script. Use `SnoopCompile.write(filename, pc)` to create a file that you can `include` into `userimg.jl`.
+`pc = format_userimg(calls; subst=[], exclusions=[])` generates precompile directives intended for your base/userimg.jl script. Use `SnoopCompile.write(filename, pc)` to create a file that you can `include` into `userimg.jl`.
 """
-function format_userimg(calls; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function format_userimg(calls; subst=Vector{Pair{String, String}}(), exclusions=String[])
     pc = Vector{String}()
     for c in calls
-        keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
+        keep, pcstring, topmod, name = parse_call(c, subst=subst, exclusions=exclusions)
         keep || continue
         prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
         push!(pc, prefix * "precompile($pcstring)")
