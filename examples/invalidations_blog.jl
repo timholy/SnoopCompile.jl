@@ -1,5 +1,5 @@
 using SnoopCompile
-using SnoopCompile: countchildren
+import SnoopCompile: countchildren
 
 function hastv(typ)
     isa(typ, UnionAll) && return true
