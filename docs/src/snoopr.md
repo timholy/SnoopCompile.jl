@@ -1,5 +1,8 @@
 # Snooping on invalidations: `@snoopr`
 
+!!! note
+    `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
+
 ## Recording invalidations
 
 ```@meta
