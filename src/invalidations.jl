@@ -88,7 +88,7 @@ end
 
 struct MethodInvalidations
     method::Method
-    reason::Symbol   # :insert or :delete
+    reason::Symbol   # :inserting or :deleting
     mt_backedges::Vector{Pair{Any,InstanceNode}}   # sig=>root
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
@@ -209,7 +209,7 @@ julia> callapplyf(c)
 
 julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
 1-element Array{SnoopCompile.MethodInvalidations,1}:
- insert f(::AbstractFloat) in Main at REPL[36]:1 invalidated:
+ inserting f(::AbstractFloat) in Main at REPL[36]:1 invalidated:
    mt_backedges: 1: signature Tuple{typeof(f),Any} triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific
 ```
 
@@ -218,11 +218,11 @@ See the documentation for further details.
 function invalidation_trees(list)
     function checkreason(reason, loctag)
         if loctag == "jl_method_table_disable"
-            @assert reason === nothing || reason === :delete
-            reason = :delete
+            @assert reason === nothing || reason === :deleting
+            reason = :deleting
         elseif loctag == "jl_method_table_insert"
-            @assert reason === nothing || reason === :insert
-            reason = :insert
+            @assert reason === nothing || reason === :inserting
+            reason = :inserting
         else
             error("unexpected reason ", loctag)
         end
@@ -354,7 +354,7 @@ julia> m = tinf[1][2].def
 require(into::Module, mod::Symbol) in Base at loading.jl:887
 
 julia> findcaller(m, trees)
-insert ==(x, y::SomeType) in SomeOtherPkg at /path/to/code:100 invalidated:
+inserting ==(x, y::SomeType) in SomeOtherPkg at /path/to/code:100 invalidated:
    backedges: 1: superseding ==(x, y) in Base at operators.jl:83 with MethodInstance for ==(::Symbol, ::Any) (16 children) more specific
 ```
 """

@@ -42,13 +42,13 @@ So we can see the consequences for the compiled code, we'll make this definition
 ```jldoctest invalidations
 julia> trees = invalidation_trees(@snoopr f(::Float64) = 2)
 1-element Array{SnoopCompile.MethodInvalidations,1}:
- insert f(::Float64) in Main at REPL[9]:1 invalidated:
+ inserting f(::Float64) in Main at REPL[9]:1 invalidated:
    backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children) more specific
               2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children) more specific
 ```
 
 The list of `MethodInvalidations` indicates that some previously-compiled code got invalidated.
-In this case, "`insert f(::Float64)`" means that a new method, for `f(::Float64)`, was added.
+In this case, "`inserting f(::Float64)`" means that a new method, for `f(::Float64)`, was added.
 There were two proximal triggers for the invalidation, both of which superseded the method `f(::Real)`.
 One of these had been compiled specifically for `Float64`, due to our `call2f(c64)`.
 The other had been compiled specifically for `AbstractFloat`, due to our `call2f(cabs)`.
@@ -83,19 +83,19 @@ This is often seen with more complex, real-world tests:
 ```julia
 julia> trees = invalidation_trees(@snoopr using SIMD)
 4-element Array{SnoopCompile.MethodInvalidations,1}:
- insert convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
+ inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
    mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children) ambiguous
                  2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children) ambiguous
                  3: signature Tuple{typeof(convert),Type{NTuple{7,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{7,DataType}}(::Any, ::Any) (0 children) ambiguous
 
- insert convert(::Type{Tuple}, v::Vec{N,T}) where {N, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:188 invalidated:
+ inserting convert(::Type{Tuple}, v::Vec{N,T}) where {N, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:188 invalidated:
    mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.RemoteDoMsg(::Any, ::Any, ::Any) (1 children) more specific
                  2: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call}(::Any, ::Any, ::Any) (1 children) more specific
                  3: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call_fetch}(::Any, ::Any, ::Any) (1 children) more specific
                  4: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallWaitMsg(::Any, ::Any, ::Any) (4 children) more specific
    12 mt_cache
 
- insert <<(x1::T, v2::Vec{N,T}) where {N, T<:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
+ inserting <<(x1::T, v2::Vec{N,T}) where {N, T<:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
    mt_backedges: 1: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Integer) (0 children) ambiguous
                  2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Integer, ::Integer) (0 children) ambiguous
                  3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Int64, ::Int64, ::Integer) (0 children) ambiguous
@@ -103,7 +103,7 @@ julia> trees = invalidation_trees(@snoopr using SIMD)
                  5: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Unsigned) (16 children) ambiguous
    20 mt_cache
 
- insert +(s1::Union{Bool, Float16, Float32, Float64, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Ptr}, v2::Vec{N,T}) where {N, T<:Union{Float16, Float32, Float64}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1165 invalidated:
+ inserting +(s1::Union{Bool, Float16, Float32, Float64, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Ptr}, v2::Vec{N,T}) where {N, T<:Union{Float16, Float32, Float64}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1165 invalidated:
    mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children) ambiguous
                   2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children) ambiguous
                   3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children) ambiguous

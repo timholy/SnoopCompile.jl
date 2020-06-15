@@ -36,7 +36,7 @@ end
     methinvs = only(trees)
     m = which(SnooprTests.f, (AbstractFloat,))
     @test methinvs.method == m
-    @test methinvs.reason === :insert
+    @test methinvs.reason === :inserting
     sig, root = only(methinvs.mt_backedges)
     @test sig === Tuple{typeof(SnooprTests.f), Any}
     @test root.mi == mi1
@@ -52,7 +52,7 @@ end
     io = IOBuffer()
     print(io, methinvs)
     str = String(take!(io))
-    @test startswith(str, "insert f(::AbstractFloat)")
+    @test startswith(str, "inserting f(::AbstractFloat)")
     @test occursin("mt_backedges: 1: signature", str)
     @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific", str)
 
@@ -67,7 +67,7 @@ end
     m = which(SnooprTests.f, (Float32,))
     # These next are identical to the above
     @test methinvs.method == m
-    @test methinvs.reason === :insert
+    @test methinvs.reason === :inserting
     sig, root = only(methinvs.mt_backedges)
     @test sig === Tuple{typeof(SnooprTests.f), Any}
     @test root.mi == mi1
@@ -93,7 +93,7 @@ end
 
     print(io, methinvs)
     str = String(take!(io))
-    @test startswith(str, "insert f(::Float32)")
+    @test startswith(str, "inserting f(::Float32)")
     @test occursin("mt_backedges: 1: signature", str)
     @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific", str)
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
