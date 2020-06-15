@@ -4,6 +4,7 @@ author = ["Tim Holy <tim.holy@gmail.com>"]
 version = "1.4.0"
 
 [deps]
+FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"

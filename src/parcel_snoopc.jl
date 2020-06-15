@@ -118,8 +118,16 @@ end
 
 Use `SnoopCompile.write(prefix, pc)` to generate a series of files in directory `prefix`, one file per module.
 """
-function parcel(calls::AbstractVector{String}; subst=Vector{Pair{String, String}}(), blacklist=String[])
+function parcel(calls::AbstractVector{String};
+    subst=Vector{Pair{String, String}}(),
+    blacklist=String[],
+    remove_blacklist::Bool = true,
+    check_eval::Bool = false)
+    
     pc = Dict{Symbol, Vector{String}}()
+    
+    sym_module = Dict{Symbol, Module}() # 1-1 association between modules and module name
+    
     for c in calls
         local keep, pcstring, topmod
         keep, pcstring, topmod, name = parse_call(c, subst=subst, blacklist=blacklist)
@@ -130,7 +138,20 @@ function parcel(calls::AbstractVector{String}; subst=Vector{Pair{String, String}
         end
         prefix = (isempty(name) ? "" : "isdefined($topmod, Symbol(\"$name\")) && ")
         push!(pc[topmod], prefix * "precompile($pcstring)")
+        
+        # code from parcel_snoopi
+        # TODO moduleof a symobl!
+        # eval(topmod) # throws error for Test
+        # sym_module[topmod] = moduleof(topmod)
     end
+
+    # TODO
+    # for mod in keys(pc)
+    #     # check_eval remover
+    #     if check_eval
+    #         pc[mod] = remove_if_not_eval!(pc[mod], sym_module[mod])
+    #     end
+    # end
     return pc
 end
 
@@ -146,4 +167,42 @@ function format_userimg(calls; subst=Vector{Pair{String, String}}(), blacklist=S
         push!(pc, prefix * "precompile($pcstring)")
     end
     return pc
+end
+
+# TODO Make this work with snoopc:
+
+"""
+    remove_if_not_eval!(pcstatements, modul::Module)
+
+Removes everything statement in `pcstatements` can't be `eval`ed in `modul`.
+
+# Example
+
+```jldoctest; setup=:(using SnoopCompile), filter=r":\\d\\d\\d"
+julia> pcstatements = ["precompile(sum, (Vector{Int},))", "precompile(sum, (CustomVector{Int},))"];
+
+julia> SnoopCompile.remove_if_not_eval!(pcstatements, Base)
+┌ Warning: Faulty precompile statement: precompile(sum, (CustomVector{Int},))
+│   exception = UndefVarError: CustomVector not defined
+└ @ Base precompile_Base.jl:375
+1-element Array{String,1}:
+ "precompile(sum, (Vector{Int},))"
+```
+"""
+function remove_if_not_eval!(pcstatements, modul::Module)
+    todelete = Set{eltype(pcstatements)}()
+    for line in pcstatements
+        try
+            if modul === Core
+                #https://github.com/timholy/SnoopCompile.jl/issues/76
+                Core.eval(Main, Meta.parse(line))
+            else
+                Core.eval(modul, Meta.parse(line))
+            end
+        catch e
+            @warn("Faulty precompile statement: $line", exception = e, _module = modul, _file = "precompile_$modul.jl")
+            push!(todelete, line)
+        end
+    end
+    return setdiff!(pcstatements, todelete)
 end

@@ -122,8 +122,8 @@ uncompiled(x) = x + 1
 
     # blacklist_remover
     blacklist = ["hi", "bye"]
-    pcI = ["good", "bad", "hi", "bye", "no"]
-    @test SnoopCompile.blacklist_remover!(pcI, blacklist) == ["good", "bad", "no"]
+    pcI = Set(["good", "bad", "hi", "bye", "no"])
+    @test SnoopCompile.blacklist_remover!(pcI, blacklist) == Set(["good", "bad", "no"])
 end
 
 @testset "Lots of methods" begin
@@ -213,6 +213,6 @@ end
         eval_local_function(2)
         eval_local_function(3)
     end
-    pc = SnoopCompile.parcel(tinf)
-    @test count(isequal("precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
+    pc = SnoopCompile.parcel(tinf, remove_blacklist = false)
+    @test count(isequal("Base.precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
 end

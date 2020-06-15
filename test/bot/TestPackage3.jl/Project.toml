@@ -1,0 +1,11 @@
+name = "TestPackage3"
+uuid = "e4e5126f-87fb-4ad8-8278-7d97677acfc1"
+version = "0.5.4"
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

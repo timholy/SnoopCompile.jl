@@ -1,4 +1,4 @@
-# Snooping on code generation: `@snoopc`
+# [Snooping on code generation: `@snoopc`](@id macro-snoopc)
 
 `@snoopc` has the advantage of working on any modern version of Julia.
 It "snoops" on the code-generation phase of compilation (the 'c' is a reference to

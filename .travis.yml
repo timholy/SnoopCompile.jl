@@ -1,28 +1,17 @@
+# Only documentation until GitHub actions docs are set
+
 # Documentation: http://docs.travis-ci.com/user/languages/julia/
 language: julia
 os:
   - linux
-  - osx
 julia:
-  - 1.0
-  - 1.2   # first version supporting @snoopi
   - 1
-  - nightly
 notifications:
   email: false
-
-# uncomment the following lines to override the default test script
-#script:
-#  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-#  - julia -e 'Pkg.clone(pwd()); Pkg.build("SnoopCompile"); Pkg.test("SnoopCompile"; coverage=true)'
-
 jobs:
   include:
     - stage: "Documentation"
-      julia: nightly
-      os: linux
       script:
-        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
-                                               Pkg.instantiate()'
+        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
         - julia --project=docs/ docs/make.jl
       after_success: skip
