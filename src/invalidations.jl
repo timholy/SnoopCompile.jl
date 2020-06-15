@@ -133,14 +133,19 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             root = treelist[i]
             sig = nothing
             if isa(root, Pair)
-                print(io, "signature ", root.first, " triggered ")
+                print(io, "signature ")
+                printstyled(io, root.first, color = :light_cyan)
+                print(io, " triggered ")
                 sig = root.first
                 root = root.second
             else
-                print(io, "superseding ", root.mi.def , " with ")
+                print(io, "superseding ")
+                printstyled(io, root.mi.def , color = :light_cyan)
+                print(io, " with ")
                 sig = root.mi.def.sig
             end
-            print(io, root.mi, " (", countchildren(root), " children)")
+            printstyled(io, root.mi, color = :light_yellow)
+            print(io, " (", countchildren(root), " children)")
             if sig !== nothing
                 ms1, ms2 = method.sig <: sig, sig <: method.sig
                 diagnosis = if ms1 && !ms2
@@ -152,7 +157,7 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
                 else
                     "ambiguous"
                 end
-                printstyled(io, ' ', diagnosis, color=:cyan)
+                printstyled(io, ' ', diagnosis, color=:red)
             end
             if iscompact
                 i < n && print(io, ", ")
@@ -162,8 +167,9 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             end
         end
     end
-
-    println(io, methinvs.reason, " ", methinvs.method, " invalidated:")
+    print(io, methinvs.reason, " ")
+    printstyled(io, methinvs.method, color = :light_magenta)
+    println(io, " invalidated:")
     indent = iscompact ? "" : "   "
     for fn in (:mt_backedges, :backedges)
         val = getfield(methinvs, fn)
