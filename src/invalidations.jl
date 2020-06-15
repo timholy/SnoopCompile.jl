@@ -10,7 +10,8 @@ mutable struct InstanceTree
     children::Vector{InstanceTree}
     parent::InstanceTree
 
-    # Create tree root, but return a leaf
+    # Create a new tree. Creates the root, but returns a leaf.
+    # The root is a leaf if `depth = 0`.
     function InstanceTree(mi::MethodInstance, depth)
         tree = new(mi, depth, InstanceTree[])
         child = tree
@@ -23,10 +24,12 @@ mutable struct InstanceTree
         end
         return tree
     end
-    # Create child
+    # Create child with a given `parent`. Checks that the depths are consistent.
     function InstanceTree(mi::MethodInstance, parent::InstanceTree, depth)
         @assert parent.depth + Int32(1) == depth
-        new(mi, depth, InstanceTree[], parent)
+        child = new(mi, depth, InstanceTree[], parent)
+        push!(parent.children, child)
+        return child
     end
 end
 
@@ -238,9 +241,7 @@ function invalidation_trees(list)
                     while tree.depth >= depth
                         tree = tree.parent
                     end
-                    newtree = InstanceTree(mi, tree, depth)
-                    push!(tree.children, newtree)
-                    tree = newtree
+                    tree = InstanceTree(mi, tree, depth)
                 end
             elseif isa(item, String)
                 loctag = item
@@ -367,7 +368,6 @@ function findcaller(meth::Method, invs::MethodInvalidations)
         isempty(vectree) && return getroot(parent)
         child = pop!(vectree)
         newp = InstanceTree(child.mi, parent, child.depth)
-        push!(parent.children, newp)
         return newtree!(newp, vectree)
     end
 
