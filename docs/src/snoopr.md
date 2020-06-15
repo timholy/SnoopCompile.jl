@@ -56,9 +56,9 @@ The other had been compiled specifically for `AbstractFloat`, due to our `call2f
 You can look at these invalidation trees in greater detail:
 
 ```jldoctest invalidations
-julia> tree = trees[1];
+julia> methinvs = trees[1];    # invalidations stemming from a single method
 
-julia> root = tree.backedges[1]
+julia> root = methinvs.backedges[1]
 MethodInstance for f(::Float64) at depth 0 with 2 children
 
 julia> show(root)
@@ -73,7 +73,7 @@ MethodInstance for f(::Float64) (2 children)
 ```
 
 You can see that the sequence of invalidations proceeded all the way up to `call2f`.
-Examining `root2 = tree.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
+Examining `root2 = methinvs.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
 
 The structure of these trees can be considerably more complicated. For example, if `callf`
 also got called by some other method, and that method had also been executed (forcing it to be compiled),
@@ -125,13 +125,13 @@ You can see that collectively more than a thousand independent compiled methods 
 entry alone invalidates 1027 method instances:
 
 ```
-julia> sig, node = trees[end].mt_backedges[10]
+julia> sig, root = trees[end].mt_backedges[10]
 Pair{Any,SnoopCompile.InstanceTree}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
 
-julia> node
+julia> root
 MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children
 
-julia> show(node)
+julia> show(root)
 MethodInstance for pointer(::String, ::Integer) (1027 children)
  MethodInstance for repeat(::String, ::Integer) (1023 children)
   MethodInstance for ^(::String, ::Integer) (1019 children)

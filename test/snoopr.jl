@@ -33,24 +33,24 @@ end
     @test !isempty(invs)
     trees = invalidation_trees(invs)
 
-    tree = only(trees)
+    methinvs = only(trees)
     m = which(SnooprTests.f, (AbstractFloat,))
-    @test tree.method == m
-    @test tree.reason === :insert
-    sig, node = only(tree.mt_backedges)
+    @test methinvs.method == m
+    @test methinvs.reason === :insert
+    sig, root = only(methinvs.mt_backedges)
     @test sig === Tuple{typeof(SnooprTests.f), Any}
-    @test node.mi == mi1
-    @test SnoopCompile.getroot(node) === node
-    @test node.depth == 0
-    child = only(node.children)
+    @test root.mi == mi1
+    @test SnoopCompile.getroot(root) === root
+    @test root.depth == 0
+    child = only(root.children)
     @test child.mi == mi2
-    @test SnoopCompile.getroot(child) === node
+    @test SnoopCompile.getroot(child) === root
     @test child.depth == 1
     @test isempty(child.children)
-    @test isempty(tree.backedges)
+    @test isempty(methinvs.backedges)
 
     io = IOBuffer()
-    print(io, tree)
+    print(io, methinvs)
     str = String(take!(io))
     @test startswith(str, "insert f(::AbstractFloat)")
     @test occursin("mt_backedges: 1: signature", str)
@@ -63,35 +63,35 @@ end
     @test !isempty(invs)
     trees = invalidation_trees(invs)
 
-    tree = only(trees)
+    methinvs = only(trees)
     m = which(SnooprTests.f, (Float32,))
     # These next are identical to the above
-    @test tree.method == m
-    @test tree.reason === :insert
-    sig, node = only(tree.mt_backedges)
+    @test methinvs.method == m
+    @test methinvs.reason === :insert
+    sig, root = only(methinvs.mt_backedges)
     @test sig === Tuple{typeof(SnooprTests.f), Any}
-    @test node.mi == mi1
-    @test SnoopCompile.getroot(node) === node
-    @test node.depth == 0
-    child = only(node.children)
+    @test root.mi == mi1
+    @test SnoopCompile.getroot(root) === root
+    @test root.depth == 0
+    child = only(root.children)
     @test child.mi == mi2
-    @test SnoopCompile.getroot(child) === node
+    @test SnoopCompile.getroot(child) === root
     @test child.depth == 1
     @test isempty(child.children)
     # But we add backedges
-    node = only(tree.backedges)
-    @test node.mi == mi3
-    @test SnoopCompile.getroot(node) === node
-    @test node.depth == 0
-    child = only(node.children)
+    root = only(methinvs.backedges)
+    @test root.mi == mi3
+    @test SnoopCompile.getroot(root) === root
+    @test root.depth == 0
+    child = only(root.children)
     @test child.mi == mi1
-    @test SnoopCompile.getroot(child) === node
+    @test SnoopCompile.getroot(child) === root
     @test child.depth == 1
 
-    @test  any(nd->nd.mi == mi1, node)
+    @test  any(nd->nd.mi == mi1, root)
     @test !any(nd->nd.mi == mi3, child)
 
-    print(io, tree)
+    print(io, methinvs)
     str = String(take!(io))
     @test startswith(str, "insert f(::Float32)")
     @test occursin("mt_backedges: 1: signature", str)
@@ -99,13 +99,13 @@ end
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
     @test occursin("with MethodInstance for f(::AbstractFloat) (1 children) more specific", str)
 
-    show(io, node; minchildren=0)
+    show(io, root; minchildren=0)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
     @test length(lines) == 2
     @test lines[1] == "MethodInstance for f(::AbstractFloat) (1 children)"
     @test lines[2] == " MethodInstance for applyf(::Array{Any,1}) (0 children)"
-    show(io, node; minchildren=1)
+    show(io, root; minchildren=1)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
     @test length(lines) == 2
@@ -114,11 +114,11 @@ end
 
     ftrees = filtermod(SnooprTests, trees)
     ftree = only(ftrees)
-    @test ftree.mt_backedges == tree.mt_backedges
+    @test ftree.mt_backedges == methinvs.mt_backedges
     @test isempty(ftree.backedges)
     ftrees = filtermod(@__MODULE__, trees)
     ftree = only(ftrees)
-    @test ftree.backedges == tree.backedges
+    @test ftree.backedges == methinvs.backedges
     @test isempty(ftree.mt_backedges)
 
     cai = Any[1]
@@ -130,8 +130,8 @@ end
     @test SnooprTests.mccc2(cai, 2) == 10
     @test SnooprTests.mccc2(cas, 1) == 10
     trees = invalidation_trees(@snoopr SnooprTests.mc(x::AbstractFloat, y::Int) = x == y)
-    node = only(trees).backedges[1]
-    @test length(node.children) == 2
+    root = only(trees).backedges[1]
+    @test length(root.children) == 2
     m = which(SnooprTests.mccc1, (Any, Any))
     ft = findcaller(m, trees)
     fnode = only(ft.backedges)
