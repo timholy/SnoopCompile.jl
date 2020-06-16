@@ -1,5 +1,8 @@
+module SnoopCompileBot
+
 export BotConfig, snoop_bot, snoop_bench
 
+using Core: MethodInstance, CodeInfo
 using YAML
 
 if VERSION <=  v"1.1"
@@ -168,9 +171,12 @@ function BotConfig(
     return BotConfig(package_name, exclusions, check_eval, os, else_os, version, else_version, GoodPath(package_path), GoodPath(precompiles_rootpath), subst, tmin)
 end
 
-include("bot/botutils.jl")
-include("bot/precompile_include.jl")
-include("bot/precompile_activation.jl")
-include("bot/snoop_bot.jl")
-include("bot/snoop_bench.jl")
-include("bot/deprecations.jl")
+include("botutils.jl")
+include("precompile_include.jl")
+include("precompile_activation.jl")
+include("snoop_bot.jl")
+include("snoop_bench.jl")
+include("deprecations.jl")
+
+
+end # module

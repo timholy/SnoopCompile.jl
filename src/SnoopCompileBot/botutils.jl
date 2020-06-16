@@ -1,3 +1,4 @@
+export timesum
 ################################################################
 """
     timesum(snoop::Vector{Tuple{Float64, Core.MethodInstance}}, unit = :s)
