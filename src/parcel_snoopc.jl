@@ -127,11 +127,11 @@ function parcel(calls::AbstractVector{String};
     remove_blacklist=nothing)           # deprecated keyword
 
     if blacklist !== nothing
-        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names")
+        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names", :parcel)
         append!(exclusions, blacklist)
     end
     if remove_blacklist !== nothing
-        Base.depwarn("`remove_blacklist` is deprecated, please use `remove_exclusions` to pass a list of excluded names")
+        Base.depwarn("`remove_blacklist` is deprecated, please use `remove_exclusions` to pass a list of excluded names", :parcel)
         remove_exclusions = remove_blacklist
     end
     pc = Dict{Symbol, Vector{String}}()

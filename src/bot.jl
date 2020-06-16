@@ -133,7 +133,7 @@ function BotConfig(
     )
 
     if blacklist !== nothing
-        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names")
+        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names", :BotConfig)
         append!(exclusions, blacklist)
     end
 
