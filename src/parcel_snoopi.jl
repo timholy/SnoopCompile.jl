@@ -219,9 +219,20 @@ end
 
 function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     subst = Vector{Pair{String, String}}(),
-    blacklist = String[],
-    remove_blacklist::Bool = true,
-    check_eval::Bool = true)
+    exclusions = String[],
+    remove_exclusions::Bool = true,
+    check_eval::Bool = true,
+    blacklist=nothing,                  # deprecated keyword
+    remove_blacklist=nothing)           # deprecated keyword
+
+    if blacklist !== nothing
+        Base.depwarn("`blacklist` is deprecated, please use `exclusions` to pass a list of excluded names", :parcel)
+        append!(exclusions, blacklist)
+    end
+    if remove_blacklist !== nothing
+        Base.depwarn("`remove_blacklist` is deprecated, please use `remove_exclusions` to pass a list of excluded names", :parcel)
+        remove_exclusions = remove_blacklist
+    end
 
     pc = Dict{Symbol, Set{String}}()         # output
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
@@ -329,34 +340,36 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
 
     # loop over the output
     for mod in keys(pc)
-        # blacklist remover
-        if remove_blacklist
-            pc[mod] = blacklist_remover!(pc[mod], blacklist)
+        # exclusions remover
+        if remove_exclusions
+            pc[mod] = exclusions_remover!(pc[mod], exclusions)
         end
     end
-    return  Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
+    return Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
 end
 
 """
-Search and removes blacklist from pcI.
+    exclusions_remover!(pcI, exclusions)
 
-By default it considers some strings as blacklist such as `r"\\bMain\\b"`.
+Search and removes terms appearing in `exclusions` from `pcI`.
+
+By default it considers some strings as exclusions such as `r"\\bMain\\b"`.
 
 # Examples
 ```julia
-blacklist = Set(["hi","bye"])
+exclusions = Set(["hi","bye"])
 pcI = Set(["good","bad","hi","bye","no"])
 
-SnoopCompile.blacklist_remover!(pcI, blacklist)
+SnoopCompile.exclusions_remover!(pcI, exclusions)
 ```
 """
-function blacklist_remover!(pcI::AbstractSet, blacklist)
-    all_blacklist = union(blacklist, default_blacklist)
+function exclusions_remover!(pcI::AbstractSet, exclusions)
+    all_exclusions = union(exclusions, default_exclusions)
 
     # We can't just use `setdiff!` because this is a substring search
     todelete = Set{eltype(pcI)}()
     for line in pcI
-        if any(occursin.(all_blacklist, line))
+        if any(occursin.(all_exclusions, line))
             push!(todelete, line)
         end
     end
@@ -364,6 +377,6 @@ function blacklist_remover!(pcI::AbstractSet, blacklist)
 end
 
 # These are found by running `exhaustive_remover!` on some packages
-const default_blacklist = Set([
+const default_exclusions = Set([
     r"\bMain\b",
 ])

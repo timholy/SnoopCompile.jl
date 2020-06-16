@@ -24,13 +24,13 @@ subst = ["ImagesTests"=>"Images", ]
 
 # Blacklist can be used to help fix problems.
 # For example, old versions of Julia output would MIME types with invalid syntax:
-blacklist = ["MIME", ]
+exclusions = ["MIME", ]
 
 # Use these two lines if you want to create precompile functions for
 # individual packages
-pc = SnoopCompile.parcel(reverse!(data[2]), subst=subst, blacklist=blacklist)
+pc = SnoopCompile.parcel(reverse!(data[2]), subst=subst, exclusions=exclusions)
 SnoopCompile.write("/tmp/precompile", pc)
 
 # Use these two lines if you want to add to your userimg.jl
-pc = SnoopCompile.format_userimg(reverse!(data[2]), subst=subst, blacklist=blacklist)
+pc = SnoopCompile.format_userimg(reverse!(data[2]), subst=subst, exclusions=exclusions)
 SnoopCompile.write("/tmp/userimg_Images.jl", pc)
