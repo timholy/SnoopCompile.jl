@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>SnoopCompile Bot · SnoopCompile</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">SnoopCompile</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">SnoopCompile.jl</a></li><li><a class="tocitem" href="../snoopi/">Snooping on inference: <code>@snoopi</code></a></li><li><a class="tocitem" href="../snoopc/">Snooping on code generation: <code>@snoopc</code></a></li><li><a class="tocitem" href="../userimg/">Creating <code>userimg.jl</code> files</a></li><li class="is-active"><a class="tocitem" href>SnoopCompile Bot</a><ul class="internal"><li><a class="tocitem" href="#Setting-up-the-SnoopCompile-bot-configuration-folder-1"><span>1 - Setting up the SnoopCompile bot configuration folder</span></a></li><li><a class="tocitem" href="#Create-the-precompile-script-1"><span>2 - Create the precompile script</span></a></li><li><a class="tocitem" href="#Create-the-script-that-runs-snoop_bot-1"><span>3 - Create the script that runs <code>snoop_bot</code></span></a></li><li><a class="tocitem" href="#Optionally-test-the-impact-of-your-precompiles-with-snoop_bench-1"><span>4 - Optionally test the impact of your precompiles with <code>snoop_bench</code></span></a></li><li><a class="tocitem" href="#Configure-the-bot-to-run-with-a-GitHub-Action-file-1"><span>5 - Configure the bot to run with a GitHub Action file</span></a></li></ul></li><li><a class="tocitem" href="../snoopr/">Snooping on invalidations: <code>@snoopr</code></a></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>SnoopCompile Bot</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>SnoopCompile Bot</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/timholy/SnoopCompile.jl/blob/master/docs/src/bot.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="SnoopCompile-Bot-1"><a class="docs-heading-anchor" href="#SnoopCompile-Bot-1">SnoopCompile Bot</a><a class="docs-heading-anchor-permalink" href="#SnoopCompile-Bot-1" title="Permalink"></a></h1><p>As you change the code in your package, the precompile statements likely need to be updated too. You can use SnoopCompile bot to automatically and continuously create precompile files. This bot can be used offline or online.</p><p>Follow these steps to set up SnoopCompile bot for your package.</p><h2 id="Setting-up-the-SnoopCompile-bot-configuration-folder-1"><a class="docs-heading-anchor" href="#Setting-up-the-SnoopCompile-bot-configuration-folder-1">1 - Setting up the SnoopCompile bot configuration folder</a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-SnoopCompile-bot-configuration-folder-1" title="Permalink"></a></h2><p>Here, we will configure the bot in a directory <code>deps/SnoopCompile/</code> that should be added to your repository. All configuration files for the SnoopCompile bot should go in this directory. If you choose a different name for this directory, be sure to change the path in the configuration steps below.</p><h2 id="Create-the-precompile-script-1"><a class="docs-heading-anchor" href="#Create-the-precompile-script-1">2 - Create the precompile script</a><a class="docs-heading-anchor-permalink" href="#Create-the-precompile-script-1" title="Permalink"></a></h2><p>You will need a <a href="../snoopi/#pcscripts-1">precompile script</a>, here called <code>example_script.jl</code>, that &quot;exercises&quot; the functionality you&#39;d like to precompile. If you write a dedicated precompile script, place it in the bot configuration folder.</p><p>Alternatively, you may use your package&#39;s <code>&quot;runtests.jl&quot;</code> file. While less precise about which functionality is worthy of precompilation, this can slightly simplify configuration as described below.</p><h2 id="Create-the-script-that-runs-snoop_bot-1"><a class="docs-heading-anchor" href="#Create-the-script-that-runs-snoop_bot-1">3 - Create the script that runs <code>snoop_bot</code></a><a class="docs-heading-anchor-permalink" href="#Create-the-script-that-runs-snoop_bot-1" title="Permalink"></a></h2><p>The <code>snoop_bot</code> function generates precompile statements and writes them to a file that will be incorporated into your package. <code>snoop_bot</code> requires a few settings, which can be most easily generated by <a href="../reference/#SnoopCompile.BotConfig"><code>BotConfig</code></a>. The script that runs <code>snoop_bot</code> should be saved in your configuration directory, with a name like <code>snoop_bot.jl</code>.</p><p>The example below (from <a href="https://github.com/aminya/Zygote.jl/blob/SnoopCompile/deps/SnoopCompile/snoop_bot.jl">here</a>) supports multiple operating systems, multiple Julia versions, and excludes a function whose precompilation would be problematic:</p><pre><code class="language-julia">using SnoopCompile
+
+botconfig = BotConfig(
+  &quot;Zygote&quot;;                            # package name (the one this configuration lives in)
+  yml_path = &quot;SnoopCompile.yml&quot;        # parse `os` and `version` from `SnoopCompile.yml`
+  exclusions = [&quot;SqEuclidean&quot;],        # exclude functions (by name) that would be problematic if precompiled
+)
+
+snoop_bot(
+  botconfig,
+  &quot;$(@__DIR__)/example_script.jl&quot;,
+)</code></pre><p>If you choose to use your &quot;runtests.jl&quot; file as your precompile script, configuration can be as simple as specifying just the name of the package:</p><pre><code class="language-julia">using SnoopCompile
+
+snoop_bot(BotConfig(&quot;MyPackage&quot;))</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Some of your regular tests may not be appropriate for <code>snoop_bot</code>. <code>snoop_bot</code> sets a global variable <code>SnoopCompile_ENV</code> to <code>true</code> during snooping, and sets it to <code>false</code> when finished. You can exploit this in your tests to determine whether snooping is on:</p><pre><code class="language-julia">if !isdefined(Main, :SnoopCompile_ENV) || SnoopCompile_ENV == false
+    # Tests that you want to skip when snooping
+end</code></pre></div></div><p>Finally, you could use package loading as the only operation, with <code>snoop_bot(config, :(using MyPackage))</code>.</p><p><code>snoop_bot</code> uses different strategies depending on the Julia version:</p><ul><li>On Julia 1.2 or higher, it identifies methods for precompilation based on <a href="../snoopi/#macro-snoopi-1"><code>@snoopi</code></a>;</li><li>On Julia 1.0 or 1.1 (which do not support <code>@snoopi</code>), it identifies methods for precompilation based on <a href="../snoopc/#macro-snoopc-1"><code>@snoopc</code></a>.</li></ul><p>You can override this default behavior with a keyword argument, see <a href="../reference/#SnoopCompile.snoop_bot"><code>snoop_bot</code></a> for details.</p><h2 id="Optionally-test-the-impact-of-your-precompiles-with-snoop_bench-1"><a class="docs-heading-anchor" href="#Optionally-test-the-impact-of-your-precompiles-with-snoop_bench-1">4 - Optionally test the impact of your precompiles with <code>snoop_bench</code></a><a class="docs-heading-anchor-permalink" href="#Optionally-test-the-impact-of-your-precompiles-with-snoop_bench-1" title="Permalink"></a></h2><p>Call <a href="../reference/#SnoopCompile.snoop_bench"><code>snoop_bench</code></a> to measure the effect of adding precompile files. It takes the same parameters as <code>snoop_bot</code> above. You can run this manually, or choose to run it during automatic precompile file generation. To perform it automatically, create a <code>snoop_bench.jl</code> script in the bot configuration directory. This should be nearly identical to your <code>snoop_bot.jl</code> file, but calling <code>snoop_bench</code> instead. Note that benchmarking has the option of different performance metrics, <code>snoop_mode=:snoopi</code> or <code>snoop_mode=:run_time</code> depending on whether you want to measure inference time or the run time of your precompile script.</p><h2 id="Configure-the-bot-to-run-with-a-GitHub-Action-file-1"><a class="docs-heading-anchor" href="#Configure-the-bot-to-run-with-a-GitHub-Action-file-1">5 - Configure the bot to run with a GitHub Action file</a><a class="docs-heading-anchor-permalink" href="#Configure-the-bot-to-run-with-a-GitHub-Action-file-1" title="Permalink"></a></h2><p>You can create the precompile files automatically when you merge pull requests to <code>master</code> by adding a workflow file under <code>.github/workflows/SnoopCompile.yml</code>. This file should have content such as the example below. Lines marked with <code>NOTE</code> deserve special attention as likely places you may need to adjust the configuration.</p><pre><code class="language-yaml">name: SnoopCompile
+
+on:
+  push:
+    branches:
+    #  - &#39;master&#39;  # NOTE: to run the bot only on pushes to master
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  SnoopCompile:
+    if: &quot;!contains(github.event.head_commit.message, &#39;[skip ci]&#39;)&quot;
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:   # NOTE: the versions below should match those in your botconfig
+          - &#39;1.4.2&#39;
+          - &#39;1.3.1&#39;
+        os:        # NOTE: should match the os setting of your botconfig
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        arch:
+          - x64
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: ${{ matrix.version }}
+      - name: Install dependencies
+        run: |
+          julia --project -e &#39;using Pkg; Pkg.instantiate();&#39;
+          julia -e &#39;using Pkg; Pkg.add(PackageSpec(url = &quot;https://github.com/timholy/SnoopCompile.jl&quot;)); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();&#39;
+      - name: Generating precompile files
+        run: julia --project -e &#39;include(&quot;deps/SnoopCompile/snoop_bot.jl&quot;)&#39;   # NOTE: must match path
+      - name: Running Benchmark
+        run: julia --project -e &#39;include(&quot;deps/SnoopCompile/snoop_bench.jl&quot;)&#39; # NOTE: optional, if have benchmark file
+      - name: Upload all
+        uses: actions/upload-artifact@v2
+        with:
+          path: ./
+
+  Create_PR:
+    if: &quot;!contains(github.event.head_commit.message, &#39;[skip ci]&#39;)&quot;
+    needs: SnoopCompile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download all
+        uses: actions/download-artifact@v2
+      - name: Move the content of the directory to the root
+        run: |
+          rsync -a artifact/* ./
+          rm -d -r artifact
+      - name: Discard unrelated changes
+        run: |
+          test -f &#39;Project.toml&#39; &amp;&amp; git checkout -- &#39;Project.toml&#39;
+          git ls-files &#39;Manifest.toml&#39; | grep . &amp;&amp; git checkout -- &#39;Manifest.toml&#39;
+          (git diff -w --no-color || git apply --cached --ignore-whitespace &amp;&amp; git checkout -- . &amp;&amp; git reset &amp;&amp; git add -p) || echo done
+      - name: Format precompile_includer.jl
+        run: julia -e &#39;using Pkg; Pkg.add(&quot;JuliaFormatter&quot;); using JuliaFormatter; format_file(&quot;src/precompile_includer.jl&quot;)&#39;
+      - name: Create Pull Request
+        # https://github.com/marketplace/actions/create-pull-request
+        uses: peter-evans/create-pull-request@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update precompile_*.jl file
+          committer: YOUR NAME &lt;yourEmail@something.com&gt; # NOTE: change `committer` to your name and your email.
+          title: &quot;[AUTO] Update precompiles&quot;
+          labels: SnoopCompile
+          branch: &quot;SnoopCompile_AutoPR&quot;
+
+
+  Skip:
+    if: &quot;contains(github.event.head_commit.message, &#39;[skip ci]&#39;)&quot;
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip CI 🚫
+        run: echo skip ci</code></pre><p>You can learn more about these files and the workflow process in the <a href="https://help.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow">documentation</a>. Examples of such files in projects can be found in other packages, for example <a href="https://github.com/aminya/Zygote.jl/blob/SnoopCompile/.github/workflows/SnoopCompile.yml">Zygote</a>.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Upgrading from an old SnoopCompile bot:</p><p>In addition to the previous steps, you should also remove <code>_precompile_()</code> and any other code that includes a <code>_precompile_()</code> function. In the new version, SnoopCompile automatically creates the appropriate code.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../userimg/">« Creating <code>userimg.jl</code> files</a><a class="docs-footer-nextpage" href="../snoopr/">Snooping on invalidations: <code>@snoopr</code> »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 16 June 2020 23:05">Tuesday 16 June 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
