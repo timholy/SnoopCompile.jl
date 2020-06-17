@@ -17,10 +17,15 @@ end
 
 function _snoopc_bot(snoop_script)
     return quote
+        using SnoopCompileCore
+
         @snoopc "compiles.log" begin
             $snoop_script
         end
-        data = SnoopCompile.read("compiles.log")[2]
+
+        using SnoopCompileAnalysis: read
+        
+        data = SnoopCompileAnalysis.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
     end
 end
@@ -83,13 +88,13 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
     out = quote
         packageSym = Symbol($package_name)
         ################################################################
-        using SnoopCompile
+        using SnoopCompileBot
 
         # Environment variable to detect SnoopCompile bot
         global SnoopCompile_ENV = true
 
         ################################################################
-        SnoopCompile.precompile_deactivator($package_path);
+        SnoopCompileBot.precompile_deactivator($package_path);
         ################################################################
 
         ### Log the compiles
@@ -97,16 +102,19 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
         ################################################################
         @info "Processsing the generated precompile signatures"
+
+        using SnoopCompileAnalysis: parcel, write
+
         ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompile.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
+        pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
         if !haskey(pc, packageSym)
             @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
         end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompile.write($precompile_folder, onlypackage)
+        SnoopCompileAnalysis.write($precompile_folder, onlypackage)
         @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
-        SnoopCompile.precompile_activator($package_path)
+        SnoopCompileBot.precompile_activator($package_path)
 
         global SnoopCompile_ENV = false
     end
