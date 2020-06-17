@@ -24,6 +24,23 @@ function _snoopc_bot(snoop_script)
     end
 end
 
+function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
+    return quote
+        ################################################################
+        @info "Processsing the generated precompile signatures"
+
+        using SnoopCompileAnalysis: parcel, write
+
+        ### Parse the compiles and generate precompilation scripts
+        pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
+        if !haskey(pc, packageSym)
+            @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
+        end
+        onlypackage = Dict( packageSym => sort(pc[packageSym]) )
+        SnoopCompileAnalysis.write($precompile_folder, onlypackage)
+    end
+end
+
 function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; snoop_mode::Symbol)
     package_name = config.package_name
     exclusions = config.exclusions
@@ -79,6 +96,8 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         error("snoop_mode $snoop_mode is unkown")
     end
 
+    analysis_code = _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
+
     out = quote
         packageSym = Symbol($package_name)
         ################################################################
@@ -94,18 +113,9 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         ### Log the compiles
         $snooping_code
 
-        ################################################################
-        @info "Processsing the generated precompile signatures"
+        ### analyze the compiles
+        $analysis_code
 
-        using SnoopCompileAnalysis: parcel, write
-
-        ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
-        if !haskey(pc, packageSym)
-            @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
-        end
-        onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompileAnalysis.write($precompile_folder, onlypackage)
         @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
         SnoopCompileBot.precompile_activator($package_path)
