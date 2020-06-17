@@ -1,17 +1,11 @@
 # Snooping functions
 function _snoopi_bot(snoop_script, tmin)
     return quote
-        # data = Core.eval($test_modul, SnoopCompile._snoopi($(Meta.quot(snoop_script))))
-        # TODO use code directly for now
+        using SnoopCompileCore
 
-        empty!(SnoopCompile.__inf_timing__)
-        SnoopCompile.start_timing()
-        try
+        data = @snoopi tmin=$tmin begin
             $snoop_script
-        finally
-            SnoopCompile.stop_timing()
         end
-        data = SnoopCompile.sort_timed_inf($tmin)
     end
 end
 

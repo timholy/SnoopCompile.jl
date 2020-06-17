@@ -1,37 +1,29 @@
 # Snooping functions
 function _snoopi_bench_cmd(snoop_script)
-    # quote end generates $ which doesn't work in commands
-    # TODO no escape is done for snoop_script!!!
-    # TODO
-    # data = Core.eval(  $test_modul, _snoopi($(esc(snoop_script)))  )
-    # TODO use code directly for now
-    # no filter in the benchmark
-    return """
-        using SnoopCompile
+    tmin = 0.0 # For benchmarking
+    return quote
         global SnoopCompile_ENV = true
 
-        empty!(SnoopCompile.__inf_timing__)
-        SnoopCompile.start_timing()
-        try
-            $(string(snoop_script));
-        finally
-            SnoopCompile.stop_timing()
+        using SnoopCompileCore
+
+        data = @snoopi tmin=$tmin begin
+            $snoop_script
         end
-        data = SnoopCompile.sort_timed_inf(0.0)
+
         global SnoopCompile_ENV = false
 
         @info( "\nTotal inference time (ms): \t" * string(timesum(data, :ms)))
-    """
+    end
 end
 
 function _snoopv_bench_cmd(snoop_script, package_name)
-    return """
+    return quote
         using $package_name
         @info("Script execution time:")
         @timev begin
-            $(string(snoop_script));
+            $snoop_script
         end
-    """
+    end
 end
 
 function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module = Main; snoop_mode::Symbol)
