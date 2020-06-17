@@ -1,4 +1,4 @@
-using SnoopCompile
+using SnoopCompileBot
 
 bcs = Vector{BotConfig}(undef, 3)
 
