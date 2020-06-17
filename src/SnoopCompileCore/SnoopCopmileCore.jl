@@ -13,7 +13,7 @@ end
 
 
 if VERSION >= v"1.6.0-DEV.154"
-    include("invalidations.jl")
+    include("snoopr.jl")
 end
 
 end
