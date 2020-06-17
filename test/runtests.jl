@@ -79,8 +79,10 @@ end
 =#
 
 include("colortypes.jl")
-include("bot/bot.jl")
 
 if isdefined(SnoopCompile, :invalidation_trees)
     include("snoopr.jl")
 end
+
+# SnoopCompileBot tests: are done independently but you can:
+# include("SnoopCompileBot/test/runtests.jl")
