@@ -319,10 +319,10 @@ bottestdir = GoodPath(@__DIR__)
 
 
     using Pkg
-    package_rootpath = Symbol[]
+    package_rootpath = String[]
     for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4", "TestPackage5"])
         Pkg.develop(PackageSpec(path=joinpath(bottestdir,"$package_name.jl")))
-        push!(package_rootpath, Symbol(goodjoinpath(bottestdir,"$package_name.jl")))
+        push!(package_rootpath, goodjoinpath(bottestdir,"$package_name.jl"))
     end
     @show package_rootpath
 
@@ -412,11 +412,6 @@ bottestdir = GoodPath(@__DIR__)
         include("$(package_rootpath[4])/deps/SnoopCompile/snoop_bench.jl")
     end
 
-    for package_name in ["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4"]
-        Pkg.rm(package_name)
-    end
-    Pkg.resolve()
-
     @testset "yaml os and version parse" begin
         include("$(package_rootpath[5])/deps/SnoopCompile/snoop_bot.jl")
         for bc in bcs
@@ -427,6 +422,15 @@ bottestdir = GoodPath(@__DIR__)
 
     # workflow yaml file is tested online:
     # https://github.com/aminya/Example.jl/actions
+
+    # Clean Test remainder
+    for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4", "TestPackage5"])
+        Pkg.rm(package_name)
+        main_file= goodjoinpath(package_rootpath[i], "src/$package_name.jl")
+        run(`git checkout -- $main_file`)
+    end
+    Pkg.resolve()
+    run(`git checkout -- 'Project.toml'`)
 
     # just in case
     cd(snoopcompiledir)
