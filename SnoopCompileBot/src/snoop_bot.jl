@@ -18,7 +18,7 @@ function _snoopc_bot(snoop_script)
         end
 
         using SnoopCompileAnalysis: read
-        
+
         data = SnoopCompileAnalysis.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
     end
@@ -98,6 +98,10 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
     analysis_code = _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
 
+    snooping_analysis_code = `$snooping_code\; $analysis_code\;`
+
+    julia_cmd = `julia --project=@. -e $snooping_analysis_code`
+
     out = quote
         packageSym = Symbol($package_name)
         ################################################################
@@ -110,11 +114,8 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         SnoopCompileBot.precompile_deactivator($package_path);
         ################################################################
 
-        ### Log the compiles
-        $snooping_code
-
-        ### analyze the compiles
-        $analysis_code
+        ### Log the compiles and analyze the compiles
+        run($julia_cmd)
 
         @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
