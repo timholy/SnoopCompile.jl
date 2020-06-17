@@ -1,5 +1,7 @@
 export @snoopc
 
+using Serialization
+
 """
 ```
 @snoopc "compiledata.csv" begin
