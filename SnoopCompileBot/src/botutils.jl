@@ -304,3 +304,8 @@ function JuliaVersionNumber(v::String)
         return VersionNumber(v)
     end
 end
+
+################################################################
+# TODO we need to remove begin and end manually
+# https://github.com/timholy/SnoopCompile.jl/pull/98#issuecomment-645969610
+toplevel_string(expr::Expr) = replace(string(expr), r"^begin([\s\S]*)end$"=>s"\1")

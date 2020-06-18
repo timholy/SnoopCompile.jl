@@ -48,6 +48,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     else
         error("snoop_mode $snoop_mode is unkown")
     end
+    snooping_code = toplevel_string(snooping_code)
 
     ################################################################
     julia_cmd = `julia --project=@. -e $snooping_code`

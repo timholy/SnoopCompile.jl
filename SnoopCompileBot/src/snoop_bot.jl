@@ -95,8 +95,10 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
     else
         error("snoop_mode $snoop_mode is unkown")
     end
+    snooping_code = toplevel_string(snooping_code)
 
     analysis_code = _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
+    analysis_code = toplevel_string(analysis_code)
 
     snooping_analysis_code = `$snooping_code\; $analysis_code\;`
 
