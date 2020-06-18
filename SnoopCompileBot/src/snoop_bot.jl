@@ -26,6 +26,8 @@ end
 
 function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
     return quote
+        packageSym = Symbol($package_name)
+
         ################################################################
         @info "Processsing the generated precompile signatures"
 
@@ -38,6 +40,7 @@ function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, sub
         end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
         SnoopCompileAnalysis.write($precompile_folder, onlypackage)
+        @info "precompile signatures were written to $($precompile_folder)"
     end
 end
 
@@ -100,12 +103,11 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
     analysis_code = _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
     analysis_code = toplevel_string(analysis_code)
 
-    snooping_analysis_code = `$snooping_code\; $analysis_code\;`
+    snooping_analysis_code = "$snooping_code; $analysis_code;"
 
     julia_cmd = `julia --project=@. -e $snooping_analysis_code`
 
     out = quote
-        packageSym = Symbol($package_name)
         ################################################################
         using SnoopCompileBot
 
@@ -119,7 +121,6 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         ### Log the compiles and analyze the compiles
         run($julia_cmd)
 
-        @info "precompile signatures were written to $($precompile_folder)"
         ################################################################
         SnoopCompileBot.precompile_activator($package_path)
 
