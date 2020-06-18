@@ -12,6 +12,7 @@ function _snoopi_bench_cmd(snoop_script)
 
         global SnoopCompile_ENV = false
 
+        using SnoopCompileBot: timesum
         @info( "\nTotal inference time (ms): \t" * string(timesum(data, :ms)))
     end
 end
