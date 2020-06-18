@@ -17,7 +17,7 @@ function _snoopc_bot(snoop_script)
             $snoop_script
         end
 
-        using SnoopCompileAnalysis: read
+        using SnoopCompileAnalysis
 
         data = SnoopCompileAnalysis.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
@@ -29,7 +29,7 @@ function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, sub
         ################################################################
         @info "Processsing the generated precompile signatures"
 
-        using SnoopCompileAnalysis: parcel, write
+        using SnoopCompileAnalysis
 
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
