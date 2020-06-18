@@ -5,9 +5,12 @@ export @snoopc
 
 using SnoopCompileAnalysis
 
+# needed for snoopc
+using SnoopCompileAnalysis: parcel, read, write, parse_call
+
 if isdefined(SnoopCompileCore, Symbol("@snoopi"))
     export @snoopi
-    using SnoopCompileAnalysis: parcel, read, write, parse_call, topmodule, lookup_kwbody_ex, exclusions_remover!, format_userimg
+    using SnoopCompileAnalysis: topmodule, lookup_kwbody_ex, exclusions_remover!, format_userimg
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
