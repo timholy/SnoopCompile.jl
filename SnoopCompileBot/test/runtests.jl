@@ -430,7 +430,8 @@ bottestdir = GoodPath(@__DIR__)
         run(`git checkout -- $main_file`)
     end
     Pkg.resolve()
-    run(`git checkout -- 'Project.toml'`)
+    project_toml_path = "$(dirname(bottestdir))/Project.toml"
+    run(`git checkout -- $project_toml_path`)
 
     # just in case
     cd(snoopcompiledir)
