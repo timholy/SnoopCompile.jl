@@ -29,10 +29,7 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
-      - name: SnoopCompileBot tests
-        run: |
-          julia --project -e 'using Pkg; Pkg.test("SnoopCompileBot", coverage=true);'
-
+      
   Documentation:
     runs-on: ubuntu-latest
     steps:

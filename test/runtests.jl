@@ -84,5 +84,5 @@ if isdefined(SnoopCompile, :invalidation_trees)
     include("snoopr.jl")
 end
 
-# SnoopCompileBot tests: are done independently but you can:
-# include("SnoopCompileBot/test/runtests.jl")
+# SnoopCompileBot tests:
+using Pkg; Pkg.test("SnoopCompileBot", coverage=true);
