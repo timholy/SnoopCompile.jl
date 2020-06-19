@@ -8,12 +8,12 @@ jobs:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         version:
-          - '1.0.5'
+          - '1.0'
           - '1.2'
-          - '1.4.2'
+          - '1.4'
           - 'nightly'
         os:
           - ubuntu-latest

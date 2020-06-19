@@ -1,0 +1,12 @@
+name = "SnoopCompileAnalysis"
+uuid = "9ea4277c-da97-4c3a-afb0-537c066769de"
+author = ["Tim Holy <tim.holy@gmail.com>"]
+version = "1.6.0"
+
+[deps]
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[compat]
+OrderedCollections = "1"
+julia = "1"

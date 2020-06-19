@@ -1,28 +1,31 @@
 module SnoopCompile
 
-using Serialization, OrderedCollections
-using Core: MethodInstance, CodeInfo
+using SnoopCompileCore
+export @snoopc
 
-export timesum  # @snoopi and @snoopc are exported from their files of definition
+using SnoopCompileAnalysis
 
-const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
-const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functions
-const kwbodyrex = r"^##(\w[^#]*)#\d+"         # detect keyword body methods
-const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
-const innerrex = r"^#[^#]+#\d+"               # detect inner functions
+# needed for snoopc
+using SnoopCompileAnalysis: parcel, read, write, parse_call, format_userimg
 
-if VERSION >= v"1.2.0-DEV.573"
-    include("snoopi.jl")
-    include("parcel_snoopi.jl")
+if isdefined(SnoopCompileCore, Symbol("@snoopi"))
+    export @snoopi
+    using SnoopCompileAnalysis: topmodule, lookup_kwbody_ex, exclusions_remover!
 end
-include("snoopc.jl")
-include("parcel_snoopc.jl")
 
-include("write.jl")
-include("bot.jl")
-
-if VERSION >= v"1.6.0-DEV.154"
-    include("invalidations.jl")
+if isdefined(SnoopCompileCore, Symbol("@snoopr"))
+    export @snoopr, invalidation_trees, filtermod, findcaller
+    using SnoopCompileAnalysis: getroot
 end
+
+using SnoopCompileBot
+export BotConfig, snoop_bot, snoop_bench
+export timesum, pathof_noload, GoodPath
+if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
+    # deprecated names
+    export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
+end
+
+export SnoopCompileCore, SnoopCompileAnalysis, SnoopCompileBot
 
 end # module
