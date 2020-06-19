@@ -18,8 +18,9 @@ YAML = "0.4"
 julia = "1"
 
 [extras]
+MatLang = "05b439c0-bb3c-11e9-1d8d-1f0a9ebca87a" # only for pathof_noload
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Pkg", "Test"]
+test = ["Pkg", "Test", "MatLang"]
