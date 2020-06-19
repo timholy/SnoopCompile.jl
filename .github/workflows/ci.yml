@@ -32,9 +32,6 @@ jobs:
       - name: SnoopCompileBot tests
         run: |
           julia --project -e 'using Pkg; Pkg.test("SnoopCompileBot", coverage=true);'
-      - uses: julia-actions/julia-uploadcodecov@latest
-            env:
-              CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   Documentation:
     runs-on: ubuntu-latest
