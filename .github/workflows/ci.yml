@@ -11,9 +11,9 @@ jobs:
       fail-fast: true
       matrix:
         version:
-          - '1.0.5'
+          - '1.0'
           - '1.2'
-          - '1.4.2'
+          - '1.4'
           - 'nightly'
         os:
           - ubuntu-latest
@@ -31,8 +31,10 @@ jobs:
       - uses: julia-actions/julia-runtest@latest
       - name: SnoopCompileBot tests
         run: |
-          julia --project=SnoopCompileBot -e 'using Pkg; Pkg.instantiate();'
-          julia --project=SnoopCompileBot -e 'using Pkg; Pkg.test(coverage=true);'
+          julia --project -e 'using Pkg; Pkg.test("SnoopCompileBot", coverage=true);'
+      - uses: julia-actions/julia-uploadcodecov@latest
+            env:
+              CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   Documentation:
     runs-on: ubuntu-latest
