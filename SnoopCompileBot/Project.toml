@@ -1,7 +1,7 @@
 name = "SnoopCompileBot"
 uuid = "1d5e0e55-7d74-4714-b8d8-efa80e938cf7"
 author = ["Amin Yahyaabadi <aminyahyaabadi74@gmail.com>"]
-version = "1.6.0"
+version = "1.7.0"
 
 [deps]
 FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
@@ -12,8 +12,8 @@ SnoopCompileCore = "e2b509da-e806-4183-be48-004708413034"
 
 [compat]
 FilePathsBase = "0.9"
-SnoopCompileAnalysis = "1"
-SnoopCompileCore = "1"
+SnoopCompileAnalysis = "1.7.0"
+SnoopCompileCore = "1.7.0"
 YAML = "0.4"
 julia = "1"
 
