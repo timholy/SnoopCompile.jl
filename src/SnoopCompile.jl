@@ -14,7 +14,7 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi"))
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-    export @snoopr, invalidation_trees, filtermod, findcaller
+    export @snoopr, invalidation_trees, filtermod, findcaller, ascend
     using SnoopCompileAnalysis: getroot
 end
 
