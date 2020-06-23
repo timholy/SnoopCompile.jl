@@ -226,9 +226,11 @@ See the documentation for further details.
 function invalidation_trees(list)
     function checkreason(reason, loctag)
         if loctag == "jl_method_table_disable"
+            reason === nothing || reason === :deleting || @show reason
             @assert reason === nothing || reason === :deleting
             reason = :deleting
         elseif loctag == "jl_method_table_insert"
+            reason === nothing || reason === :inserting || @show reason
             @assert reason === nothing || reason === :inserting
             reason = :inserting
         else
@@ -286,6 +288,7 @@ function invalidation_trees(list)
                 push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache)))
                 mt_backedges, backedges, mt_cache = methinv_storage()
                 leaf = nothing
+                reason = nothing
             else
                 error("unexpected item ", item, " at ", i)
             end
@@ -294,6 +297,7 @@ function invalidation_trees(list)
             reason = checkreason(reason, item)
             push!(backedges, getroot(leaf))
             leaf = nothing
+            reason = nothing
         elseif isa(item, Type)
             push!(mt_backedges, item=>getroot(leaf))
             leaf = nothing
