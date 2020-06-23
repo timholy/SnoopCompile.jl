@@ -13,6 +13,14 @@ end
 ```
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
+
+To record the invalidations caused by defining new methods, use the following syntax:
+```julia
+trees = invalidation_trees(@snoopr begin
+ # new methods definition
+end)
+```
+
 We can illustrate this process with the following example:
 
 ```jldoctest invalidations
