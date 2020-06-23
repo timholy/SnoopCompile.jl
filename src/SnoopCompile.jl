@@ -25,6 +25,6 @@ if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     # deprecated names
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
 end
-using SnoopCompileBot: standardize_osname, JuliaVersionNumber
+using SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
 
 end # module
