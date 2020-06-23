@@ -4,6 +4,7 @@ export BotConfig, snoop_bot, snoop_bench
 
 using Core: MethodInstance, CodeInfo
 using YAML
+using SnoopCompileCore   # needed for the [`@snoopi`](@ref) doc links
 
 if VERSION <=  v"1.1"
     isnothing(x) = x === nothing
