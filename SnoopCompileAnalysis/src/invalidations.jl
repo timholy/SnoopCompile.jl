@@ -1,4 +1,6 @@
-export invalidation_trees, filtermod, findcaller
+using Cthulhu
+
+export invalidation_trees, filtermod, findcaller, ascend
 
 # Variable names:
 # - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
@@ -411,3 +413,10 @@ function findcaller(meth::Method, node::InstanceNode)
     end
     return nothing
 end
+
+# Cthulhu integration
+
+Cthulhu.backedges(node::InstanceNode) = sort(node.children; by=countchildren, rev=true)
+Cthulhu.method(node::InstanceNode) = Cthulhu.method(node.mi)
+Cthulhu.specTypes(node::InstanceNode) = Cthulhu.specTypes(node.mi)
+Cthulhu.instance(node::InstanceNode) = node.mi
