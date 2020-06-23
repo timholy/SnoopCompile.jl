@@ -68,9 +68,9 @@ The other had been compiled specifically for `AbstractFloat`, due to our `call2f
 You can look at these invalidation trees in greater detail:
 
 ```jldoctest invalidations
-julia> methinvs = trees[1];    # invalidations stemming from a single method
+julia> method_invalidations = trees[1];    # invalidations stemming from a single method
 
-julia> root = methinvs.backedges[1]
+julia> root = method_invalidations.backedges[1]
 MethodInstance for f(::Float64) at depth 0 with 2 children
 
 julia> show(root)
@@ -85,7 +85,7 @@ MethodInstance for f(::Float64) (2 children)
 ```
 
 You can see that the sequence of invalidations proceeded all the way up to `call2f`.
-Examining `root2 = methinvs.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
+Examining `root2 = method_invalidations.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
 
 The structure of these trees can be considerably more complicated. For example, if `callf`
 also got called by some other method, and that method had also been executed (forcing it to be compiled),
@@ -207,11 +207,11 @@ When you don't know which method to choose, but know an operation that got slowe
 
 SnoopCompile, partnering with the remarkable [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl),
 provides a tool called `ascend` to simplify diagnosing and fixing invalidations.
-To demonstrate this tool, let's use it on our `call2f` `methinvs` tree from above.
+To demonstrate this tool, let's use it on our `call2f` `method_invalidations` tree from above.
 We start with
 
 ```julia
-julia> root = methinvs.backedges[end]
+julia> root = method_invalidations.backedges[end]
 MethodInstance for f(::AbstractFloat) at depth 0 with 2 children
 ```
 
