@@ -6,7 +6,7 @@ makedocs(
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
-    modules = [SnoopCompile],
+    modules = [SnoopCompile.SnoopCompileCore, SnoopCompile.SnoopCompileAnalysis, SnoopCompile.SnoopCompileBot, SnoopCompile],
     pages = ["index.md", "snoopi.md", "snoopc.md", "userimg.md", "bot.md", "snoopr.md", "reference.md"]
 )
 
