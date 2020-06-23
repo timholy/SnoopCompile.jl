@@ -1,4 +1,4 @@
-# Snooping on invalidations: `@snoopr`
+# Snooping on and fixing invalidations: `@snoopr`
 
 !!! note
     `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
@@ -195,6 +195,91 @@ When you don't know which method to choose, but know an operation that got slowe
 
 ## Avoiding or fixing invalidations
 
+### Tools for fixing invalidations: ascend
+
+SnoopCompile, partnering with the remarkable [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl),
+provides a tool called `ascend` to simplify diagnosing and fixing invalidations.
+To demonstrate this tool, let's use it on our `call2f` `methinvs` tree from above.
+We start with
+
+```julia
+julia> root = methinvs.backedges[end]
+MethodInstance for f(::AbstractFloat) at depth 0 with 2 children
+```
+
+(It's common to start from the last element of `backedges` or `mt_backedges` since these have the largest number of children and are therefore most consequential.)
+Then:
+
+```julia
+julia> ascend(root)
+Choose a call for analysis (q to quit):
+ >   f(::AbstractFloat)
+       callf(::Array{AbstractFloat,1})
+         call2f(::Array{AbstractFloat,1})
+```
+
+This is an interactive menu: press the down arrow to go down, the up arrow to go up, and `Enter` to select an item for more detailed analysis.
+For example, if we press the down arrow once, we get
+
+```julia
+julia> ascend(root)
+Choose a call for analysis (q to quit):
+     f(::AbstractFloat)
+ >     callf(::Array{AbstractFloat,1})
+         call2f(::Array{AbstractFloat,1})
+```
+
+Now hit `Enter` to select it:
+
+```julia
+Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
+ > "REPL[3]", callf: lines [1]
+   Browse typed code
+```
+
+This is showing you another menu, with only two option (a third is to go back by hitting `q`).
+The first entry shows you the option to open the "offending" source file in `callf` at the position of the call to the parent node of `callf`, which in this case is `f`.
+(Sometimes there will be more than one call to the parent within the method, in which case instead of showing `[1]` it might show `[1, 17, 39]` indicating each separate location.)
+While in this case this isn't useful (methods defined in the REPL are not supported), selecting this option, when available, is typically the best way to start because you can sometimes resolve the problem from this information alone.
+
+If you hit the down arrow
+
+```julia
+Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
+   "REPL[3]", callf: lines [1]
+ > Browse typed code
+```
+
+and then hit `Enter`, this is what you see:
+
+```julia
+│ ─ %-1  = invoke callf(::Array{AbstractFloat,1})::Int64
+Variables
+  #self#::Core.Compiler.Const(callf, false)
+  container::Array{AbstractFloat,1}
+
+Body::Int64
+    @ REPL[3]:1 within `callf'
+1 ─ %1 = Base.getindex(container, 1)::AbstractFloat
+│   %2 = Main.f(%1)::Int64
+└──      return %2
+
+Select a call to descend into or ↩ to ascend. [q]uit. [b]ookmark.
+Toggles: [o]ptimize, [w]arn, [d]ebuginfo, [s]yntax highlight for Source/LLVM/Native.
+Show: [S]ource code, [A]ST, [L]LVM IR, [N]ative code
+Advanced: dump [P]arams cache.
+
+ • %1  = invoke getindex(::Array{AbstractFloat,1},::Int64)::AbstractFloat
+   %2  = call #f(::AbstractFloat)::Int64
+   ↩
+```
+
+This is output from Cthulhu, and you should see its documentation for more information.
+(See also [this video](https://www.youtube.com/watch?v=qf9oA09wxXY).)
+While it takes a bit of time to master Cthulhu, it is an exceptionally powerful tool for diagnosing and fixing inference issues.
+
+### Tips for fixing invalidations
+
 Invalidations occur in situations like our `call2f(c64)` example, where we changed our mind about what value `f` should return for `Float64`.
 Julia could not have returned the newly-correct answer without recompiling the call chain.
 
@@ -250,5 +335,4 @@ end
 ```
 
 Adding type-assertions and fixing inference problems are the most common approaches for fixing invalidations.
-You can discover these manually, but the [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl) package is highly recommended.
-Cthulu's `ascend`, in particular, allows you to navigate an invalidation tree and focus on those branches with the most severe consequences (frequently, the most children).
+You can discover these manually, but using Cthulhu is highly recommended.
