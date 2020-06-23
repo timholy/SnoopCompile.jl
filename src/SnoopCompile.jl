@@ -14,8 +14,8 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi"))
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-    export @snoopr, invalidation_trees, filtermod, findcaller
-    using SnoopCompileAnalysis: getroot
+    export @snoopr, invalidation_trees, filtermod, findcaller, ascend
+    using SnoopCompileAnalysis: getroot, remove_if_not_eval!
 end
 
 using SnoopCompileBot
@@ -25,6 +25,7 @@ if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     # deprecated names
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
 end
+using SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
 
 export SnoopCompileCore, SnoopCompileAnalysis, SnoopCompileBot
 
