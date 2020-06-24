@@ -160,6 +160,11 @@ MethodInstance for pointer(::String, ::Integer) (1027 children)
 
 Many nodes in this tree have multiple "child" branches.
 
+!!! note
+    These `trees` are sorted so that the last items have the largest number of children.
+    It works this way so that long printouts don't have the most important information scroll off the
+    top of the screen.
+
 ## Filtering invalidations
 
 Some methods trigger widespread invalidation.
