@@ -5,7 +5,7 @@ export @snoopc
 
 using SnoopCompileAnalysis
 
-# needed for snoopc
+# needed for processing the output of snoopc (avoids a breaking change in scoping)
 using SnoopCompileAnalysis: parcel, read, write, parse_call, format_userimg
 
 if isdefined(SnoopCompileCore, Symbol("@snoopi"))
@@ -26,7 +26,5 @@ if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
 end
 using SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
-
-export SnoopCompileCore, SnoopCompileAnalysis, SnoopCompileBot
 
 end # module

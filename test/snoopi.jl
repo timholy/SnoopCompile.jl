@@ -199,8 +199,8 @@ end
 
 @testset "@snoopi docs" begin
     # docstring is present (weird Docs bug)
-    dct = Docs.meta(SnoopCompileCore)
-    @test haskey(dct, Docs.Binding(SnoopCompileCore, Symbol("@snoopi")))
+    dct = Docs.meta(SnoopCompile.SnoopCompileCore)
+    @test haskey(dct, Docs.Binding(SnoopCompile.SnoopCompileCore, Symbol("@snoopi")))
 end
 
 @testset "Duplicates (#70)" begin
