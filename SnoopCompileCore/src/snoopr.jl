@@ -8,7 +8,7 @@ Capture method cache invalidations triggered by evaluating `expr`.
 of integers (encoding depth) and strings (documenting the source of an invalidation).
 
 Unless you are working at a low level, you essentially always want to pass `list`
-directly to [`invalidation_trees`](@ref).
+directly to [`SnoopCompileAnalysis.invalidation_trees`](@ref).
 
 # Extended help
 

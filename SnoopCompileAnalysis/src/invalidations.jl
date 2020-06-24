@@ -188,7 +188,7 @@ end
 """
     trees = invalidation_trees(list)
 
-Parse `list`, as captured by [`@snoopr`](@ref), into a set of invalidation trees, where parents nodes
+Parse `list`, as captured by [`SnoopCompileCore.@snoopr`](@ref), into a set of invalidation trees, where parents nodes
 were called by their children.
 
 # Example
