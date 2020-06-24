@@ -236,7 +236,7 @@ function pathof_noload(package_name::String)
 end
 
 ################################################################
-
+export addtestdep
 import Pkg
 """
 Should be removed once Pkg allows adding test dependencies to the current environment

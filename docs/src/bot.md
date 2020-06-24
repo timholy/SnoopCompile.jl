@@ -130,7 +130,7 @@ jobs:
       - name: Install dependencies
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate();'
-          julia -e 'using Pkg; Pkg.add(PackageSpec(url = "https://github.com/timholy/SnoopCompile.jl")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; SnoopCompile.addtestdep();'
+          julia -e 'using Pkg; Pkg.add(PackageSpec(url = "https://github.com/timholy/SnoopCompile.jl")); Pkg.develop(PackageSpec(; path=pwd())); using SnoopCompile; addtestdep();'
       - name: Generating precompile files
         run: julia --project -e 'include("deps/SnoopCompile/snoop_bot.jl")'   # NOTE: must match path
       - name: Running Benchmark

@@ -20,7 +20,7 @@ end
 
 using SnoopCompileBot
 export BotConfig, snoop_bot, snoop_bench
-export timesum, pathof_noload, GoodPath
+export timesum, pathof_noload, GoodPath, addtestdep
 if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     # deprecated names
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
