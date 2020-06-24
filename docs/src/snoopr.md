@@ -44,10 +44,11 @@ So we can see the consequences for the compiled code, we'll make this definition
 
 ```jldoctest invalidations
 julia> trees = invalidation_trees(@snoopr f(::Float64) = 2)
-1-element Array{SnoopCompile.MethodInvalidations,1}:
+1-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
    backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children) more specific
               2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children) more specific
+   2 mt_cache
 ```
 
 The list of `MethodInvalidations` indicates that some previously-compiled code got invalidated.
@@ -85,7 +86,7 @@ This is often seen with more complex, real-world tests:
 
 ```julia
 julia> trees = invalidation_trees(@snoopr using SIMD)
-4-element Array{SnoopCompile.MethodInvalidations,1}:
+4-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
  inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
    mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children) ambiguous
                  2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children) ambiguous
@@ -158,6 +159,11 @@ MethodInstance for pointer(::String, ::Integer) (1027 children)
 ```
 
 Many nodes in this tree have multiple "child" branches.
+
+!!! note
+    These `trees` are sorted so that the last items have the largest number of children.
+    It works this way so that long printouts don't have the most important information scroll off the
+    top of the screen.
 
 ## Filtering invalidations
 

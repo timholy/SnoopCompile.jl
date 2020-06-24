@@ -5,7 +5,7 @@ export @snoopc
 
 using SnoopCompileAnalysis
 
-# needed for snoopc
+# needed for processing the output of snoopc (avoids a breaking change in scoping)
 using SnoopCompileAnalysis: parcel, read, write, parse_call, format_userimg
 
 if isdefined(SnoopCompileCore, Symbol("@snoopi"))
@@ -14,8 +14,8 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi"))
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-    export @snoopr, invalidation_trees, filtermod, findcaller
-    using SnoopCompileAnalysis: getroot
+    export @snoopr, invalidation_trees, filtermod, findcaller, ascend
+    using SnoopCompileAnalysis: getroot, remove_if_not_eval!
 end
 
 using SnoopCompileBot
@@ -25,7 +25,6 @@ if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     # deprecated names
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
 end
-
-export SnoopCompileCore, SnoopCompileAnalysis, SnoopCompileBot
+using SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
 
 end # module

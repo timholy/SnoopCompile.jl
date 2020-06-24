@@ -188,7 +188,7 @@ end
 """
     trees = invalidation_trees(list)
 
-Parse `list`, as captured by [`@snoopr`](@ref), into a set of invalidation trees, where parents nodes
+Parse `list`, as captured by [`SnoopCompileCore.@snoopr`](@ref), into a set of invalidation trees, where parents nodes
 were called by their children.
 
 # Example
@@ -284,6 +284,7 @@ function invalidation_trees(list)
                 push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache)))
                 mt_backedges, backedges, mt_cache = methinv_storage()
                 leaf = nothing
+                reason = nothing
             else
                 error("unexpected item ", item, " at ", i)
             end
@@ -292,6 +293,7 @@ function invalidation_trees(list)
             reason = checkreason(reason, item)
             push!(backedges, getroot(leaf))
             leaf = nothing
+            reason = nothing
         elseif isa(item, Type)
             push!(mt_backedges, item=>getroot(leaf))
             leaf = nothing

@@ -5,12 +5,22 @@ on:
     tags: [v*]
   pull_request:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   Documenter:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: nightly
+      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore"),
+                                                         PackageSpec(path="SnoopCompileAnalysis"),
+                                                         PackageSpec(path="SnoopCompileBot")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@releases/v1
         env:

@@ -82,7 +82,7 @@ Standardize different names from Github actions, Travis, etc
 https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources
 
 # Examples
-```jldoctest
+```jldoctest; setup=:(using SnoopCompile)
 julia> SnoopCompile.standardize_osname("ubuntu-latest")
 "linux"
 
@@ -281,13 +281,13 @@ returns the Julia version number by following the same specifications as Version
 `JuliaVersionNumber` will fetch the latest nightly version number if `"nightly"` or `"latest"` is given as the input.
 # Examples
 ```julia
-julia> JuliaVersionNumber("nightly")
+julia> SnoopCompile.JuliaVersionNumber("nightly")
 v"1.6.0-DEV"
 ```
-```jldoctest
-julia> JuliaVersionNumber("1.2.3")
+```jldoctest; setup=:(using SnoopCompile)
+julia> SnoopCompile.JuliaVersionNumber("1.2.3")
 v"1.2.3"
-julia> JuliaVersionNumber(v"1.2.3")
+julia> SnoopCompile.JuliaVersionNumber(v"1.2.3")
 v"1.2.3"
 ```
 """
