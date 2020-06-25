@@ -14,11 +14,17 @@ end
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
 
-To record the invalidations caused by defining new methods, use the following syntax:
+To record the invalidations caused by defining new methods, use `@snoopr` from SnoopCompileCore:
 ```julia
-trees = invalidation_trees(@snoopr begin
+using SnoopCompileCore
+invalidations = @snoopr begin
  # new methods definition
-end)
+end
+```
+and use `invalidation_trees` fomr SnoopCompileAnalysis to make the `trees`:
+```julia
+using SnoopCompileAnalysis
+trees = invalidation_trees(invalidations)
 ```
 
 We can illustrate this process with the following example:
