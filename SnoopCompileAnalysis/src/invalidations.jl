@@ -1,6 +1,26 @@
 using Cthulhu
 
-export invalidation_trees, filtermod, findcaller, ascend
+export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
+
+"""
+   umis = uinvalidated(invlist)
+
+Return the unique invalidated MethodInstances. `invlist` is obtained from [`SnoopCompileCore.@snoopr`](@ref).
+This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that it discards any tagged
+`"invalidate_mt_cache"`. These can typically be ignored because they are nearly inconsequential:
+they do not invalidate any compiled code, they only transiently affect an optimization of runtime dispatch.
+"""
+function uinvalidated(invlist)
+    umis = Set{MethodInstance}()
+    for (i, item) in enumerate(invlist)
+        if isa(item, Core.MethodInstance)
+            if invlist[i+1] != "invalidate_mt_cache"
+                push!(umis, item)
+            end
+        end
+    end
+    return umis
+end
 
 # Variable names:
 # - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
