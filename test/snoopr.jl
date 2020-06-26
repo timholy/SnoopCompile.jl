@@ -31,6 +31,8 @@ end
 
     invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)
+    umis = uinvalidated(invs)
+    @test !isempty(umis)
     trees = invalidation_trees(invs)
 
     methinvs = only(trees)
