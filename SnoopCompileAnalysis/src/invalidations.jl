@@ -168,19 +168,19 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             end
             printstyled(io, root.mi, color = :light_yellow)
             print(io, " (", countchildren(root), " children)")
-            if sig !== nothing
-                ms1, ms2 = method.sig <: sig, sig <: method.sig
-                diagnosis = if ms1 && !ms2
-                    "more specific"
-                elseif ms2 && !ms1
-                    "less specific"
-                elseif ms1 && ms1
-                    "equal specificity"
-                else
-                    "ambiguous"
-                end
-                printstyled(io, ' ', diagnosis, color=:red)
-            end
+            # if sig !== nothing
+            #     ms1, ms2 = method.sig <: sig, sig <: method.sig
+            #     diagnosis = if ms1 && !ms2
+            #         "more specific"
+            #     elseif ms2 && !ms1
+            #         "less specific"
+            #     elseif ms1 && ms1
+            #         "equal specificity"
+            #     else
+            #         "ambiguous"
+            #     end
+            #     printstyled(io, ' ', diagnosis, color=:red)
+            # end
             if iscompact
                 i < n && print(io, ", ")
             else
