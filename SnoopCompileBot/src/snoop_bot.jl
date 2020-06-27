@@ -2,6 +2,7 @@
 function _snoopi_bot(snoop_script, tmin)
     SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
     return quote
+        using Pkg; Pkg.add("Serialization")
         include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
 
@@ -15,6 +16,7 @@ function _snoopc_bot(snoop_script)
     SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
     SnoopCompileAnalysis_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl"
     return quote
+        using Pkg; Pkg.add("Serialization")
         include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
 

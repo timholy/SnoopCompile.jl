@@ -6,7 +6,7 @@ function _snoopi_bench_cmd(snoop_script)
     SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
     return quote
         global SnoopCompile_ENV = true
-
+        using Pkg; Pkg.add("Serialization")
         include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
 
