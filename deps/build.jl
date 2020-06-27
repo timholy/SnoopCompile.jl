@@ -31,7 +31,11 @@ for package_path in packages_paths[1:3]
       end
     end
 end
+Pkg.resolve()
 
+# add dev version of Bot
+Pkg.activate(rootdir)
+Pkg.develop(PackageSpec(path=joinpath(rootdir,"SnoopCompileBot")))
 Pkg.resolve()
 
 # go back to previous env
