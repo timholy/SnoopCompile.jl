@@ -1,12 +1,14 @@
 # Snooping functions
 function _snoopi_bench_cmd(snoop_script)
     tmin = 0.0 # For benchmarking
+
+    SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
     return quote
         global SnoopCompile_ENV = true
 
-        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
-        
+
         data = @snoopi tmin=$tmin begin
             $snoop_script
         end
@@ -54,11 +56,12 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     ################################################################
     julia_cmd = `julia --project=@. -e $snooping_code`
 
+    SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
         using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
-        include("$(@__DIR__)/SnoopCompileBot.jl")
+        include($SnoopCompileBot_path)
         using Main.SnoopCompileBot
 
         @info("""------------------------

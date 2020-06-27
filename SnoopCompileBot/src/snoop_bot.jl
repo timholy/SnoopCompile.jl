@@ -1,7 +1,8 @@
 # Snooping functions
 function _snoopi_bot(snoop_script, tmin)
+    SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
     return quote
-        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
 
         data = @snoopi tmin=$tmin begin
@@ -11,8 +12,10 @@ function _snoopi_bot(snoop_script, tmin)
 end
 
 function _snoopc_bot(snoop_script)
+    SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
+    SnoopCompileAnalysis_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl"
     return quote
-        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        include($SnoopCompileCore_path)
         using Main.SnoopCompileCore
 
         @snoopc "compiles.log" begin
@@ -20,7 +23,7 @@ function _snoopc_bot(snoop_script)
         end
 
         using Pkg; Pkg.add("OrderedCollections") # external deps
-        include("$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl")
+        include($SnoopCompileAnalysis_path)
         using Main.SnoopCompileAnalysis
 
         data = SnoopCompileAnalysis.read("compiles.log")[2]
@@ -29,6 +32,7 @@ function _snoopc_bot(snoop_script)
 end
 
 function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
+    SnoopCompileAnalysis_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl"
     return quote
         packageSym = Symbol($package_name)
 
@@ -36,7 +40,7 @@ function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, sub
         @info "Processsing the generated precompile signatures"
 
         using Pkg; Pkg.add("OrderedCollections") # external deps
-        include("$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl")
+        include($SnoopCompileAnalysis_path)
         using Main.SnoopCompileAnalysis
 
         ### Parse the compiles and generate precompilation scripts
@@ -113,10 +117,11 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
     julia_cmd = `julia --project=@. -e $snooping_analysis_code`
 
+    SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
     out = quote
         ################################################################
         using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
-        include("$(@__DIR__)/SnoopCompileBot.jl")
+        include($SnoopCompileBot_path)
         using Main.SnoopCompileBot
 
         # Environment variable to detect SnoopCompile bot
