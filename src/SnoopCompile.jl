@@ -28,6 +28,4 @@ if isdefined(SnoopCompile.SnoopCompileBot, Symbol("@snoopiBench"))
 end
 using SnoopCompile.SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
 
-export SnoopCompileBot, SnoopCompileCore, SnoopCompileAnalysis
-
 end # module
