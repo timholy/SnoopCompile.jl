@@ -109,7 +109,7 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
     out = quote
         ################################################################
-        using SnoopCompileBot
+        using SnoopCompile
 
         # Environment variable to detect SnoopCompile bot
         global SnoopCompile_ENV = true

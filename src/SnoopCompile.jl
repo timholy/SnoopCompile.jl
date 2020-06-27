@@ -22,10 +22,11 @@ include("../SnoopCompileBot/src/SnoopCompileBot.jl")
 using SnoopCompile.SnoopCompileBot
 export BotConfig, snoop_bot, snoop_bench
 export timesum, pathof_noload, GoodPath
-if isdefined(SnoopCompile.SnoopCompileBot, Symbol("@snoopiBench"))
+if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
     # deprecated names
     export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
 end
 using SnoopCompile.SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
+export SnoopCompileBot, SnoopCompileAnalysis, SnoopCompileCore
 
 end # module
