@@ -3,6 +3,7 @@ function _snoopi_bench_cmd(snoop_script)
     tmin = 0.0 # For benchmarking
 
     SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
+    SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
     return quote
         global SnoopCompile_ENV = true
 
@@ -15,7 +16,8 @@ function _snoopi_bench_cmd(snoop_script)
 
         global SnoopCompile_ENV = false
 
-        using SnoopCompileBot: timesum
+        include($SnoopCompileBot_path)
+        using Main.SnoopCompileBot: timesum
         @info( "\nTotal inference time (ms): \t" * string(timesum(data, :ms)))
     end
 end
