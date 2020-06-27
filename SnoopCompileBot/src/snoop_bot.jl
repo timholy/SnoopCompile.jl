@@ -1,7 +1,8 @@
 # Snooping functions
 function _snoopi_bot(snoop_script, tmin)
     return quote
-        using SnoopCompileCore
+        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        using Main.SnoopCompileCore
 
         data = @snoopi tmin=$tmin begin
             $snoop_script
@@ -11,13 +12,16 @@ end
 
 function _snoopc_bot(snoop_script)
     return quote
-        using SnoopCompileCore
+        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        using Main.SnoopCompileCore
 
         @snoopc "compiles.log" begin
             $snoop_script
         end
 
-        using SnoopCompileAnalysis
+        using Pkg; Pkg.add("OrderedCollections") # external deps
+        include("$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl")
+        using Main.SnoopCompileAnalysis
 
         data = SnoopCompileAnalysis.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
@@ -31,7 +35,9 @@ function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, sub
         ################################################################
         @info "Processsing the generated precompile signatures"
 
-        using SnoopCompileAnalysis
+        using Pkg; Pkg.add("OrderedCollections") # external deps
+        include("$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl")
+        using Main.SnoopCompileAnalysis
 
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
@@ -109,7 +115,9 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
     out = quote
         ################################################################
-        using SnoopCompileBot
+        using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
+        include("$(@__DIR__)/SnoopCompileBot.jl")
+        using Main.SnoopCompileBot
 
         # Environment variable to detect SnoopCompile bot
         global SnoopCompile_ENV = true

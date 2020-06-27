@@ -4,8 +4,9 @@ function _snoopi_bench_cmd(snoop_script)
     return quote
         global SnoopCompile_ENV = true
 
-        using SnoopCompileCore
-
+        include("$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl")
+        using Main.SnoopCompileCore
+        
         data = @snoopi tmin=$tmin begin
             $snoop_script
         end
@@ -56,7 +57,10 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
-        using SnoopCompileBot
+        using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
+        include("$(@__DIR__)/SnoopCompileBot.jl")
+        using Main.SnoopCompileBot
+
         @info("""------------------------
         Benchmark Started
         ------------------------
