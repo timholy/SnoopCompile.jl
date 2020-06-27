@@ -4,7 +4,7 @@ function _snoopi_bench_cmd(snoop_script)
     return quote
         global SnoopCompile_ENV = true
 
-        using SnoopCompile
+        using SnoopCompileCore
 
         data = @snoopi tmin=$tmin begin
             $snoop_script
@@ -56,7 +56,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
-        using SnoopCompile
+        using SnoopCompileBot
         @info("""------------------------
         Benchmark Started
         ------------------------
@@ -66,7 +66,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
         Precompile Deactivated Benchmark
         ------------------------
         """)
-        SnoopCompile.precompile_deactivator($package_path);
+        SnoopCompileBot.precompile_deactivator($package_path);
         ### Log the compiles
         run($julia_cmd)
         ################################################################
@@ -74,7 +74,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
         Precompile Activated Benchmark
         ------------------------
         """)
-        SnoopCompile.precompile_activator($package_path);
+        SnoopCompileBot.precompile_activator($package_path);
         ### Log the compiles
         run($julia_cmd)
         @info("""------------------------
