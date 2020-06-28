@@ -22,9 +22,6 @@ jobs:
             echo ::set-env name=SnoopCompilePackageSpec::$(echo "PackageSpec(url = \"https://github.com/${{github.actor}}/SnoopCompile.jl\", rev = \"${{ github.head_ref }}\")")
           fi
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
-        with:
-          version: ${{ matrix.version }}
       - name: Add SnoopCompileBot
         run: |
           julia -e 'using Pkg; Pkg.develop( PackageSpec(path="SnoopCompileBot") )'
@@ -63,9 +60,6 @@ jobs:
             echo ::set-env name=SnoopCompilePackageSpec::$(echo "PackageSpec(url = \"https://github.com/${{github.actor}}/SnoopCompile.jl\", rev = \"${{ github.head_ref }}\")")
           fi
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
-        with:
-          version: ${{ matrix.version }}
       - name: Add SnoopCompileBot
         run: |
           julia -e 'using Pkg; Pkg.develop( PackageSpec(path="SnoopCompileBot") )'
@@ -144,9 +138,6 @@ jobs:
             echo ::set-env name=SnoopCompilePackageSpec::$(echo "PackageSpec(url = \"https://github.com/${{github.actor}}/SnoopCompile.jl\", rev = \"${{ github.head_ref }}\")")
           fi
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
-        with:
-          version: ${{ matrix.version }}
       - name: Install dependencies
         working-directory: ${{ matrix.test_package }}
         run: |
