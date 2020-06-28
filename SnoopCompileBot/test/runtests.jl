@@ -396,7 +396,7 @@ bottestdir = GoodPath(@__DIR__)
         @warn "else version is set to 1.2, so we should not run the benchmark test on nightly, when we have not generated such files yet (unlike in the realworld tests)."
     end
 
-    @testset "snoop_bot_function_form" begin
+    @testset "snoop_bot_presplit_compatibility" begin
 
         include("$(package_rootpath[4])/deps/SnoopCompile/snoop_bot.jl")
 
@@ -408,7 +408,7 @@ bottestdir = GoodPath(@__DIR__)
         @test occursin("domath4", precompile_text)
     end
 
-    @testset "snoop_bench_function_form" begin
+    @testset "snoop_bench_presplit_compatibility" begin
         include("$(package_rootpath[4])/deps/SnoopCompile/snoop_bench.jl")
     end
 
