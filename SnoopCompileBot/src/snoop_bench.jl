@@ -15,7 +15,9 @@ function _snoopi_bench_cmd(snoop_script, test_modul)
         global SnoopCompile_ENV = false
 
         if !isdefined($test_modul, :SnoopCompileBot)
-            using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            if dirname(Base.current_project()) !== $SnoopCompileBot_path
+                using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            end
             using SnoopCompileBot: timesum
         end
         @info( "\nTotal inference time (ms): \t" * string(timesum(data, :ms)))
@@ -63,7 +65,9 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
         package_sym = Symbol($package_name)
         ################################################################
         if !isdefined($test_modul, :SnoopCompileBot)
-            using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            if dirname(Base.current_project()) !== $SnoopCompileBot_path
+                using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            end
             using SnoopCompileBot
         end
 

@@ -115,7 +115,9 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
     out = quote
         ################################################################
         if !isdefined($test_modul, :SnoopCompileBot)
-            using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            if dirname(Base.current_project()) !== $SnoopCompileBot_path
+                using Pkg; Pkg.develop(PackageSpec(path=$SnoopCompileBot_path))
+            end
             using SnoopCompileBot
         end
 
