@@ -1,10 +1,8 @@
 # Snooping functions
 function _snoopi_bot(snoop_script, tmin)
-    SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
     return quote
-        using Pkg; Pkg.add("Serialization")
-        include($SnoopCompileCore_path)
-        using Main.SnoopCompileCore
+        using Pkg; Pkg.add("SnoopCompileCore")
+        using SnoopCompileCore
 
         data = @snoopi tmin=$tmin begin
             $snoop_script
@@ -13,20 +11,16 @@ function _snoopi_bot(snoop_script, tmin)
 end
 
 function _snoopc_bot(snoop_script)
-    SnoopCompileCore_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileCore/src/SnoopCompileCore.jl"
-    SnoopCompileAnalysis_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl"
     return quote
-        using Pkg; Pkg.add("Serialization")
-        include($SnoopCompileCore_path)
-        using Main.SnoopCompileCore
+        using Pkg; Pkg.add("SnoopCompileCore")
+        using SnoopCompileCore
 
         @snoopc "compiles.log" begin
             $snoop_script
         end
 
-        using Pkg; Pkg.add("OrderedCollections") # external deps
-        include($SnoopCompileAnalysis_path)
-        using Main.SnoopCompileAnalysis
+        using Pkg; Pkg.add("SnoopCompileAnalysis")
+        using SnoopCompileAnalysis
 
         data = SnoopCompileAnalysis.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
@@ -34,16 +28,14 @@ function _snoopc_bot(snoop_script)
 end
 
 function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, subst, exclusions, check_eval)
-    SnoopCompileAnalysis_path = "$(dirname(dirname(@__DIR__)))/SnoopCompileAnalysis/src/SnoopCompileAnalysis.jl"
     return quote
         packageSym = Symbol($package_name)
 
         ################################################################
         @info "Processsing the generated precompile signatures"
 
-        using Pkg; Pkg.add("OrderedCollections") # external deps
-        include($SnoopCompileAnalysis_path)
-        using Main.SnoopCompileAnalysis
+        using Pkg; Pkg.add("SnoopCompileAnalysis")
+        using SnoopCompileAnalysis
 
         ### Parse the compiles and generate precompilation scripts
         pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
