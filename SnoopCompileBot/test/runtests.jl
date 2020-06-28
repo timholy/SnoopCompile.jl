@@ -345,7 +345,7 @@ bottestdir = GoodPath(@__DIR__)
     @testset "snoop_bot_multios" begin
         os, osfun = SnoopCompileBot.detectOS()
 
-        include("$(package_rootpath[2])/deps/SnoopCompile/snoop_bot_multios.jl")
+        include("$(package_rootpath[2])/deps/SnoopCompile/snoop_bot.jl")
 
         @test isfile("$(package_rootpath[2])/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
 
@@ -367,7 +367,7 @@ bottestdir = GoodPath(@__DIR__)
     @testset "snoop_bot_multiversion" begin
         os, osfun = SnoopCompileBot.detectOS()
 
-        include("$(package_rootpath[3])/deps/SnoopCompile/snoop_bot_multiversion.jl")
+        include("$(package_rootpath[3])/deps/SnoopCompile/snoop_bot.jl")
 
         @test isfile("$(package_rootpath[3])/deps/SnoopCompile/precompile/$(SnoopCompileBot.VersionFloat(VERSION))/precompile_TestPackage3.jl")
 
@@ -419,9 +419,6 @@ bottestdir = GoodPath(@__DIR__)
             @test ["ubuntu-latest", "windows-latest", "macos-latest"] == bc.os
         end
     end
-
-    # workflow yaml file is tested online:
-    # https://github.com/aminya/Example.jl/actions
 
     # Clean Test remainder
     for (i, package_name) in enumerate(["TestPackage1", "TestPackage2", "TestPackage3", "TestPackage4", "TestPackage5"])
