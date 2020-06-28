@@ -1,5 +1,5 @@
 # Snooping functions
-function _snoopi_bench_cmd(snoop_script)
+function _snoopi_bench_cmd(snoop_script, test_modul)
     tmin = 0.0 # For benchmarking
 
     SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
@@ -14,8 +14,12 @@ function _snoopi_bench_cmd(snoop_script)
 
         global SnoopCompile_ENV = false
 
-        include($SnoopCompileBot_path)
-        using Main.SnoopCompileBot: timesum
+        if !isdefined($test_modul, :SnoopCompileBot)
+            using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
+            include($SnoopCompileBot_path)
+            # TODO Fix moodule interpolation $test_modul.SnoopCompileBot
+            using Main.SnoopCompileBot: timesum
+        end
         @info( "\nTotal inference time (ms): \t" * string(timesum(data, :ms)))
     end
 end
@@ -45,7 +49,7 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     end
 
     if snoop_mode == :snoopi
-        snooping_code = _snoopi_bench_cmd(snoop_script)
+        snooping_code = _snoopi_bench_cmd(snoop_script, test_modul)
     elseif snoop_mode == :run_time
         snooping_code = _snoopv_bench_cmd(snoop_script, package_name)
     else
@@ -60,9 +64,12 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
-        using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
-        include($SnoopCompileBot_path)
-        using Main.SnoopCompileBot
+        if !isdefined($test_modul, :SnoopCompileBot)
+            using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
+            include($SnoopCompileBot_path)
+            # TODO Fix moodule interpolation $test_modul.SnoopCompileBot
+            using Main.SnoopCompileBot
+        end
 
         @info("""------------------------
         Benchmark Started

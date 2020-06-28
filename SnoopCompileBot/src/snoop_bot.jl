@@ -114,9 +114,12 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
     SnoopCompileBot_path = "$(@__DIR__)/SnoopCompileBot.jl"
     out = quote
         ################################################################
-        using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
-        include($SnoopCompileBot_path)
-        using Main.SnoopCompileBot
+        if !isdefined($test_modul, :SnoopCompileBot)
+            using Pkg; Pkg.add(["YAML", "FilePathsBase"]) # external deps
+            include($SnoopCompileBot_path)
+            # TODO Fix moodule interpolation $test_modul.SnoopCompileBot
+            using Main.SnoopCompileBot
+        end
 
         # Environment variable to detect SnoopCompile bot
         global SnoopCompile_ENV = true
