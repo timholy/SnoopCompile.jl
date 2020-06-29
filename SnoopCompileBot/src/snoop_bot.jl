@@ -1,7 +1,7 @@
 # Snooping functions
 function _snoopi_bot(snoop_script, tmin)
     return quote
-        using SnoopCompileCore
+        using SnoopCompile
 
         data = @snoopi tmin=$tmin begin
             $snoop_script
@@ -11,15 +11,13 @@ end
 
 function _snoopc_bot(snoop_script)
     return quote
-        using SnoopCompileCore
+        using SnoopCompile
 
         @snoopc "compiles.log" begin
             $snoop_script
         end
 
-        using SnoopCompileAnalysis
-
-        data = SnoopCompileAnalysis.read("compiles.log")[2]
+        data = SnoopCompile.read("compiles.log")[2]
         Base.rm("compiles.log", force = true)
     end
 end
@@ -31,15 +29,15 @@ function _snoop_analysis_bot(snooping_code, package_name, precompile_folder, sub
         ################################################################
         @info "Processsing the generated precompile signatures"
 
-        using SnoopCompileAnalysis
+        using SnoopCompile
 
         ### Parse the compiles and generate precompilation scripts
-        pc = SnoopCompileAnalysis.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
+        pc = SnoopCompile.parcel(data; subst = $subst, exclusions = $exclusions, check_eval = $check_eval)
         if !haskey(pc, packageSym)
             @error "no precompile signature is found for $($package_name). Don't load the package before snooping. Restart your Julia session."
         end
         onlypackage = Dict( packageSym => sort(pc[packageSym]) )
-        SnoopCompileAnalysis.write($precompile_folder, onlypackage)
+        SnoopCompile.write($precompile_folder, onlypackage)
         @info "precompile signatures were written to $($precompile_folder)"
     end
 end
@@ -78,7 +76,7 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
         if isnothing(version)
             precompile_folder = "$precompiles_rootpath/$(detectOS()[1])"
         else
-            precompile_folder = "$precompiles_rootpath/$( detectOS()[1])/$(VersionFloat(VERSION))"
+            precompile_folder = "$precompiles_rootpath/$(detectOS()[1])/$(VersionFloat(VERSION))"
         end
     end
 
@@ -109,20 +107,20 @@ function _snoop_bot_expr(config::BotConfig, snoop_script, test_modul::Module; sn
 
     out = quote
         ################################################################
-        using SnoopCompileBot
+        using SnoopCompile
 
         # Environment variable to detect SnoopCompile bot
         global SnoopCompile_ENV = true
 
         ################################################################
-        SnoopCompileBot.precompile_deactivator($package_path);
+        $precompile_deactivator($package_path);
         ################################################################
 
         ### Log the compiles and analyze the compiles
         run($julia_cmd)
 
         ################################################################
-        SnoopCompileBot.precompile_activator($package_path)
+        $precompile_activator($package_path)
 
         global SnoopCompile_ENV = false
     end
