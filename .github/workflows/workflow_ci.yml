@@ -112,10 +112,17 @@ jobs:
 
   Presplit_Compatibility:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        version:
+          - '1.0.5'
+          - '1.2'
+          - '1.4.2'
+        os:
+          - ubuntu-latest
+          - windows-latest
         test_package:
           - ./SnoopCompileBot/test/TestPackage4.jl
     steps:
@@ -126,6 +133,9 @@ jobs:
             echo ::set-env name=SnoopCompilePackageSpec::$(echo "PackageSpec(url = \"https://github.com/${{github.actor}}/SnoopCompile.jl\", rev = \"${{ github.head_ref }}\")")
           fi
       - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: ${{ matrix.version }}
       - name: Install dependencies
         working-directory: ${{ matrix.test_package }}
         run: |
