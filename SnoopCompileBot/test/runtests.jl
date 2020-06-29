@@ -1,4 +1,5 @@
-using SnoopCompileBot, Test
+using SnoopCompile, Test
+using SnoopCompile.SnoopCompileBot
 import SnoopCompileBot.goodjoinpath
 stripall(x::String) = replace(x, r"\s|\n"=>"")
 

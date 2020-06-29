@@ -85,4 +85,5 @@ if isdefined(SnoopCompile, :invalidation_trees)
 end
 
 # SnoopCompileBot tests:
-using Pkg; Pkg.test("SnoopCompileBot", coverage=true);
+# using Pkg; Pkg.test("SnoopCompileBot", coverage=true);
+include("../SnoopCompileBot/test/runtests.jl")
