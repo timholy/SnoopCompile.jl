@@ -43,7 +43,6 @@ end
 
 function register_all()
     for pkg in ("SnoopCompileCore", "SnoopCompileAnalysis", "SnoopCompileBot", "SnoopCompile")
-        Pkg.develop(pkg)
         pkgsym = Symbol(pkg)
         @eval Main using $pkgsym
         register(getfield(Main, pkgsym)::Module)
