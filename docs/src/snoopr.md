@@ -21,7 +21,7 @@ invalidations = @snoopr begin
  # new methods definition
 end
 ```
-and use `invalidation_trees` fomr SnoopCompileAnalysis to make the `trees`:
+and use `invalidation_trees` from SnoopCompileAnalysis to aggregate the information as a collection of [tree structures](https://en.wikipedia.org/wiki/Tree_structure):
 ```julia
 using SnoopCompileAnalysis
 trees = invalidation_trees(invalidations)
