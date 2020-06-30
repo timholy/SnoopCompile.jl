@@ -1,4 +1,26 @@
-export invalidation_trees, filtermod, findcaller
+using Cthulhu
+
+export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
+
+"""
+   umis = uinvalidated(invlist)
+
+Return the unique invalidated MethodInstances. `invlist` is obtained from [`SnoopCompileCore.@snoopr`](@ref).
+This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that it discards any tagged
+`"invalidate_mt_cache"`. These can typically be ignored because they are nearly inconsequential:
+they do not invalidate any compiled code, they only transiently affect an optimization of runtime dispatch.
+"""
+function uinvalidated(invlist)
+    umis = Set{MethodInstance}()
+    for (i, item) in enumerate(invlist)
+        if isa(item, Core.MethodInstance)
+            if invlist[i+1] != "invalidate_mt_cache"
+                push!(umis, item)
+            end
+        end
+    end
+    return umis
+end
 
 # Variable names:
 # - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
@@ -146,19 +168,19 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             end
             printstyled(io, root.mi, color = :light_yellow)
             print(io, " (", countchildren(root), " children)")
-            if sig !== nothing
-                ms1, ms2 = method.sig <: sig, sig <: method.sig
-                diagnosis = if ms1 && !ms2
-                    "more specific"
-                elseif ms2 && !ms1
-                    "less specific"
-                elseif ms1 && ms1
-                    "equal specificity"
-                else
-                    "ambiguous"
-                end
-                printstyled(io, ' ', diagnosis, color=:red)
-            end
+            # if sig !== nothing
+            #     ms1, ms2 = method.sig <: sig, sig <: method.sig
+            #     diagnosis = if ms1 && !ms2
+            #         "more specific"
+            #     elseif ms2 && !ms1
+            #         "less specific"
+            #     elseif ms1 && ms1
+            #         "equal specificity"
+            #     else
+            #         "ambiguous"
+            #     end
+            #     printstyled(io, ' ', diagnosis, color=:red)
+            # end
             if iscompact
                 i < n && print(io, ", ")
             else
@@ -411,3 +433,10 @@ function findcaller(meth::Method, node::InstanceNode)
     end
     return nothing
 end
+
+# Cthulhu integration
+
+Cthulhu.backedges(node::InstanceNode) = sort(node.children; by=countchildren, rev=true)
+Cthulhu.method(node::InstanceNode) = Cthulhu.method(node.mi)
+Cthulhu.specTypes(node::InstanceNode) = Cthulhu.specTypes(node.mi)
+Cthulhu.instance(node::InstanceNode) = node.mi

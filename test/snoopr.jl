@@ -31,6 +31,8 @@ end
 
     invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)
+    umis = uinvalidated(invs)
+    @test !isempty(umis)
     trees = invalidation_trees(invs)
 
     methinvs = only(trees)
@@ -54,7 +56,7 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::AbstractFloat)")
     @test occursin("mt_backedges: 1: signature", str)
-    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific", str)
+    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children)", str)
 
     cf = Any[1.0f0]
     @test SnooprTests.callapplyf(cf) == 3
@@ -95,9 +97,9 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::Float32)")
     @test occursin("mt_backedges: 1: signature", str)
-    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific", str)
+    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children)", str)
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
-    @test occursin("with MethodInstance for f(::AbstractFloat) (1 children) more specific", str)
+    @test occursin("with MethodInstance for f(::AbstractFloat) (1 children)", str)
 
     show(io, root; minchildren=0)
     str = String(take!(io))
