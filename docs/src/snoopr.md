@@ -234,6 +234,8 @@ Choose a call for analysis (q to quit):
 ```
 
 This is an interactive menu: press the down arrow to go down, the up arrow to go up, and `Enter` to select an item for more detailed analysis.
+In large trees, you may also want to "fold" nodes of the tree (collapsing it so that the children are no longer displayed), particularly if you are working your way through a long series of invalidations and want to hide ones you've already dealt with. You toggle folding using the space bar, and folded nodes are printed with a `+` in front of them.
+
 For example, if we press the down arrow once, we get
 
 ```julia
