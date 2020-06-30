@@ -13,6 +13,20 @@ end
 ```
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
+
+To record the invalidations caused by defining new methods, use `@snoopr` from SnoopCompileCore:
+```julia
+using SnoopCompileCore
+invalidations = @snoopr begin
+ # new methods definition
+end
+```
+and use `invalidation_trees` from SnoopCompileAnalysis to aggregate the information as a collection of [tree structures](https://en.wikipedia.org/wiki/Tree_structure):
+```julia
+using SnoopCompileAnalysis
+trees = invalidation_trees(invalidations)
+```
+
 We can illustrate this process with the following example:
 
 ```jldoctest invalidations
@@ -60,9 +74,9 @@ The other had been compiled specifically for `AbstractFloat`, due to our `call2f
 You can look at these invalidation trees in greater detail:
 
 ```jldoctest invalidations
-julia> methinvs = trees[1];    # invalidations stemming from a single method
+julia> method_invalidations = trees[1];    # invalidations stemming from a single method
 
-julia> root = methinvs.backedges[1]
+julia> root = method_invalidations.backedges[1]
 MethodInstance for f(::Float64) at depth 0 with 2 children
 
 julia> show(root)
@@ -77,7 +91,7 @@ MethodInstance for f(::Float64) (2 children)
 ```
 
 You can see that the sequence of invalidations proceeded all the way up to `call2f`.
-Examining `root2 = methinvs.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
+Examining `root2 = method_invalidations.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
 
 The structure of these trees can be considerably more complicated. For example, if `callf`
 also got called by some other method, and that method had also been executed (forcing it to be compiled),
@@ -119,6 +133,7 @@ julia> trees = invalidation_trees(@snoopr using SIMD)
                   9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Any) (336 children) ambiguous
                  10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children) ambiguous
    2 mt_cache
+
 ```
 
 Your specific output will surely be different from this, depending on which packages you have loaded,
@@ -128,7 +143,7 @@ In this example, there were four different methods that triggered invalidations,
 You can see that collectively more than a thousand independent compiled methods needed to be invalidated; indeed, the last
 entry alone invalidates 1027 method instances:
 
-```
+```julia
 julia> sig, root = trees[end].mt_backedges[10]
 Pair{Any,SnoopCompile.InstanceNode}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
 
@@ -173,7 +188,7 @@ For instance, you might be the author of `PkgA` and you've noted that loading `P
 In that case, you might want to find just those invalidations triggered in your package.
 You can find them with [`filtermod`](@ref):
 
-```
+```julia
 trees = invalidation_trees(@snoopr using PkgB)
 ftrees = filtermod(PkgA, trees)
 ```
@@ -182,7 +197,7 @@ ftrees = filtermod(PkgA, trees)
 
 A more selective yet exhaustive tool is [`findcaller`](@ref), which allows you to find the path through the trees to a particular method:
 
-```
+```julia
 f(data)                             # run once to force compilation
 m = @which f(data)
 using SnoopCompile
@@ -199,11 +214,11 @@ When you don't know which method to choose, but know an operation that got slowe
 
 SnoopCompile, partnering with the remarkable [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl),
 provides a tool called `ascend` to simplify diagnosing and fixing invalidations.
-To demonstrate this tool, let's use it on our `call2f` `methinvs` tree from above.
+To demonstrate this tool, let's use it on our `call2f` `method_invalidations` tree from above.
 We start with
 
 ```julia
-julia> root = methinvs.backedges[end]
+julia> root = method_invalidations.backedges[end]
 MethodInstance for f(::AbstractFloat) at depth 0 with 2 children
 ```
 
@@ -259,7 +274,7 @@ Variables
   container::Array{AbstractFloat,1}
 
 Body::Int64
-    @ REPL[3]:1 within `callf'
+    @ REPL[3]:1 within callf
 1 ─ %1 = Base.getindex(container, 1)::AbstractFloat
 │   %2 = Main.f(%1)::Int64
 └──      return %2
@@ -319,7 +334,7 @@ Expr
 `ex.args` is a `Vector{Any}`.
 However, for a `:curly` expression only certain types will be found among the arguments; you could write key portions of your code as
 
-```
+```julia
 a = ex.args[2]
 if a isa Symbol
     # inside this block, Julia knows `a` is a Symbol, and so methods called on `a` will be resistant to invalidation
