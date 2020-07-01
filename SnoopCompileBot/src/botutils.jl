@@ -309,3 +309,35 @@ end
 # TODO we need to remove begin and end manually
 # https://github.com/timholy/SnoopCompile.jl/pull/98#issuecomment-645969610
 toplevel_string(expr::Expr) = replace(string(expr), r"^begin([\s\S]*)end$"=>s"\1")
+
+################################################################
+
+"""
+Adds a package if it is not defined in the given module.
+"""
+function addpkg_ifnotfound(package_name::Symbol, env_modul::Module)
+    package_name_str = string(package_name)
+    if !isdefined(env_modul, package_name) && Core.eval(env_modul, :( Base.find_package($package_name_str) === nothing ))
+        @info "Adding $package_name_str to $env_modul"
+        Core.eval(env_modul, quote
+            using Pkg
+            Pkg.add($package_name_str)
+        end)
+    end
+end
+
+"""
+Develop a package if it is not defined in the given module.
+"""
+function devpkg_ifnotfound(package_name::Symbol, package_path::String, env_modul::Module)
+    package_name_str = string(package_name)
+    if !isdefined(env_modul, package_name) && Core.eval(env_modul, :( Base.find_package($package_name_str) === nothing ))
+        if dirname(Base.current_project()) !== package_path
+            @info "Developing $package_name_str to $env_modul"
+            Core.eval(env_modul, quote
+                using Pkg
+                Pkg.develop(PackageSpec(path=$package_path))
+            end)
+        end
+    end
+end
