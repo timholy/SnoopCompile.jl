@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Snooping on and fixing invalidations: @snoopr · SnoopCompile</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">SnoopCompile</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">SnoopCompile.jl</a></li><li><a class="tocitem" href="../snoopi/">Snooping on inference: <code>@snoopi</code></a></li><li><a class="tocitem" href="../snoopc/">Snooping on code generation: <code>@snoopc</code></a></li><li><a class="tocitem" href="../userimg/">Creating <code>userimg.jl</code> files</a></li><li><a class="tocitem" href="../bot/">SnoopCompile Bot</a></li><li class="is-active"><a class="tocitem" href>Snooping on and fixing invalidations: <code>@snoopr</code></a><ul class="internal"><li><a class="tocitem" href="#Recording-invalidations-1"><span>Recording invalidations</span></a></li><li><a class="tocitem" href="#Filtering-invalidations-1"><span>Filtering invalidations</span></a></li><li><a class="tocitem" href="#Avoiding-or-fixing-invalidations-1"><span>Avoiding or fixing invalidations</span></a></li></ul></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Snooping on and fixing invalidations: <code>@snoopr</code></a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Snooping on and fixing invalidations: <code>@snoopr</code></a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/timholy/SnoopCompile.jl/blob/master/docs/src/snoopr.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Snooping-on-and-fixing-invalidations:-@snoopr-1"><a class="docs-heading-anchor" href="#Snooping-on-and-fixing-invalidations:-@snoopr-1">Snooping on and fixing invalidations: <code>@snoopr</code></a><a class="docs-heading-anchor-permalink" href="#Snooping-on-and-fixing-invalidations:-@snoopr-1" title="Permalink"></a></h1><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p><code>@snoopr</code> is available on <code>Julia 1.6.0-DEV.154</code> or above, but the results can be relevant for all Julia versions.</p></div></div><h2 id="Recording-invalidations-1"><a class="docs-heading-anchor" href="#Recording-invalidations-1">Recording invalidations</a><a class="docs-heading-anchor-permalink" href="#Recording-invalidations-1" title="Permalink"></a></h2><p>Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.</p><p>To record the invalidations caused by defining new methods, use <code>@snoopr</code> from SnoopCompileCore:</p><pre><code class="language-julia">using SnoopCompileCore
+invalidations = @snoopr begin
+ # new methods definition
+end</code></pre><p>and use <code>invalidation_trees</code> from SnoopCompileAnalysis to aggregate the information as a collection of <a href="https://en.wikipedia.org/wiki/Tree_structure">tree structures</a>:</p><pre><code class="language-julia">using SnoopCompileAnalysis
+trees = invalidation_trees(invalidations)</code></pre><p>We can illustrate this process with the following example:</p><pre><code class="language-julia-repl">julia&gt; f(::Real) = 1;
+
+julia&gt; callf(container) = f(container[1]);
+
+julia&gt; call2f(container) = callf(container);</code></pre><p>Let&#39;s run this with different container types:</p><pre><code class="language-julia-repl">julia&gt; c64  = [1.0]; c32 = [1.0f0]; cabs = AbstractFloat[1.0];
+
+julia&gt; call2f(c64)
+1
+
+julia&gt; call2f(c32)
+1
+
+julia&gt; call2f(cabs)
+1</code></pre><p>It&#39;s important that you actually execute these methods: code doesn&#39;t get compiled until it gets run, and invalidations only affect compiled code.</p><p>Now we&#39;ll define a new <code>f</code> method, one specialized for <code>Float64</code>. So we can see the consequences for the compiled code, we&#39;ll make this definition while snooping on the compiler with <code>@snoopr</code>:</p><pre><code class="language-julia-repl">julia&gt; trees = invalidation_trees(@snoopr f(::Float64) = 2)
+1-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
+ inserting f(::Float64) in Main at REPL[9]:1 invalidated:
+   backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
+              2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
+   2 mt_cache</code></pre><p>The list of <code>MethodInvalidations</code> indicates that some previously-compiled code got invalidated. In this case, &quot;<code>inserting f(::Float64)</code>&quot; means that a new method, for <code>f(::Float64)</code>, was added. There were two proximal triggers for the invalidation, both of which superseded the method <code>f(::Real)</code>. One of these had been compiled specifically for <code>Float64</code>, due to our <code>call2f(c64)</code>. The other had been compiled specifically for <code>AbstractFloat</code>, due to our <code>call2f(cabs)</code>.</p><p>You can look at these invalidation trees in greater detail:</p><pre><code class="language-julia-repl">julia&gt; method_invalidations = trees[1];    # invalidations stemming from a single method
+
+julia&gt; root = method_invalidations.backedges[1]
+MethodInstance for f(::Float64) at depth 0 with 2 children
+
+julia&gt; show(root)
+MethodInstance for f(::Float64) (2 children)
+ MethodInstance for callf(::Array{Float64,1}) (1 children)
+ ⋮
+
+julia&gt; show(root; minchildren=0)
+MethodInstance for f(::Float64) (2 children)
+ MethodInstance for callf(::Array{Float64,1}) (1 children)
+  MethodInstance for call2f(::Array{Float64,1}) (0 children)</code></pre><p>You can see that the sequence of invalidations proceeded all the way up to <code>call2f</code>. Examining <code>root2 = method_invalidations.backedges[2]</code> yields similar results, but for <code>Array{AbstractFloat,1}</code>.</p><p>The structure of these trees can be considerably more complicated. For example, if <code>callf</code> also got called by some other method, and that method had also been executed (forcing it to be compiled), then <code>callf</code> would have multiple children. This is often seen with more complex, real-world tests:</p><pre><code class="language-julia">julia&gt; trees = invalidation_trees(@snoopr using SIMD)
+4-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
+ inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
+   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children)
+                 2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children)
+                 3: signature Tuple{typeof(convert),Type{NTuple{7,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{7,DataType}}(::Any, ::Any) (0 children)
+
+ inserting convert(::Type{Tuple}, v::Vec{N,T}) where {N, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:188 invalidated:
+   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.RemoteDoMsg(::Any, ::Any, ::Any) (1 children)
+                 2: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call}(::Any, ::Any, ::Any) (1 children)
+                 3: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call_fetch}(::Any, ::Any, ::Any) (1 children)
+                 4: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallWaitMsg(::Any, ::Any, ::Any) (4 children)
+   12 mt_cache
+
+ inserting &lt;&lt;(x1::T, v2::Vec{N,T}) where {N, T&lt;:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
+   mt_backedges: 1: signature Tuple{typeof(&lt;&lt;),UInt64,Any} triggered MethodInstance for &lt;&lt;(::UInt64, ::Integer) (0 children)
+                 2: signature Tuple{typeof(&lt;&lt;),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Integer, ::Integer) (0 children)
+                 3: signature Tuple{typeof(&lt;&lt;),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Int64, ::Int64, ::Integer) (0 children)
+                 4: signature Tuple{typeof(&lt;&lt;),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Int64, ::Integer) (0 children)
+                 5: signature Tuple{typeof(&lt;&lt;),UInt64,Any} triggered MethodInstance for &lt;&lt;(::UInt64, ::Unsigned) (16 children)
+   20 mt_cache
+
+ inserting +(s1::Union{Bool, Float16, Float32, Float64, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Ptr}, v2::Vec{N,T}) where {N, T&lt;:Union{Float16, Float32, Float64}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1165 invalidated:
+   mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children)
+                  2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children)
+                  3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children)
+                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Array{String,1}) (0 children)
+                  5: signature Tuple{typeof(+),Ptr{Union{Int64, Symbol}},Any} triggered MethodInstance for pointer(::Array{Union{Int64, Symbol},N} where N, ::Int64) (1 children)
+                  6: signature Tuple{typeof(+),Ptr{Char},Any} triggered MethodInstance for pointer(::Array{Char,N} where N, ::Int64) (2 children)
+                  7: signature Tuple{typeof(+),Ptr{_A} where _A,Any} triggered MethodInstance for pointer(::Array{T,N} where N where T, ::Int64) (4 children)
+                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Array{UInt8,1}}}, ::Any) (49 children)
+                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Any) (336 children)
+                 10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children)
+   2 mt_cache
+</code></pre><p>Your specific output will surely be different from this, depending on which packages you have loaded, which versions of those packages are installed, and which version of Julia you are using. In this example, there were four different methods that triggered invalidations, and the invalidated methods were in <code>Base</code>, <code>Distributed</code>, <code>JuliaInterpeter</code>, and <code>LoweredCodeUtils</code>. (The latter two were a consequence of loading <code>Revise</code>.) You can see that collectively more than a thousand independent compiled methods needed to be invalidated; indeed, the last entry alone invalidates 1027 method instances:</p><pre><code class="language-julia">julia&gt; sig, root = trees[end].mt_backedges[10]
+Pair{Any,SnoopCompile.InstanceNode}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
+
+julia&gt; root
+MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children
+
+julia&gt; show(root)
+MethodInstance for pointer(::String, ::Integer) (1027 children)
+ MethodInstance for repeat(::String, ::Integer) (1023 children)
+  MethodInstance for ^(::String, ::Integer) (1019 children)
+   MethodInstance for #handle_message#2(::Nothing, ::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}, ::typeof(Base.CoreLogging.handle_message), ::Logging.ConsoleLogger, ::Base.CoreLogging.LogLevel, ::String, ::Module, ::Symbol, ::Symbol, ::String, ::Int64) (906 children)
+    MethodInstance for handle_message(::Logging.ConsoleLogger, ::Base.CoreLogging.LogLevel, ::String, ::Module, ::Symbol, ::Symbol, ::String, ::Int64) (902 children)
+     MethodInstance for log_event_global!(::Pkg.Resolve.Graph, ::String) (35 children)
+     ⋮
+     MethodInstance for #artifact_meta#20(::Pkg.BinaryPlatforms.Platform, ::typeof(Pkg.Artifacts.artifact_meta), ::String, ::Dict{String,Any}, ::String) (43 children)
+     ⋮
+     MethodInstance for Dict{Base.UUID,Pkg.Types.PackageEntry}(::Dict) (79 children)
+     ⋮
+     MethodInstance for read!(::Base.Process, ::LibGit2.GitCredential) (80 children)
+     ⋮
+     MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (454 children)
+     ⋮
+    ⋮
+   ⋮
+  ⋮
+ ⋮
+⋮</code></pre><p>Many nodes in this tree have multiple &quot;child&quot; branches.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>These <code>trees</code> are sorted so that the last items have the largest number of children. It works this way so that long printouts don&#39;t have the most important information scroll off the top of the screen.</p></div></div><h2 id="Filtering-invalidations-1"><a class="docs-heading-anchor" href="#Filtering-invalidations-1">Filtering invalidations</a><a class="docs-heading-anchor-permalink" href="#Filtering-invalidations-1" title="Permalink"></a></h2><p>Some methods trigger widespread invalidation. If you don&#39;t have time to fix all of them, you might want to focus on a specific set of invalidations. For instance, you might be the author of <code>PkgA</code> and you&#39;ve noted that loading <code>PkgB</code> invalidates a lot of <code>PkgA</code>&#39;s code. In that case, you might want to find just those invalidations triggered in your package. You can find them with <a href="../reference/#SnoopCompileAnalysis.filtermod"><code>filtermod</code></a>:</p><pre><code class="language-julia">trees = invalidation_trees(@snoopr using PkgB)
+ftrees = filtermod(PkgA, trees)</code></pre><p><code>filtermod</code> only selects trees where the root method was defined in the specified module.</p><p>A more selective yet exhaustive tool is <a href="../reference/#SnoopCompileAnalysis.findcaller"><code>findcaller</code></a>, which allows you to find the path through the trees to a particular method:</p><pre><code class="language-julia">f(data)                             # run once to force compilation
+m = @which f(data)
+using SnoopCompile
+trees = invalidation_trees(@snoopr using SomePkg)
+invs = findcaller(m, trees)</code></pre><p>When you don&#39;t know which method to choose, but know an operation that got slowed down by loading <code>SomePkg</code>, you can use <code>@snoopi</code> to find methods that needed to be recompiled. See <a href="../reference/#SnoopCompileAnalysis.findcaller"><code>findcaller</code></a> for further details.</p><h2 id="Avoiding-or-fixing-invalidations-1"><a class="docs-heading-anchor" href="#Avoiding-or-fixing-invalidations-1">Avoiding or fixing invalidations</a><a class="docs-heading-anchor-permalink" href="#Avoiding-or-fixing-invalidations-1" title="Permalink"></a></h2><h3 id="Tools-for-fixing-invalidations:-ascend-1"><a class="docs-heading-anchor" href="#Tools-for-fixing-invalidations:-ascend-1">Tools for fixing invalidations: ascend</a><a class="docs-heading-anchor-permalink" href="#Tools-for-fixing-invalidations:-ascend-1" title="Permalink"></a></h3><p>SnoopCompile, partnering with the remarkable <a href="https://github.com/JuliaDebug/Cthulhu.jl">Cthulhu.jl</a>, provides a tool called <code>ascend</code> to simplify diagnosing and fixing invalidations. To demonstrate this tool, let&#39;s use it on our <code>call2f</code> <code>method_invalidations</code> tree from above. We start with</p><pre><code class="language-julia">julia&gt; root = method_invalidations.backedges[end]
+MethodInstance for f(::AbstractFloat) at depth 0 with 2 children</code></pre><p>(It&#39;s common to start from the last element of <code>backedges</code> or <code>mt_backedges</code> since these have the largest number of children and are therefore most consequential.) Then:</p><pre><code class="language-julia">julia&gt; ascend(root)
+Choose a call for analysis (q to quit):
+ &gt;   f(::AbstractFloat)
+       callf(::Array{AbstractFloat,1})
+         call2f(::Array{AbstractFloat,1})</code></pre><p>This is an interactive menu: press the down arrow to go down, the up arrow to go up, and <code>Enter</code> to select an item for more detailed analysis. In large trees, you may also want to &quot;fold&quot; nodes of the tree (collapsing it so that the children are no longer displayed), particularly if you are working your way through a long series of invalidations and want to hide ones you&#39;ve already dealt with. You toggle folding using the space bar, and folded nodes are printed with a <code>+</code> in front of them.</p><p>For example, if we press the down arrow once, we get</p><pre><code class="language-julia">julia&gt; ascend(root)
+Choose a call for analysis (q to quit):
+     f(::AbstractFloat)
+ &gt;     callf(::Array{AbstractFloat,1})
+         call2f(::Array{AbstractFloat,1})</code></pre><p>Now hit <code>Enter</code> to select it:</p><pre><code class="language-julia">Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
+ &gt; &quot;REPL[3]&quot;, callf: lines [1]
+   Browse typed code</code></pre><p>This is showing you another menu, with only two option (a third is to go back by hitting <code>q</code>). The first entry shows you the option to open the &quot;offending&quot; source file in <code>callf</code> at the position of the call to the parent node of <code>callf</code>, which in this case is <code>f</code>. (Sometimes there will be more than one call to the parent within the method, in which case instead of showing <code>[1]</code> it might show <code>[1, 17, 39]</code> indicating each separate location.) While in this case this isn&#39;t useful (methods defined in the REPL are not supported), selecting this option, when available, is typically the best way to start because you can sometimes resolve the problem from this information alone.</p><p>If you hit the down arrow</p><pre><code class="language-julia">Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
+   &quot;REPL[3]&quot;, callf: lines [1]
+ &gt; Browse typed code</code></pre><p>and then hit <code>Enter</code>, this is what you see:</p><pre><code class="language-julia">│ ─ %-1  = invoke callf(::Array{AbstractFloat,1})::Int64
+Variables
+  #self#::Core.Compiler.Const(callf, false)
+  container::Array{AbstractFloat,1}
+
+Body::Int64
+    @ REPL[3]:1 within callf
+1 ─ %1 = Base.getindex(container, 1)::AbstractFloat
+│   %2 = Main.f(%1)::Int64
+└──      return %2
+
+Select a call to descend into or ↩ to ascend. [q]uit. [b]ookmark.
+Toggles: [o]ptimize, [w]arn, [d]ebuginfo, [s]yntax highlight for Source/LLVM/Native.
+Show: [S]ource code, [A]ST, [L]LVM IR, [N]ative code
+Advanced: dump [P]arams cache.
+
+ • %1  = invoke getindex(::Array{AbstractFloat,1},::Int64)::AbstractFloat
+   %2  = call #f(::AbstractFloat)::Int64
+   ↩</code></pre><p>This is output from Cthulhu, and you should see its documentation for more information. (See also <a href="https://www.youtube.com/watch?v=qf9oA09wxXY">this video</a>.) While it takes a bit of time to master Cthulhu, it is an exceptionally powerful tool for diagnosing and fixing inference issues.</p><h3 id="Tips-for-fixing-invalidations-1"><a class="docs-heading-anchor" href="#Tips-for-fixing-invalidations-1">Tips for fixing invalidations</a><a class="docs-heading-anchor-permalink" href="#Tips-for-fixing-invalidations-1" title="Permalink"></a></h3><p>Invalidations occur in situations like our <code>call2f(c64)</code> example, where we changed our mind about what value <code>f</code> should return for <code>Float64</code>. Julia could not have returned the newly-correct answer without recompiling the call chain.</p><p>Aside from cases like these, most invalidations occur whenever new types are introduced, and some methods were previously compiled for abstract types. In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updateable language. (You can often minimize invalidations by loading all your code at the beginning of your session, before triggering the compilation of more methods.) However, in many circumstances an invalidation indicates an opportunity to improve code. In our first example, note that the call <code>call2f(c32)</code> did not get invalidated: this is because the compiler knew all the specific types, and new methods did not affect any of those types. The main tips for writing invalidation-resistant code are:</p><ul><li>use <a href="https://docs.julialang.org/en/latest/manual/performance-tips/#man-performance-abstract-container-1">concrete types</a> wherever possible</li><li>write inferrable code</li><li>don&#39;t engage in <a href="https://docs.julialang.org/en/latest/manual/style-guide/#Avoid-type-piracy-1">type-piracy</a> (our <code>c64</code> example is essentially like type-piracy, where we redefined behavior for a pre-existing type)</li></ul><p>Since these tips also improve performance and allow programs to behave more predictably, these guidelines are not intrusive. Indeed, searching for and eliminating invalidations can help you improve the quality of your code. In cases where invalidations occur, but you can&#39;t use concrete types (there are many valid uses of <code>Vector{Any}</code>), you can often prevent the invalidation using some additional knowledge. For example, suppose you&#39;re writing code that parses Julia&#39;s <code>Expr</code> type:</p><pre><code class="language-julia">julia&gt; ex = :(Array{Float32,3})
+:(Array{Float32, 3})
+
+julia&gt; dump(ex)
+Expr
+  head: Symbol curly
+  args: Array{Any}((3,))
+    1: Symbol Array
+    2: Symbol Float32
+    3: Int64 3</code></pre><p><code>ex.args</code> is a <code>Vector{Any}</code>. However, for a <code>:curly</code> expression only certain types will be found among the arguments; you could write key portions of your code as</p><pre><code class="language-julia">a = ex.args[2]
+if a isa Symbol
+    # inside this block, Julia knows `a` is a Symbol, and so methods called on `a` will be resistant to invalidation
+    foo(a)
+elseif a isa Expr &amp;&amp; length((a::Expr).args) &gt; 2
+    a = a::Expr     # sometimes you have to help inference by adding a type-assert
+    x = bar(a)      # `bar` is now resistant to invalidation
+elsef a isa Integer
+    # even though you&#39;ve not made this fully-inferrable, you&#39;ve at least reduced the scope for invalidations
+    # by limiting the subset of `foobar` methods that might be called
+    y = foobar(a)
+end</code></pre><p>Adding type-assertions and fixing inference problems are the most common approaches for fixing invalidations. You can discover these manually, but using Cthulhu is highly recommended.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../bot/">« SnoopCompile Bot</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 1 July 2020 07:58">Wednesday 1 July 2020</span>. Using Julia version 1.6.0-DEV.331.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
