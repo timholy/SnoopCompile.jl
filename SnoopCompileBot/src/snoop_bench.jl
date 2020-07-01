@@ -52,6 +52,8 @@ function _snoop_bench(config::BotConfig, snoop_script::Expr, test_modul::Module 
     ################################################################
     julia_cmd = `julia --project=@. -e $snooping_code`
 
+    addpkg_ifnotfound(:SnoopCompileCore, test_modul)
+    devpkg_ifnotfound(:SnoopCopmileBot, "$(dirname(@__DIR__))", test_modul)
     out = quote
         package_sym = Symbol($package_name)
         ################################################################
