@@ -11,5 +11,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/timholy/SnoopCompile.jl.git"
+    repo = "github.com/timholy/SnoopCompile.jl.git",
+    push_preview=true
 )
