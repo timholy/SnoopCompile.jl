@@ -60,8 +60,8 @@ So we can see the consequences for the compiled code, we'll make this definition
 julia> trees = invalidation_trees(@snoopr f(::Float64) = 2)
 1-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
-   backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children) more specific
-              2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children) more specific
+   backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
+              2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
    2 mt_cache
 ```
 
@@ -102,36 +102,36 @@ This is often seen with more complex, real-world tests:
 julia> trees = invalidation_trees(@snoopr using SIMD)
 4-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
  inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children) ambiguous
-                 2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children) ambiguous
-                 3: signature Tuple{typeof(convert),Type{NTuple{7,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{7,DataType}}(::Any, ::Any) (0 children) ambiguous
+   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children)
+                 2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children)
+                 3: signature Tuple{typeof(convert),Type{NTuple{7,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{7,DataType}}(::Any, ::Any) (0 children)
 
  inserting convert(::Type{Tuple}, v::Vec{N,T}) where {N, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:188 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.RemoteDoMsg(::Any, ::Any, ::Any) (1 children) more specific
-                 2: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call}(::Any, ::Any, ::Any) (1 children) more specific
-                 3: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call_fetch}(::Any, ::Any, ::Any) (1 children) more specific
-                 4: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallWaitMsg(::Any, ::Any, ::Any) (4 children) more specific
+   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.RemoteDoMsg(::Any, ::Any, ::Any) (1 children)
+                 2: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call}(::Any, ::Any, ::Any) (1 children)
+                 3: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call_fetch}(::Any, ::Any, ::Any) (1 children)
+                 4: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallWaitMsg(::Any, ::Any, ::Any) (4 children)
    12 mt_cache
 
  inserting <<(x1::T, v2::Vec{N,T}) where {N, T<:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Integer) (0 children) ambiguous
-                 2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Integer, ::Integer) (0 children) ambiguous
-                 3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Int64, ::Int64, ::Integer) (0 children) ambiguous
-                 4: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Int64, ::Integer) (0 children) ambiguous
-                 5: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Unsigned) (16 children) ambiguous
+   mt_backedges: 1: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Integer) (0 children)
+                 2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Integer, ::Integer) (0 children)
+                 3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Int64, ::Int64, ::Integer) (0 children)
+                 4: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Int64, ::Integer) (0 children)
+                 5: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Unsigned) (16 children)
    20 mt_cache
 
  inserting +(s1::Union{Bool, Float16, Float32, Float64, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Ptr}, v2::Vec{N,T}) where {N, T<:Union{Float16, Float32, Float64}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1165 invalidated:
-   mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children) ambiguous
-                  2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children) ambiguous
-                  3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children) ambiguous
-                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Array{String,1}) (0 children) ambiguous
-                  5: signature Tuple{typeof(+),Ptr{Union{Int64, Symbol}},Any} triggered MethodInstance for pointer(::Array{Union{Int64, Symbol},N} where N, ::Int64) (1 children) ambiguous
-                  6: signature Tuple{typeof(+),Ptr{Char},Any} triggered MethodInstance for pointer(::Array{Char,N} where N, ::Int64) (2 children) ambiguous
-                  7: signature Tuple{typeof(+),Ptr{_A} where _A,Any} triggered MethodInstance for pointer(::Array{T,N} where N where T, ::Int64) (4 children) ambiguous
-                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Array{UInt8,1}}}, ::Any) (49 children) ambiguous
-                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Any) (336 children) ambiguous
-                 10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children) ambiguous
+   mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children)
+                  2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children)
+                  3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children)
+                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Array{String,1}) (0 children)
+                  5: signature Tuple{typeof(+),Ptr{Union{Int64, Symbol}},Any} triggered MethodInstance for pointer(::Array{Union{Int64, Symbol},N} where N, ::Int64) (1 children)
+                  6: signature Tuple{typeof(+),Ptr{Char},Any} triggered MethodInstance for pointer(::Array{Char,N} where N, ::Int64) (2 children)
+                  7: signature Tuple{typeof(+),Ptr{_A} where _A,Any} triggered MethodInstance for pointer(::Array{T,N} where N where T, ::Int64) (4 children)
+                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Array{UInt8,1}}}, ::Any) (49 children)
+                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Any) (336 children)
+                 10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children)
    2 mt_cache
 
 ```
