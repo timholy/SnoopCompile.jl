@@ -13,11 +13,7 @@ if VERSION <=  v"1.2"
     Base.print(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Nothing) = Base.print(io, "")
     Base.string(::Nothing) = ""
 end
-################################################################
-# GitHubActions logger
-using Logging: global_logger
-using GitHubActions: GitHubActionsLogger
-get(ENV, "GITHUB_ACTIONS", "false") == "true" && global_logger(GitHubActionsLogger())
+
 ################################################################
 const UStrings = Union{AbstractString,Regex,AbstractChar}
 
