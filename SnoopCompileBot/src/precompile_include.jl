@@ -251,4 +251,32 @@ function add_includer(package_name::AbstractString, package_path::AbstractString
             @warn """SnoopCompileBot failed to add `"include(\"precompile_includer.jl\")"` to $package_path. You should do that manually!"""
         end
     end
+    
+    # Add gitattributes to prevent line ending issues
+    gitattributes = """
+    # Set default behaviour to automatically normalize line endings.
+    * text=auto
+
+    # Force bash scripts to always use lf line endings so that if a repo is accessed
+    # in Unix via a file share from Windows, the scripts will work.
+    *.sh text eol=lf
+    """
+    package_root_path = dirname(dirname(package_path))
+    gitattributes_path = "$package_root_path/.gitattributes"
+    if !isfile(gitattributes_path)
+        Base.write(gitattributes_path, gitattributes)
+    else
+        if !occursin("text=auto", Base.read(gitattributes_path, String))
+            gitattributes_lines = Base.open(gitattributes_path) do io
+                Base.readlines(io, keep=true)
+            end
+            append!(gitattributes_lines, gitattributes) # add new empty line before the end
+            open(gitattributes_path, "w") do io
+                for l in gitattributes_lines
+                    Base.write(io, l)
+                end
+            end
+        end
+    end
+    
 end

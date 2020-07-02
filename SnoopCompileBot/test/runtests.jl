@@ -331,6 +331,9 @@ bottestdir = GoodPath(@__DIR__)
 
         include("$(package_rootpath[1])/deps/SnoopCompile/snoop_bot.jl")
 
+        @test isfile("$(package_rootpath[1])/.gitattributes")
+        rm("$(package_rootpath[1])/.gitattributes", force=true)
+        
         @test isfile("$(package_rootpath[1])/deps/SnoopCompile/precompile/precompile_TestPackage1.jl")
 
         precompile_text = Base.read("$(package_rootpath[1])/deps/SnoopCompile/precompile/precompile_TestPackage1.jl", String)
@@ -348,6 +351,9 @@ bottestdir = GoodPath(@__DIR__)
 
         include("$(package_rootpath[2])/deps/SnoopCompile/snoop_bot.jl")
 
+        @test isfile("$(package_rootpath[2])/.gitattributes")
+        rm("$(package_rootpath[2])/.gitattributes", force=true)
+        
         @test isfile("$(package_rootpath[2])/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl")
 
         precompile_text = Base.read("$(package_rootpath[2])/deps/SnoopCompile/precompile/$os/precompile_TestPackage2.jl", String)
@@ -370,6 +376,9 @@ bottestdir = GoodPath(@__DIR__)
 
         include("$(package_rootpath[3])/deps/SnoopCompile/snoop_bot.jl")
 
+        @test isfile("$(package_rootpath[3])/.gitattributes")
+        rm("$(package_rootpath[3])/.gitattributes", force=true)
+        
         @test isfile("$(package_rootpath[3])/deps/SnoopCompile/precompile/$(SnoopCompileBot.VersionFloat(VERSION))/precompile_TestPackage3.jl")
 
         precompile_text = Base.read("$(package_rootpath[3])/deps/SnoopCompile/precompile/$(SnoopCompileBot.VersionFloat(VERSION))/precompile_TestPackage3.jl", String)
