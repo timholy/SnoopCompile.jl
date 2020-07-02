@@ -64,7 +64,7 @@ Example: `yaml_path = "SnoopCompile.yml"`
   with another's package like `["ImageTest" => "Images"]`.
 
 - `tmin`: Methods that take less time than `tmin` to be inferred will not be added to the
-  precompile statements. Defaults to 0.
+  precompile statements. Defaults to 0.001.
 
 - `check_eval`: By default, the bot discards the precompile statements that cannot be `eval`ed.
 
@@ -130,7 +130,7 @@ function BotConfig(
     package_path::AbstractString = pathof_noload(package_name),
     precompiles_rootpath::AbstractString = "$(dirname(dirname(package_path)))/deps/SnoopCompile/precompile",
     subst::AbstractVector = Vector{Pair{UStrings, UStrings}}(),
-    tmin::AbstractFloat = 0.0,
+    tmin::AbstractFloat = 0.001,
     yml_path::Union{String, Nothing} = nothing,
     blacklist = nothing       # deprecated keyword
     )

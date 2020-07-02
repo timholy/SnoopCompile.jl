@@ -48,7 +48,7 @@ end
 
 """
     inf_timing = @snoopi commands
-    inf_timing = @snoopi tmin=0.0 commands
+    inf_timing = @snoopi tmin=0.001 commands
 
 Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
 tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
@@ -56,7 +56,7 @@ tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstanc
 Methods that take less time than `tmin` will not be reported.
 """
 macro snoopi(args...)
-    tmin = 0.0
+    tmin = 0.001
     if length(args) == 1
         cmd = args[1]
     elseif length(args) == 2
@@ -73,7 +73,7 @@ macro snoopi(args...)
     return _snoopi(cmd, tmin)
 end
 
-function _snoopi(cmd::Expr, tmin = 0.0)
+function _snoopi(cmd::Expr, tmin = 0.001)
     return quote
         empty!(__inf_timing__)
         start_timing()
