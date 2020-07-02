@@ -18,16 +18,6 @@ bottestdir = GoodPath(@__DIR__)
         @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
     end
 
-    @testset "add_includer_Plots" begin
-        package_name = "Plots"
-        package_path = goodjoinpath(bottestdir,"$package_name.jl","src","$package_name.jl")
-        includer_path = goodjoinpath(dirname(package_path), "precompile_includer.jl")
-
-        SnoopCompileBot.add_includer(package_name, package_path)
-
-        @test occursin("include(\"precompile_includer.jl\")", stripall(Base.read(package_path, String)))
-    end
-
     @testset "precompile de/activation" begin
         package_name = "TestPackage0"
         package_path = goodjoinpath(bottestdir,"$package_name.jl","src","$package_name.jl")
