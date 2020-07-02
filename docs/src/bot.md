@@ -156,7 +156,7 @@ jobs:
         run: |
           test -f 'Project.toml' && git checkout -- 'Project.toml'
           git ls-files 'Manifest.toml' | grep . && git checkout -- 'Manifest.toml'
-          (git diff -w --no-color || git apply --cached --ignore-whitespace && git checkout -- . && git reset && git add -p) || echo done
+          (git diff -w --no-color || (git diff -w --no-color | git apply --cached --ignore-whitespace && git checkout -- . && git reset && git add -p)) || echo done
       - name: Format precompile_includer.jl
         run: julia -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; format_file("src/precompile_includer.jl")'
       - name: Create Pull Request
