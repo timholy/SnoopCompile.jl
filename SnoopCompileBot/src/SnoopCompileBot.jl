@@ -140,14 +140,27 @@ function BotConfig(
         append!(exclusions, blacklist)
     end
 
+    package_root_path = dirname(dirname(package_path))
+    yml_path = !isnothing(yml_path) ? yml_path : "SnoopCompile.yml"
+    try
+        yml_path = searchdirsboth([ pwd(), package_root_path, "$package_root_path/.github/workflows/"], yml_path)
+    catch
+        # file not found
+    finally
+        if isfile(yml_path) && occursin("(git diff -w --no-color || git apply --cached --ignore-whitespace && git checkout -- . && git reset && git add -p) || echo done", Base.read(yml_path, String))
+            error("""Please remove the following line from `SnoopCompile.yml` until further notice
+                ```
+                (git diff -w --no-color || git apply --cached --ignore-whitespace && git checkout -- . && git reset && git add -p) || echo done
+                ```
+            """)
+        end
+    end
+    
     # Parse os and version from the yaml file
     if !isnothing(yml_path)
-        package_root_path = dirname(dirname(package_path))
-        yml_path = searchdirsboth([ pwd(), package_root_path, "$package_root_path/.github/workflows/"], yml_path)
         if !isfile(yml_path)
             error("$yml_path not found")
         end
-
         # TODO This can be an option
         workflow_job = "SnoopCompile"
 
