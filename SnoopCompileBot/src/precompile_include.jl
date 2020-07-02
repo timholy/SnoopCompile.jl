@@ -220,7 +220,7 @@ function add_includer(package_name::AbstractString, package_path::AbstractString
         # assumes that the last `end` is the end of a module
         endline = length(package_lines)
         for iLine = endline:-1:1
-            if any(occursin.(["end # module", "end"], Ref(package_lines[iLine])))
+            if any(occursin.([r"end(\s)*#(\s)*module", "end"], Ref(package_lines[iLine])))
                 endline = iLine
                 break
             end
