@@ -9,8 +9,6 @@ Bump the version number of all packages in the repository to `version`.
 """
 function bump_version(version::VersionNumber)
     for dir in (__topdir__,
-                joinpath(__topdir__, "SnoopCompileAnalysis"),
-                joinpath(__topdir__, "SnoopCompileBot"),
                 joinpath(__topdir__, "SnoopCompileCore"))
         projfile = joinpath(dir, "Project.toml")
         lines = readlines(projfile)
@@ -42,7 +40,7 @@ function bump_version(version::VersionNumber)
 end
 
 function register_all()
-    for pkg in ("SnoopCompileCore", "SnoopCompileAnalysis", "SnoopCompileBot", "SnoopCompile")
+    for pkg in ("SnoopCompileCore", "SnoopCompile")
         pkgsym = Symbol(pkg)
         @eval Main using $pkgsym
         register(getfield(Main, pkgsym)::Module)

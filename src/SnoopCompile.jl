@@ -2,29 +2,33 @@ module SnoopCompile
 
 using SnoopCompileCore
 export @snoopc
-
-using SnoopCompileAnalysis
-
-# needed for processing the output of snoopc (avoids a breaking change in scoping)
-using SnoopCompileAnalysis: parcel, read, write, parse_call, format_userimg
-
-if isdefined(SnoopCompileCore, Symbol("@snoopi"))
-    export @snoopi
-    using SnoopCompileAnalysis: topmodule, lookup_kwbody_ex, exclusions_remover!
-end
-
+isdefined(SnoopCompileCore, Symbol("@snoopi")) && export @snoopi
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
-    using SnoopCompileAnalysis: getroot, remove_if_not_eval!
 end
 
-using SnoopCompileBot
-export BotConfig, snoop_bot, snoop_bench
-export timesum, pathof_noload, GoodPath
-if isdefined(SnoopCompileBot, Symbol("@snoopiBench"))
-    # deprecated names
-    export @snoopiBench, @snoopiBot, @snoopi_bench, @snoopi_bot
+using Core: MethodInstance, CodeInfo
+using Serialization, OrderedCollections
+
+# Parcel Regex
+const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
+const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functions
+const kwbodyrex = r"^##(\w[^#]*)#\d+"         # detect keyword body methods
+const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
+const innerrex = r"^#[^#]+#\d+"               # detect inner functions
+
+# Parcel
+include("parcel_snoopc.jl")
+
+if VERSION >= v"1.2.0-DEV.573"
+    include("parcel_snoopi.jl")
 end
-using SnoopCompileBot: standardize_osname, JuliaVersionNumber, addtestdep
+
+if VERSION >= v"1.6.0-DEV.154"
+    include("invalidations.jl")
+end
+
+# Write
+include("write.jl")
 
 end # module

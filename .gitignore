@@ -2,5 +2,3 @@
 *.jl.*.cov
 *.jl.mem
 Manifest.toml
-SnoopCompileBot/test/*/deps/SnoopCompile/precompile/*
-SnoopCompileBot/test/*/src/precompile_includer.jl

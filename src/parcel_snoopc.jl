@@ -195,7 +195,7 @@ julia> SnoopCompile.remove_if_not_eval!(pcstatements, Base)
 ┌ Warning: Faulty precompile statement: precompile(sum, (CustomVector{Int},))
 │   exception = UndefVarError: CustomVector not defined
 └ @ Base precompile_Base.jl:375
-1-element Array{String,1}:
+1-element Vector{String}:
  "precompile(sum, (Vector{Int},))"
 ```
 """

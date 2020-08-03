@@ -14,16 +14,26 @@ end
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
 
-To record the invalidations caused by defining new methods, use `@snoopr` from SnoopCompileCore:
+To record the invalidations caused by defining new methods, use `@snoopr`.
+`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package:
+
 ```julia
 using SnoopCompileCore
 invalidations = @snoopr begin
  # new methods definition
 end
+using SnoopCompile   # now that we've collected the data, load the complete package
 ```
-and use `invalidation_trees` from SnoopCompileAnalysis to aggregate the information as a collection of [tree structures](https://en.wikipedia.org/wiki/Tree_structure):
+and then load `SnoopCompile` itself.
+
+!!! note
+    A larger package like `SnoopCompile` itself has greater risk of itself triggering invalidations,
+    and anything that gets invalidated before using `@snoopr` will not be invalidated by whatever definitions
+    you put inside the `@snoopr`.
+    Thus, using `SnoopCompileCore` may give you more complete results than if you get `@snoopr` by loading all of `SnoopCompile`.
+
+Use `invalidation_trees` to aggregate the information as a collection of [tree structures](https://en.wikipedia.org/wiki/Tree_structure):
 ```julia
-using SnoopCompileAnalysis
 trees = invalidation_trees(invalidations)
 ```
 
@@ -58,11 +68,10 @@ So we can see the consequences for the compiled code, we'll make this definition
 
 ```jldoctest invalidations
 julia> trees = invalidation_trees(@snoopr f(::Float64) = 2)
-1-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
+1-element Vector{SnoopCompile.MethodInvalidations}:
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
    backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
               2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
-   2 mt_cache
 ```
 
 The list of `MethodInvalidations` indicates that some previously-compiled code got invalidated.
@@ -81,17 +90,17 @@ MethodInstance for f(::Float64) at depth 0 with 2 children
 
 julia> show(root)
 MethodInstance for f(::Float64) (2 children)
- MethodInstance for callf(::Array{Float64,1}) (1 children)
+ MethodInstance for callf(::Vector{Float64}) (1 children)
  ⋮
 
 julia> show(root; minchildren=0)
 MethodInstance for f(::Float64) (2 children)
- MethodInstance for callf(::Array{Float64,1}) (1 children)
-  MethodInstance for call2f(::Array{Float64,1}) (0 children)
+ MethodInstance for callf(::Vector{Float64}) (1 children)
+  MethodInstance for call2f(::Vector{Float64}) (0 children)
 ```
 
 You can see that the sequence of invalidations proceeded all the way up to `call2f`.
-Examining `root2 = method_invalidations.backedges[2]` yields similar results, but for `Array{AbstractFloat,1}`.
+Examining `root2 = method_invalidations.backedges[2]` yields similar results, but for `Vector{AbstractFloat}`.
 
 The structure of these trees can be considerably more complicated. For example, if `callf`
 also got called by some other method, and that method had also been executed (forcing it to be compiled),
@@ -100,7 +109,7 @@ This is often seen with more complex, real-world tests:
 
 ```julia
 julia> trees = invalidation_trees(@snoopr using SIMD)
-4-element Array{SnoopCompileAnalysis.MethodInvalidations,1}:
+4-element Vector{SnoopCompile.MethodInvalidations}:
  inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
    mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children)
                  2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children)
@@ -115,9 +124,9 @@ julia> trees = invalidation_trees(@snoopr using SIMD)
 
  inserting <<(x1::T, v2::Vec{N,T}) where {N, T<:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
    mt_backedges: 1: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Integer) (0 children)
-                 2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Integer, ::Integer) (0 children)
-                 3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Int64, ::Int64, ::Integer) (0 children)
-                 4: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Array{UInt64,1}, ::Integer, ::Int64, ::Integer) (0 children)
+                 2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Integer, ::Integer, ::Integer) (0 children)
+                 3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Int64, ::Int64, ::Integer) (0 children)
+                 4: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Integer, ::Int64, ::Integer) (0 children)
                  5: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Unsigned) (16 children)
    20 mt_cache
 
@@ -125,12 +134,12 @@ julia> trees = invalidation_trees(@snoopr using SIMD)
    mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children)
                   2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children)
                   3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children)
-                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Array{String,1}) (0 children)
+                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Vector{String}) (0 children)
                   5: signature Tuple{typeof(+),Ptr{Union{Int64, Symbol}},Any} triggered MethodInstance for pointer(::Array{Union{Int64, Symbol},N} where N, ::Int64) (1 children)
                   6: signature Tuple{typeof(+),Ptr{Char},Any} triggered MethodInstance for pointer(::Array{Char,N} where N, ::Int64) (2 children)
                   7: signature Tuple{typeof(+),Ptr{_A} where _A,Any} triggered MethodInstance for pointer(::Array{T,N} where N where T, ::Int64) (4 children)
-                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Array{UInt8,1}}}, ::Any) (49 children)
-                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Array{UInt8,1}}, ::Any) (336 children)
+                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Vector{UInt8}}}, ::Any) (49 children)
+                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Vector{UInt8}}, ::Any) (336 children)
                  10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children)
    2 mt_cache
 
@@ -229,8 +238,8 @@ Then:
 julia> ascend(root)
 Choose a call for analysis (q to quit):
  >   f(::AbstractFloat)
-       callf(::Array{AbstractFloat,1})
-         call2f(::Array{AbstractFloat,1})
+       callf(::Vector{AbstractFloat})
+         call2f(::Vector{AbstractFloat})
 ```
 
 This is an interactive menu: press the down arrow to go down, the up arrow to go up, and `Enter` to select an item for more detailed analysis.
@@ -242,8 +251,8 @@ For example, if we press the down arrow once, we get
 julia> ascend(root)
 Choose a call for analysis (q to quit):
      f(::AbstractFloat)
- >     callf(::Array{AbstractFloat,1})
-         call2f(::Array{AbstractFloat,1})
+ >     callf(::Vector{AbstractFloat})
+         call2f(::Vector{AbstractFloat})
 ```
 
 Now hit `Enter` to select it:
@@ -270,10 +279,10 @@ Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
 and then hit `Enter`, this is what you see:
 
 ```julia
-│ ─ %-1  = invoke callf(::Array{AbstractFloat,1})::Int64
+│ ─ %-1  = invoke callf(::Vector{AbstractFloat})::Int64
 Variables
   #self#::Core.Compiler.Const(callf, false)
-  container::Array{AbstractFloat,1}
+  container::Vector{AbstractFloat}
 
 Body::Int64
     @ REPL[3]:1 within callf
@@ -286,7 +295,7 @@ Toggles: [o]ptimize, [w]arn, [d]ebuginfo, [s]yntax highlight for Source/LLVM/Nat
 Show: [S]ource code, [A]ST, [L]LVM IR, [N]ative code
 Advanced: dump [P]arams cache.
 
- • %1  = invoke getindex(::Array{AbstractFloat,1},::Int64)::AbstractFloat
+ • %1  = invoke getindex(::Vector{AbstractFloat},::Int64)::AbstractFloat
    %2  = call #f(::AbstractFloat)::Int64
    ↩
 ```
@@ -327,7 +336,7 @@ julia> ex = :(Array{Float32,3})
 julia> dump(ex)
 Expr
   head: Symbol curly
-  args: Array{Any}((3,))
+  args: Vector{Any(3,))
     1: Symbol Array
     2: Symbol Float32
     3: Int64 3
