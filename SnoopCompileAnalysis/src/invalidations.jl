@@ -319,6 +319,8 @@ function invalidation_trees(list)
         elseif isa(item, Type)
             push!(mt_backedges, item=>getroot(leaf))
             leaf = nothing
+        elseif isa(item, Core.TypeMapEntry) && list[i+1] == "invalidate_mt_cache"
+            i += 1
         else
             error("unexpected item ", item, " at ", i)
         end
