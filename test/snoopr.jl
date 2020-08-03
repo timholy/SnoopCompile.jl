@@ -56,7 +56,7 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::AbstractFloat)")
     @test occursin("mt_backedges: 1: signature", str)
-    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children)", str)
+    @test occursin("triggered MethodInstance for applyf(::$(Vector{Any})) (1 children)", str)
 
     cf = Any[1.0f0]
     @test SnooprTests.callapplyf(cf) == 3
@@ -97,7 +97,7 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::Float32)")
     @test occursin("mt_backedges: 1: signature", str)
-    @test occursin("triggered MethodInstance for applyf(::Array{Any,1}) (1 children)", str)
+    @test occursin("triggered MethodInstance for applyf(::$(Vector{Any})) (1 children)", str)
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
     @test occursin("with MethodInstance for f(::AbstractFloat) (1 children)", str)
 
@@ -106,7 +106,7 @@ end
     lines = split(chomp(str), '\n')
     @test length(lines) == 2
     @test lines[1] == "MethodInstance for f(::AbstractFloat) (1 children)"
-    @test lines[2] == " MethodInstance for applyf(::Array{Any,1}) (0 children)"
+    @test lines[2] == " MethodInstance for applyf(::$(Vector{Any})) (0 children)"
     show(io, root; minchildren=1)
     str = String(take!(io))
     lines = split(chomp(str), '\n')

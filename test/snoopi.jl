@@ -161,19 +161,23 @@ end
     @test any(str->occursin("typeof(FuncKinds.f2),UInt16", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f2),Float64", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f2),$(typeof(view([1,2], 1:1)))", str), FK)
-    @test any(str->occursin("typeof(FuncKinds.f2),Array{$Int,1}", str), FK)
+    @test any(str->occursin("typeof(FuncKinds.f2),$(Vector{Int})", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f2),$(typeof(reshape(view([1,2], 1:2), 2, 1)))", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f3),$Int,$Int", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f3),$Int,Symbol", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f3),UInt16,Symbol", str), FK)
-    @test any(str->occursin("typeof(FuncKinds.f3),Array{Float64,2},Symbol,Symbol", str), FK)
+    @test any(str->occursin("typeof(FuncKinds.f3),$(Matrix{Float64}),Symbol,Symbol", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f4),$Int,$Int", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f4),$UInt,String", str), FK)
-    @test any(str->occursin("typeof(FuncKinds.f4),Array{Float64,2}", str), FK)
+    @test any(str->occursin("typeof(FuncKinds.f4),$(Matrix{Float64})", str), FK)
     @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Int8", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f5),Int16", str), FK)
     @test any(str->occursin("typeof(FuncKinds.f5),Int32", str), FK)
-    @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Array\{Float64,2\}", str), FK)
+    if "$(Matrix{Float64})" == "Matrix{Float64}"
+        @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Matrix\{Float64\}", str), FK)
+    else
+        @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Array\{Float64,2\}", str), FK)
+    end
     # @test any(str->occursin("typeof(FuncKinds.f6),(1, "hi"; z=8) == 1
     # @test any(str->occursin("typeof(FuncKinds.f7),(1, (1, :hi)) == 1
     # @test any(str->occursin("typeof(FuncKinds.f8),(0) == 1
