@@ -15,29 +15,28 @@ end
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
 
 To record the invalidations caused by defining new methods, use `@snoopr`.
-`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package:
+`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis:
 
 ```julia
 using SnoopCompileCore
 invalidations = @snoopr begin
- # new methods definition
+    # package loads and/or method definitions that might invalidate other code
 end
-using SnoopCompile   # now that we've collected the data, load the complete package
+using SnoopCompile   # now that we've collected the data, load the complete package to analyze the results
 ```
-and then load `SnoopCompile` itself.
 
 !!! note
-    A larger package like `SnoopCompile` itself has greater risk of itself triggering invalidations,
-    and anything that gets invalidated before using `@snoopr` will not be invalidated by whatever definitions
-    you put inside the `@snoopr`.
-    Thus, using `SnoopCompileCore` may give you more complete results than if you get `@snoopr` by loading all of `SnoopCompile`.
+    `SnoopCompileCore` was split out from `SnoopCompile` to reduce the risk of invalidations from loading `SnoopCompile` itself.
+    Once a MethodInstance gets invalidated, it doesn't show up in future `@snoopr` results, so anything that
+    gets invalidated in order to provide `@snoopr` would be omitted from the results.
+    `SnoopCompileCore` is a very small package with no dependencies and which avoids extending any of Julia's own functions,
+    so it cannot invalidate any other code.
 
-Use `invalidation_trees` to aggregate the information as a collection of [tree structures](https://en.wikipedia.org/wiki/Tree_structure):
-```julia
-trees = invalidation_trees(invalidations)
-```
+## Analyzing invalidations
 
-We can illustrate this process with the following example:
+### A first example
+
+We'll walk through this process with the following example:
 
 ```jldoctest invalidations
 julia> f(::Real) = 1;
@@ -47,7 +46,8 @@ julia> callf(container) = f(container[1]);
 julia> call2f(container) = callf(container);
 ```
 
-Let's run this with different container types:
+Because code doesn't get compiled until it gets run, and invalidations only affect compiled code, let's run this with different container types:
+
 ```jldoctest invalidations
 julia> c64  = [1.0]; c32 = [1.0f0]; cabs = AbstractFloat[1.0];
 
@@ -61,22 +61,48 @@ julia> call2f(cabs)
 1
 ```
 
-It's important that you actually execute these methods: code doesn't get compiled until it gets run, and invalidations only affect compiled code.
+!!! warning
+    If you're following along, be sure you actually execute these methods, or you won't obtain the results below.
 
 Now we'll define a new `f` method, one specialized for `Float64`.
 So we can see the consequences for the compiled code, we'll make this definition while snooping on the compiler with `@snoopr`:
 
 ```jldoctest invalidations
-julia> trees = invalidation_trees(@snoopr f(::Float64) = 2)
+julia> using SnoopCompileCore
+
+julia> invalidations = @snoopr f(::Float64) = 2;
+
+julia> using SnoopCompile
+```
+
+The simplest thing we can do is list or count invalidations:
+
+```jldoctest invalidations
+julia> length(uinvalidated(invalidations))  # collect the unique MethodInstances & count them
+6
+```
+
+The length of this set is your simplest insight into the extent of invalidations triggered by this method definition.
+
+If you want to fix invalidations, it's crucial to know *why* certain MethodInstances were invalidated.
+For that, it's best to use a tree structure, in which children are invalidated because their parents get invalidated:
+
+```jldoctest invalidations
+julia> trees = invalidation_trees(invalidations)
 1-element Vector{SnoopCompile.MethodInvalidations}:
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
    backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
               2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
 ```
 
-The list of `MethodInvalidations` indicates that some previously-compiled code got invalidated.
-In this case, "`inserting f(::Float64)`" means that a new method, for `f(::Float64)`, was added.
-There were two proximal triggers for the invalidation, both of which superseded the method `f(::Real)`.
+The output, `trees`, is a vector of `MethodInvalidations`, a data type defined in `SnoopCompile`; each of these is the set of invalidations triggered by a particular method definition.
+In this case, we only defined one method, so we can get at most one `MethodInvalidation`.
+`@snoopr using SomePkg` might result in a list of such objects, each connected to a particular method defined in a particular package (either `SomePkg` itself or one of its dependencies).
+
+In this case, "`inserting f(::Float64)`" indicates that we added a method with signature `f(::Float64)`, and that this method triggered invalidations.
+(Invalidations can also be triggered by method deletion, although this should not happen in typical usage.)
+Next, notice the `backedges` line, and the fact that there are two items listed for it.
+This indicates that there were two proximal triggers for the invalidation, both of which superseded the method `f(::Real)`.
 One of these had been compiled specifically for `Float64`, due to our `call2f(c64)`.
 The other had been compiled specifically for `AbstractFloat`, due to our `call2f(cabs)`.
 
@@ -85,7 +111,7 @@ You can look at these invalidation trees in greater detail:
 ```jldoctest invalidations
 julia> method_invalidations = trees[1];    # invalidations stemming from a single method
 
-julia> root = method_invalidations.backedges[1]
+julia> root = method_invalidations.backedges[1]  # get the first triggered invalidation
 MethodInstance for f(::Float64) at depth 0 with 2 children
 
 julia> show(root)
@@ -99,99 +125,124 @@ MethodInstance for f(::Float64) (2 children)
   MethodInstance for call2f(::Vector{Float64}) (0 children)
 ```
 
-You can see that the sequence of invalidations proceeded all the way up to `call2f`.
+The indentation here reveals that `call2f` called `callf` which called `f`,
+and shows the entire "chain" of invalidations triggered by this method definition.
 Examining `root2 = method_invalidations.backedges[2]` yields similar results, but for `Vector{AbstractFloat}`.
+
+### `mt_backedges` invalidations
+
+`MethodInvalidations` can have a second field, `mt_backedges`.
+These are invalidations triggered via the `MethodTable` for a particular function.
+When extracting `mt_backedges`, in addition to a root `MethodInstance` these also indicate a particular signature that triggered the invalidation.
+We can illustrate this by returning to the `call2f` example above:
+
+```jldoctest invalidations
+julia> call2f(["hello"])
+ERROR: MethodError: no method matching f(::String)
+[...]
+
+julia> invalidations = @snoopr f(::AbstractString) = 2;
+
+julia> trees = invalidation_trees(invalidations)
+1-element Vector{SnoopCompile.MethodInvalidations}:
+ inserting f(::AbstractString) in Main at REPL[6]:1 invalidated:
+   mt_backedges: 1: signature Tuple{typeof(f),String} triggered MethodInstance for callf(::Vector{String}) (1 children)
+
+
+julia> sig, root = trees[1].mt_backedges[end];
+
+julia> sig
+Tuple{typeof(f),String}
+
+julia> root
+MethodInstance for callf(::Vector{String}) at depth 0 with 1 children
+```
+
+You can see that the invalidating signature, `f(::String)`, is more specific than the signature of the defined method, but that it is what was minimally needed by `callf(::Vector{String})`.
+
+`mt_backedges` invalidations often reflect "unhandled" conditions in methods that have already been compiled.
+
+### A more complex example
 
 The structure of these trees can be considerably more complicated. For example, if `callf`
 also got called by some other method, and that method had also been executed (forcing it to be compiled),
 then `callf` would have multiple children.
-This is often seen with more complex, real-world tests:
+This is often seen with more complex, real-world tests.
+As a medium-complexity example, try the following:
 
 ```julia
-julia> trees = invalidation_trees(@snoopr using SIMD)
-4-element Vector{SnoopCompile.MethodInvalidations}:
- inserting convert(::Type{Tuple{Vararg{R,N}}}, v::Vec{N,T}) where {N, R, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:182 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple{DataType,DataType,DataType}},Any} triggered MethodInstance for Pair{DataType,Tuple{DataType,DataType,DataType}}(::Any, ::Any) (0 children)
-                 2: signature Tuple{typeof(convert),Type{NTuple{8,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{8,DataType}}(::Any, ::Any) (0 children)
-                 3: signature Tuple{typeof(convert),Type{NTuple{7,DataType}},Any} triggered MethodInstance for Pair{DataType,NTuple{7,DataType}}(::Any, ::Any) (0 children)
+julia> using Revise
 
- inserting convert(::Type{Tuple}, v::Vec{N,T}) where {N, T} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:188 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.RemoteDoMsg(::Any, ::Any, ::Any) (1 children)
-                 2: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call}(::Any, ::Any, ::Any) (1 children)
-                 3: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallMsg{:call_fetch}(::Any, ::Any, ::Any) (1 children)
-                 4: signature Tuple{typeof(convert),Type{Tuple},Any} triggered MethodInstance for Distributed.CallWaitMsg(::Any, ::Any, ::Any) (4 children)
-   12 mt_cache
+julia> using SnoopCompileCore
 
- inserting <<(x1::T, v2::Vec{N,T}) where {N, T<:Union{Bool, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1061 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Integer) (0 children)
-                 2: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Integer, ::Integer, ::Integer) (0 children)
-                 3: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Int64, ::Int64, ::Integer) (0 children)
-                 4: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for copy_chunks_rtol!(::Vector{UInt64}, ::Integer, ::Int64, ::Integer) (0 children)
-                 5: signature Tuple{typeof(<<),UInt64,Any} triggered MethodInstance for <<(::UInt64, ::Unsigned) (16 children)
-   20 mt_cache
+julia> invalidations = @snoopr using FillArrays;
 
- inserting +(s1::Union{Bool, Float16, Float32, Float64, Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Ptr}, v2::Vec{N,T}) where {N, T<:Union{Float16, Float32, Float64}} in SIMD at /home/tim/.julia/packages/SIMD/Am38N/src/SIMD.jl:1165 invalidated:
-   mt_backedges:  1: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (0 children)
-                  2: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #methoddef!#5(::Bool, ::typeof(LoweredCodeUtils.methoddef!), ::Any, ::Set{Any}, ::JuliaInterpreter.Frame) (0 children)
-                  3: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for #get_def#94(::Set{Tuple{Revise.PkgData,String}}, ::typeof(Revise.get_def), ::Method) (0 children)
-                  4: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for filter_valid_cachefiles(::String, ::Vector{String}) (0 children)
-                  5: signature Tuple{typeof(+),Ptr{Union{Int64, Symbol}},Any} triggered MethodInstance for pointer(::Array{Union{Int64, Symbol},N} where N, ::Int64) (1 children)
-                  6: signature Tuple{typeof(+),Ptr{Char},Any} triggered MethodInstance for pointer(::Array{Char,N} where N, ::Int64) (2 children)
-                  7: signature Tuple{typeof(+),Ptr{_A} where _A,Any} triggered MethodInstance for pointer(::Array{T,N} where N where T, ::Int64) (4 children)
-                  8: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::IOContext{Base.GenericIOBuffer{Vector{UInt8}}}, ::Any) (49 children)
-                  9: signature Tuple{typeof(+),Ptr{Nothing},Any} triggered MethodInstance for _show_default(::Base.GenericIOBuffer{Vector{UInt8}}, ::Any) (336 children)
-                 10: signature Tuple{typeof(+),Ptr{UInt8},Any} triggered MethodInstance for pointer(::String, ::Integer) (1027 children)
-   2 mt_cache
+julia> using SnoopCompile
 
+julia> trees = invalidation_trees(invalidations)
+3-element Vector{SnoopCompile.MethodInvalidations}:
+ inserting all(f::Function, x::FillArrays.AbstractFill) in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:556 invalidated:
+   backedges: 1: superseding all(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:880 with MethodInstance for all(::Base.var"#388#389"{_A} where _A, ::AbstractArray) (3 children)
+              2: superseding all(f, itr) in Base at reduce.jl:918 with MethodInstance for all(::Base.var"#388#389"{_A} where _A, ::Any) (3 children)
+
+ inserting any(f::Function, x::FillArrays.AbstractFill) in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:555 invalidated:
+   backedges: 1: superseding any(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:877 with MethodInstance for any(::typeof(ismissing), ::AbstractArray) (1 children)
+              2: superseding any(f, itr) in Base at reduce.jl:871 with MethodInstance for any(::typeof(ismissing), ::Any) (1 children)
+              3: superseding any(f, itr) in Base at reduce.jl:871 with MethodInstance for any(::LoweredCodeUtils.var"#11#12"{_A} where _A, ::Any) (2 children)
+              4: superseding any(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:877 with MethodInstance for any(::LoweredCodeUtils.var"#11#12"{_A} where _A, ::AbstractArray) (4 children)
+
+ inserting broadcasted(::Base.Broadcast.DefaultArrayStyle{N}, op, r::FillArrays.AbstractFill{T,N,Axes} where Axes) where {T, N} in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/fillbroadcast.jl:8 invalidated:
+   backedges: 1: superseding broadcasted(::S, f, args...) where S<:Base.Broadcast.BroadcastStyle in Base.Broadcast at broadcast.jl:1265 with MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(JuliaInterpreter._Typeof), ::Any) (1 children)
+              2: superseding broadcasted(::S, f, args...) where S<:Base.Broadcast.BroadcastStyle in Base.Broadcast at broadcast.jl:1265 with MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(string), ::AbstractArray) (177 children)
 ```
 
-Your specific output will surely be different from this, depending on which packages you have loaded,
-which versions of those packages are installed, and which version of Julia you are using.
-In this example, there were four different methods that triggered invalidations, and the invalidated methods were in `Base`,
-`Distributed`, `JuliaInterpeter`, and `LoweredCodeUtils`. (The latter two were a consequence of loading `Revise`.)
-You can see that collectively more than a thousand independent compiled methods needed to be invalidated; indeed, the last
-entry alone invalidates 1027 method instances:
+Your specific results may differ from this, depending on which version of Julia and of packages you are using.
+In this case, you can see that three methods (one for `all`, one for `any`, and one for `broadcasted`) triggered invalidations.
+Perusing this list, you can see that methods in `Base`, `LoweredCodeUtils`, and `JuliaInterpreter` (the latter two were loaded by `Revise`) got invalidated by methods defined in FillArrays.
+
+The most consequential ones (the ones with the most children) are listed last, and should be where you direct your attention first.
+That last entry looks particularly problematic, so let's extract it:
 
 ```julia
-julia> sig, root = trees[end].mt_backedges[10]
-Pair{Any,SnoopCompile.InstanceNode}(Tuple{typeof(+),Ptr{UInt8},Any}, MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children)
+julia> methinvs = trees[end];
 
-julia> root
-MethodInstance for pointer(::String, ::Integer) at depth 0 with 1027 children
+julia> root = methinvs.backedges[end]
+MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(string), ::AbstractArray) at depth 0 with 177 children
 
-julia> show(root)
-MethodInstance for pointer(::String, ::Integer) (1027 children)
- MethodInstance for repeat(::String, ::Integer) (1023 children)
-  MethodInstance for ^(::String, ::Integer) (1019 children)
-   MethodInstance for #handle_message#2(::Nothing, ::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}, ::typeof(Base.CoreLogging.handle_message), ::Logging.ConsoleLogger, ::Base.CoreLogging.LogLevel, ::String, ::Module, ::Symbol, ::Symbol, ::String, ::Int64) (906 children)
-    MethodInstance for handle_message(::Logging.ConsoleLogger, ::Base.CoreLogging.LogLevel, ::String, ::Module, ::Symbol, ::Symbol, ::String, ::Int64) (902 children)
-     MethodInstance for log_event_global!(::Pkg.Resolve.Graph, ::String) (35 children)
+julia> show(root; maxdepth=10)
+MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(string), ::AbstractArray) (177 children)
+ MethodInstance for broadcasted(::typeof(string), ::AbstractArray) (176 children)
+  MethodInstance for #unpack#104(::Bool, ::typeof(Pkg.PlatformEngines.unpack), ::String, ::String) (175 children)
+   MethodInstance for (::Pkg.PlatformEngines.var"#unpack##kw")(::NamedTuple{(:verbose,),Tuple{Bool}}, ::typeof(Pkg.PlatformEngines.unpack), ::String, ::String) (174 children)
+    MethodInstance for #download_verify_unpack#109(::Nothing, ::Bool, ::Bool, ::Bool, ::Bool, ::typeof(Pkg.PlatformEngines.download_verify_unpack), ::String, ::Nothing, ::String) (165 children)
+     MethodInstance for (::Pkg.PlatformEngines.var"#download_verify_unpack##kw")(::NamedTuple{(:ignore_existence, :verbose),Tuple{Bool,Bool}}, ::typeof(Pkg.PlatformEngines.download_verify_unpack), ::String, ::Nothing, ::String) (33 children)
+      MethodInstance for (::Pkg.Artifacts.var"#39#40"{Bool,String,Nothing})(::String) (32 children)
+       MethodInstance for create_artifact(::Pkg.Artifacts.var"#39#40"{Bool,String,Nothing}) (31 children)
+        MethodInstance for #download_artifact#38(::Bool, ::Bool, ::typeof(Pkg.Artifacts.download_artifact), ::Base.SHA1, ::String, ::Nothing) (30 children)
+         MethodInstance for (::Pkg.Artifacts.var"#download_artifact##kw")(::NamedTuple{(:verbose, :quiet_download),Tuple{Bool,Bool}}, ::typeof(Pkg.Artifacts.download_artifact), ::Base.SHA1, ::String, ::Nothing) (23 children)
+          MethodInstance for (::Pkg.Artifacts.var"#download_artifact##kw")(::NamedTuple{(:verbose, :quiet_download),Tuple{Bool,Bool}}, ::typeof(Pkg.Artifacts.download_artifact), ::Base.SHA1, ::String) (22 children)
+          ⋮
+        ⋮
+     MethodInstance for (::Pkg.PlatformEngines.var"#download_verify_unpack##kw")(::NamedTuple{(:ignore_existence,),Tuple{Bool}}, ::typeof(Pkg.PlatformEngines.download_verify_unpack), ::String, ::Nothing, ::String) (130 children)
+      MethodInstance for (::Pkg.Types.var"#94#97"{Pkg.Types.Context,String,Pkg.Types.RegistrySpec})(::String) (116 children)
+       MethodInstance for #mktempdir#21(::String, ::typeof(mktempdir), ::Pkg.Types.var"#94#97"{Pkg.Types.Context,String,Pkg.Types.RegistrySpec}, ::String) (115 children)
+        MethodInstance for mktempdir(::Pkg.Types.var"#94#97"{Pkg.Types.Context,String,Pkg.Types.RegistrySpec}, ::String) (114 children)
+         MethodInstance for mktempdir(::Pkg.Types.var"#94#97"{Pkg.Types.Context,String,Pkg.Types.RegistrySpec}) (113 children)
+          MethodInstance for clone_or_cp_registries(::Pkg.Types.Context, ::Vector{Pkg.Types.RegistrySpec}, ::String) (112 children)
+          ⋮
      ⋮
-     MethodInstance for #artifact_meta#20(::Pkg.BinaryPlatforms.Platform, ::typeof(Pkg.Artifacts.artifact_meta), ::String, ::Dict{String,Any}, ::String) (43 children)
-     ⋮
-     MethodInstance for Dict{Base.UUID,Pkg.Types.PackageEntry}(::Dict) (79 children)
-     ⋮
-     MethodInstance for read!(::Base.Process, ::LibGit2.GitCredential) (80 children)
-     ⋮
-     MethodInstance for handle_err(::JuliaInterpreter.Compiled, ::JuliaInterpreter.Frame, ::Any) (454 children)
-     ⋮
-    ⋮
    ⋮
-  ⋮
- ⋮
-⋮
 ```
 
-Many nodes in this tree have multiple "child" branches.
+Here you can see a much more complex branching structure.
+From this, you can see that methods in `Pkg` are the most significantly affected;
+you could expect that loading `FillArrays` might slow down your next `Pkg` operation (perhaps depending on which operation you choose) executed in this same session.
 
-!!! note
-    These `trees` are sorted so that the last items have the largest number of children.
-    It works this way so that long printouts don't have the most important information scroll off the
-    top of the screen.
+Again, if you're following along, it's possible that you'll see something quite different, if subsequent development has protected `Pkg` against this form of invalidation.
 
 ## Filtering invalidations
 
-Some methods trigger widespread invalidation.
+Some method definitions trigger widespread invalidation.
 If you don't have time to fix all of them, you might want to focus on a specific set of invalidations.
 For instance, you might be the author of `PkgA` and you've noted that loading `PkgB` invalidates a lot of `PkgA`'s code.
 In that case, you might want to find just those invalidations triggered in your package.
@@ -207,23 +258,46 @@ ftrees = filtermod(PkgA, trees)
 A more selective yet exhaustive tool is [`findcaller`](@ref), which allows you to find the path through the trees to a particular method:
 
 ```julia
+m = @which f(data)                  # look for the "path" that invalidates this method
 f(data)                             # run once to force compilation
-m = @which f(data)
 using SnoopCompile
 trees = invalidation_trees(@snoopr using SomePkg)
-invs = findcaller(m, trees)
+invs = findcaller(m, trees)         # select the branch that invalidated a compiled instance of `m`
 ```
 
 When you don't know which method to choose, but know an operation that got slowed down by loading `SomePkg`, you can use `@snoopi` to find methods that needed to be recompiled. See [`findcaller`](@ref) for further details.
 
 
-## Avoiding or fixing invalidations
+## Fixing invalidations
 
-### Tools for fixing invalidations: ascend
+### ascend
 
-SnoopCompile, partnering with the remarkable [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl),
+SnoopCompile, partnering with the remarkable [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl),
 provides a tool called `ascend` to simplify diagnosing and fixing invalidations.
-To demonstrate this tool, let's use it on our `call2f` `method_invalidations` tree from above.
+To demonstrate this tool, let's use it on our test methods defined above.
+For best results, you'll want to copy those method definitions into a file:
+
+```julia
+f(::Real) = 1
+callf(container) = f(container[1])
+call2f(container) = callf(container)
+
+c64  = [1.0]; c32 = [1.0f0]; cabs = AbstractFloat[1.0];
+call2f(c64)
+call2f(c32)
+call2f(cabs)
+
+using SnoopCompileCore
+invalidations = @snoopr f(::Float64) = 2
+using SnoopCompile
+trees = invalidation_trees(invalidations)
+method_invalidations = trees[1]
+```
+
+and `include` it into a fresh session.  (The full functionality of `ascend` doesn't work for methods defined at the REPL, but does if the methods are defined in a file.)
+In this demo, I called that file `/tmp/snoopr.jl`.
+
+
 We start with
 
 ```julia
@@ -259,20 +333,20 @@ Now hit `Enter` to select it:
 
 ```julia
 Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
- > "REPL[3]", callf: lines [1]
+ > "/tmp/snoopr.jl", callf: lines [2]
    Browse typed code
 ```
 
-This is showing you another menu, with only two option (a third is to go back by hitting `q`).
+This is showing you another menu, with only two options (a third is to go back by hitting `q`).
 The first entry shows you the option to open the "offending" source file in `callf` at the position of the call to the parent node of `callf`, which in this case is `f`.
 (Sometimes there will be more than one call to the parent within the method, in which case instead of showing `[1]` it might show `[1, 17, 39]` indicating each separate location.)
-While in this case this isn't useful (methods defined in the REPL are not supported), selecting this option, when available, is typically the best way to start because you can sometimes resolve the problem from this information alone.
+Selecting this option, when available, is typically the best way to start because you can sometimes resolve the problem just by inspection of the source.
 
 If you hit the down arrow
 
 ```julia
 Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
-   "REPL[3]", callf: lines [1]
+   "/tmp/snoopr.jl", callf: lines [2]
  > Browse typed code
 ```
 
@@ -281,11 +355,11 @@ and then hit `Enter`, this is what you see:
 ```julia
 │ ─ %-1  = invoke callf(::Vector{AbstractFloat})::Int64
 Variables
-  #self#::Core.Compiler.Const(callf, false)
+  #self#::Core.Const(callf, false)
   container::Vector{AbstractFloat}
 
 Body::Int64
-    @ REPL[3]:1 within callf
+    @ /tmp/snoopr.jl:2 within `callf'
 1 ─ %1 = Base.getindex(container, 1)::AbstractFloat
 │   %2 = Main.f(%1)::Int64
 └──      return %2
@@ -312,22 +386,51 @@ Julia could not have returned the newly-correct answer without recompiling the c
 Aside from cases like these, most invalidations occur whenever new types are introduced,
 and some methods were previously compiled for abstract types.
 In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updateable language.
-(You can often minimize invalidations by loading all your code at the beginning of your session, before triggering the compilation of more methods.)
+(As recommended above, you can often minimize invalidations by loading all your code at the beginning of your session, before triggering the compilation of more methods.)
 However, in many circumstances an invalidation indicates an opportunity to improve code.
 In our first example, note that the call `call2f(c32)` did not get invalidated: this is because the compiler
 knew all the specific types, and new methods did not affect any of those types.
 The main tips for writing invalidation-resistant code are:
 
 - use [concrete types](https://docs.julialang.org/en/latest/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
-- write inferrable code
+- write inferrable code (be especially aware of [julia issue 15276](https://github.com/JuliaLang/julia/issues/15276))
 - don't engage in [type-piracy](https://docs.julialang.org/en/latest/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
 
 Since these tips also improve performance and allow programs to behave more predictably,
 these guidelines are not intrusive.
 Indeed, searching for and eliminating invalidations can help you improve the quality of your code.
-In cases where invalidations occur, but you can't use concrete types (there are many valid uses of `Vector{Any}`),
+
+#### Adding type annotations
+
+In cases where invalidations occur, but you can't use concrete types (there are indeed many valid uses of `Vector{Any}`),
 you can often prevent the invalidation using some additional knowledge.
-For example, suppose you're writing code that parses Julia's `Expr` type:
+One common example is extracting information from an [IOContext](https://docs.julialang.org/en/latest/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
+
+```julia
+struct IOContext{IO_t <: IO} <: AbstractPipe
+    io::IO_t
+    dict::ImmutableDict{Symbol, Any}
+end
+```
+
+There are good reasons to use a value-type of `Any`, but that makes it impossible for the compiler to infer the type of any object looked up in an IOContext.
+Fortunately, you can help!
+For example, the documentation specifies that the `:color` setting should be a `Bool`, and since it appears in documentation it's something we can safely enforce.
+Changing
+
+```
+iscolor = get(io, :color, false)
+```
+
+to
+
+```
+iscolor = get(io, :color, false)::Bool     # assert that the rhs is Bool-valued
+```
+
+will throw an error if it isn't a `Bool`, and this allows the compiler to take advantage of the type being known in subsequent operations.
+
+As a more detailed example, suppose you're writing code that parses Julia's `Expr` type:
 
 ```julia
 julia> ex = :(Array{Float32,3})
@@ -351,14 +454,32 @@ if a isa Symbol
     # inside this block, Julia knows `a` is a Symbol, and so methods called on `a` will be resistant to invalidation
     foo(a)
 elseif a isa Expr && length((a::Expr).args) > 2
-    a = a::Expr     # sometimes you have to help inference by adding a type-assert
+    a::Expr         # sometimes you have to help inference by adding a type-assert
     x = bar(a)      # `bar` is now resistant to invalidation
-elsef a isa Integer
+elseif a isa Integer
     # even though you've not made this fully-inferrable, you've at least reduced the scope for invalidations
     # by limiting the subset of `foobar` methods that might be called
     y = foobar(a)
 end
 ```
 
+Other tricks include replacing broadcasting on `v::Vector{Any}` with `Base.mapany(f, v)`--`mapany` avoids trying to narrow the type of `f(v[i])` and just assumes it will be `Any`, thereby avoiding invalidations of many `convert` methods.
+
 Adding type-assertions and fixing inference problems are the most common approaches for fixing invalidations.
 You can discover these manually, but using Cthulhu is highly recommended.
+
+#### Handling edge cases
+
+You can sometimes get invalidations from failing to handle "formal" possibilities.
+For example, operations with regular expressions might return a `Union{Nothing, RegexMatch}`.
+You can sometimes get poor type inference by writing code that fails to take account of the possibility that `nothing` might be returned.
+For example, a comprehension
+
+```julia
+ms = [m.match for m in match.((rex,), my_strings)]
+```
+might be replaced with
+```julia
+ms = [m.match for m in match.((rex,), my_strings) if m !== nothing]
+```
+and return a better-typed result.
