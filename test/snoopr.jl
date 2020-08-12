@@ -21,6 +21,10 @@ end
 mccc1(container, y) = mcc(container, y)
 mccc2(container, y) = mcc(container, y, 10)
 
+struct MyInt <: Integer
+    x::Int
+end
+
 end
 
 @testset "@snoopr" begin
@@ -129,4 +133,10 @@ end
         fnode = only(fnode.children)
     end
     @test fnode.mi.def === m
+
+    # Exclusion of Core.Compiler methods
+    invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
+    umis1 = uinvalidated(invs)
+    umis2 = uinvalidated(invs; exclude_corecompiler=false)
+    @test length(umis2) > length(umis1) + 20
 end

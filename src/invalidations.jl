@@ -2,6 +2,13 @@ using Cthulhu
 
 export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 
+function from_corecompiler(mi::MethodInstance)
+    fn = fullname(mi.def.module)
+    length(fn) < 2 && return false
+    fn[1] === :Core || return false
+    return fn[2] === :Compiler
+end
+
 """
    umis = uinvalidated(invlist)
 
@@ -10,12 +17,14 @@ This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that i
 `"invalidate_mt_cache"`. These can typically be ignored because they are nearly inconsequential:
 they do not invalidate any compiled code, they only transiently affect an optimization of runtime dispatch.
 """
-function uinvalidated(invlist)
+function uinvalidated(invlist; exclude_corecompiler::Bool=true)
     umis = Set{MethodInstance}()
     for (i, item) in enumerate(invlist)
         if isa(item, Core.MethodInstance)
             if invlist[i+1] != "invalidate_mt_cache"
-                push!(umis, item)
+                if !exclude_corecompiler || !from_corecompiler(item)
+                    push!(umis, item)
+                end
             end
         end
     end
@@ -243,7 +252,7 @@ julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
 
 See the documentation for further details.
 """
-function invalidation_trees(list)
+function invalidation_trees(list; exclude_corecompiler::Bool=true)
     function checkreason(reason, loctag)
         if loctag == "jl_method_table_disable"
             @assert reason === nothing || reason === :deleting
@@ -287,7 +296,9 @@ function invalidation_trees(list)
                 elseif loctag == "jl_method_table_insert"
                     root = getroot(leaf)
                     root.mi = mi
-                    push!(backedges, root)
+                    if !exclude_corecompiler || !from_corecompiler(mi)
+                        push!(backedges, root)
+                    end
                     leaf = nothing
                 elseif loctag == "insert_backedges"
                     println("insert_backedges for ", mi)
@@ -317,7 +328,10 @@ function invalidation_trees(list)
             leaf = nothing
             reason = nothing
         elseif isa(item, Type)
-            push!(mt_backedges, item=>getroot(leaf))
+            root = getroot(leaf)
+            if !exclude_corecompiler || !from_corecompiler(root.mi)
+                push!(mt_backedges, item=>root)
+            end
             leaf = nothing
         elseif isa(item, Core.TypeMapEntry) && list[i+1] == "invalidate_mt_cache"
             i += 1
