@@ -270,6 +270,12 @@ When you don't know which method to choose, but know an operation that got slowe
 
 ## Fixing invalidations
 
+In addition to the text below, there is a
+[video](https://www.youtube.com/watch?v=7VbXbI6OmYo) illustrating many
+of the same package features. The video also walks through a real-world
+example fixing invalidations that stemmed from inference problems in
+some of `Pkg`'s code.
+
 ### ascend
 
 SnoopCompile, partnering with the remarkable [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl),
