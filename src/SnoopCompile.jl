@@ -24,7 +24,7 @@ if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
 end
 
-if VERSION >= v"1.6.0-DEV.154"
+if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
 end
 
