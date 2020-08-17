@@ -436,6 +436,9 @@ iscolor = get(io, :color, false)::Bool     # assert that the rhs is Bool-valued
 
 will throw an error if it isn't a `Bool`, and this allows the compiler to take advantage of the type being known in subsequent operations.
 
+Before turning to a more complex example, it's worth noting that this trick applied to field accesses of abstract types is often one of the simplest ways to fix widespread inference problems.
+This is such an important case that it is described in the section below.
+
 As a more detailed example, suppose you're writing code that parses Julia's `Expr` type:
 
 ```julia
@@ -473,6 +476,47 @@ Other tricks include replacing broadcasting on `v::Vector{Any}` with `Base.mapan
 
 Adding type-assertions and fixing inference problems are the most common approaches for fixing invalidations.
 You can discover these manually, but using Cthulhu is highly recommended.
+
+#### Inferrable field access for abstract types
+
+When invalidations happen for methods that manipulate fields of abstract types, often there is a simple solution: create an "interface" for the abstract type specifying that certain fields must have certain types.
+Here's an example:
+
+```
+abstract type AbstractDisplay end
+
+struct Monitor <: AbstractDisplay
+    height::Int
+    width::Int
+    maker::String
+end
+
+struct Phone <: AbstractDisplay
+    height::Int
+    width::Int
+    maker::Symbol
+end
+
+getwidth(d::AbstractDisplay) = d.width
+```
+
+Julia's inference will generally not realize that `getwidth` returns an `Int`; without exhaustive checking, it can't be sure that there aren't subtypes that have some other type for field `width`.
+Fortunately, you can help by specifying an interface for generic `AbstractDisplay` objects:
+
+```
+function Base.getproperty(d::AbstractDisplay, name::Symbol)
+    if name === :height
+        return getfield(d, :height)::Int
+    elseif name === :width
+        return getfield(d, :width)::Int
+    elseif name === :maker
+        return getfield(d, :maker)::Union{String,Symbol}
+    end
+    return getfield(d, name)
+end
+```
+
+Julia's [constant propagation](https://en.wikipedia.org/wiki/Constant_folding) will ensure that most accesses of those fields will be determined at compile-time, so this simple change robustly fixes many inference problems.
 
 #### Handling edge cases
 
