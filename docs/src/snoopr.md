@@ -384,6 +384,58 @@ This is output from Cthulhu, and you should see its documentation for more infor
 (See also [this video](https://www.youtube.com/watch?v=qf9oA09wxXY).)
 While it takes a bit of time to master Cthulhu, it is an exceptionally powerful tool for diagnosing and fixing inference issues.
 
+### "Dead ends": finding runtime callers with MethodAnalysis
+
+When a call is made by runtime dispatch and the world of available methods to handle the call does not narrow the types
+beyond what is known to the caller, the call-chain terminates.
+Here is a real-world example (one that may already be "fixed" by the time you read this) from analyzing invalidations triggered by specializing `Base.unsafe_convert(::Type{Ptr{T}}, ::Base.RefValue{S})` for specific types `S` and `T`:
+
+```
+julia> ascend(root)
+Choose a call for analysis (q to quit):
+ >   unsafe_convert(::Type{Ptr{Nothing}}, ::Base.RefValue{_A} where _A)
+       _show_default(::IOBuffer, ::Any)
+         show_default(::IOBuffer, ::Function)
+           show_function(::IOBuffer, ::Function, ::Bool)
+             print(::IOBuffer, ::Function)
+         show_default(::IOBuffer, ::ProcessFailedException)
+           show(::IOBuffer, ::ProcessFailedException)
+             print(::IOBuffer, ::ProcessFailedException)
+         show_default(::IOBuffer, ::Sockets.IPAddr)
+           show(::IOBuffer, ::Sockets.IPAddr)
+```
+
+Unfortunately for our investigations, none of these "top level" callers have defined backedges. (Overall, it's very fortunate that they don't, in that runtime dispatch without backedges avoids any need to invalidate the caller; the alternative would be extremely long chains of completely unnecessary invalidation, which would have many undesirable consequences.)
+
+If you want to fix such "short chains" of invalidation, one strategy is to identify callers by brute force search enabled by the `MethodAnalysis` package.
+For example, one can discover the caller of `show(::IOBuffer, ::Sockets.IPAddr)` with
+
+```julia
+using MethodAnalysis       # best from a fresh Julia session
+mis = methodinstances();   # collect all *existing* MethodInstances (any future compilation will be ignored)
+# Create a predicate that finds these argument types
+using Sockets
+argmatch(typs) = length(typs) >= 2 && typs[1] === IOBuffer && typs[2] === Sockets.IPAddr
+# Find any callers
+callers = findcallers(show, argmatch, mis)
+```
+
+which yields a single hit in `print(::IOBuffer, ::IPAddr)`.
+This too lacks any backedges, so a second application `findcallers(print, argmatch, mis)` links to `print_to_string(::IPAddr)`.
+This MethodInstance has a backedge to `string(::IPAddr)`, which has backedges to the method `Distributed.connect_to_worker(host::AbstractString, port::Integer)`.
+A bit of digging shows that this calls `Sockets.getaddrinfo` to look up an IP address, and this is inferred to return an `IPAddr` but the concrete type is unknown.
+A potential fix for this situation is described below.
+
+This does not always work; for example, trying something similar for `ProcessExitedException` fails, likely because the call was made with even less type information.
+We might be able to find it with a more general predicate, for example
+
+```
+argmatch(typs) = length(typs) >= 2 && typs[1] === IOBuffer && ProcessExitedException <: typs[2]
+```
+
+but this returns a lot of candidates and it is difficult to guess which of these might be the culprit(s).
+Finally, `findcallers` only detects method calls that are "hard-wired" into type-inferred code; if the call we're seeking was made from toplevel, or if the function itself was a runtime variable, there is no hope that `findcallers` will detect it.
+
 ### Tips for fixing invalidations
 
 Invalidations occur in situations like our `call2f(c64)` example, where we changed our mind about what value `f` should return for `Float64`.
@@ -435,6 +487,11 @@ iscolor = get(io, :color, false)::Bool     # assert that the rhs is Bool-valued
 ```
 
 will throw an error if it isn't a `Bool`, and this allows the compiler to take advantage of the type being known in subsequent operations.
+
+We've already seen another relevant example above, where `getaddrinfo(::AbstractString)` was inferred to return an `IPAddr`, which is an abstract type.
+Since there are only two such types supported by the Sockets library,
+one potential fix is to annotate the returned value from `getaddrinfo` to be `Union{IPv4,IPv6}`.
+This will allow Julia to [union-split](https://julialang.org/blog/2018/08/union-splitting/) future operations made using the returned value.
 
 Before turning to a more complex example, it's worth noting that this trick applied to field accesses of abstract types is often one of the simplest ways to fix widespread inference problems.
 This is such an important case that it is described in the section below.
@@ -497,11 +554,17 @@ struct Phone <: AbstractDisplay
     maker::Symbol
 end
 
-getwidth(d::AbstractDisplay) = d.width
+function Base.show(@nospecialize(d::AbstractDisplay), x)
+    str = string(x)
+    w = d.width
+    if length(str) > w  # do we have to truncate to fit the display width?
+        ...
 ```
 
-Julia's inference will generally not realize that `getwidth` returns an `Int`; without exhaustive checking, it can't be sure that there aren't subtypes that have some other type for field `width`.
-Fortunately, you can help by specifying an interface for generic `AbstractDisplay` objects:
+In this `show` method, we've deliberately chosen to prevent specialization on the specific type of `AbstractDisplay` (to reduce the total number of times we have to compile this method).
+As a consequence, Julia's inference generally will not realize that `d.width` returns an `Int`--it might be able to discover that by exhaustively checking all subtypes, but if there are a lot of such subtypes then such checks would slow compilation considerably.
+
+Fortunately, you can help by defining an interface for generic `AbstractDisplay` objects:
 
 ```
 function Base.getproperty(d::AbstractDisplay, name::Symbol)
