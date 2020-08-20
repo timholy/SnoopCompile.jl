@@ -16,4 +16,8 @@ if VERSION >= v"1.6.0-DEV.154"
     include("snoopr.jl")
 end
 
+if VERSION >= v"1.6.0-DEV.548"  # TODO(NHD)
+    include("snoopl.jl")
+end
+
 end
