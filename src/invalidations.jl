@@ -155,7 +155,7 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
     method = methinvs.method
 
-    function showlist(io, treelist, indent=0)
+    function showlist(io::IO, treelist, indent::Int=0)
         nc = map(countchildren, treelist)
         n = length(treelist)
         nd = ndigits(n)
@@ -177,19 +177,6 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             end
             printstyled(io, root.mi, color = :light_yellow)
             print(io, " (", countchildren(root), " children)")
-            # if sig !== nothing
-            #     ms1, ms2 = method.sig <: sig, sig <: method.sig
-            #     diagnosis = if ms1 && !ms2
-            #         "more specific"
-            #     elseif ms2 && !ms1
-            #         "less specific"
-            #     elseif ms1 && ms1
-            #         "equal specificity"
-            #     else
-            #         "ambiguous"
-            #     end
-            #     printstyled(io, ' ', diagnosis, color=:red)
-            # end
             if iscompact
                 i < n && print(io, ", ")
             else
@@ -198,17 +185,18 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
             end
         end
     end
+
     print(io, methinvs.reason, " ")
     printstyled(io, methinvs.method, color = :light_magenta)
     println(io, " invalidated:")
     indent = iscompact ? "" : "   "
-    for fn in (:mt_backedges, :backedges)
-        val = getfield(methinvs, fn)
-        if !isempty(val)
-            print(io, indent, fn, ": ")
-            showlist(io, val, length(indent)+length(String(fn))+2)
-        end
-        iscompact && print(io, "; ")
+    if !isempty(methinvs.mt_backedges)
+        print(io, indent, "mt_backedges: ")
+        showlist(io, methinvs.mt_backedges, length(indent)+length("mt_backedges")+2)
+    end
+    if !isempty(methinvs.backedges)
+        print(io, indent, "backedges: ")
+        showlist(io, methinvs.backedges, length(indent)+length("backedges")+2)
     end
     if !isempty(methinvs.mt_cache)
         println(io, indent, length(methinvs.mt_cache), " mt_cache")
