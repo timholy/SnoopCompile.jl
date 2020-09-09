@@ -9,6 +9,7 @@ end
 
 using Core: MethodInstance, CodeInfo
 using Serialization, OrderedCollections
+import YAML,CSV  # For @snoopl
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
@@ -23,6 +24,11 @@ include("parcel_snoopc.jl")
 if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
 end
+
+# TODO: version bounds
+#if VERSION >= v"1.2.0-DEV.573"
+    include("parcel_snoopl.jl")
+#end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
