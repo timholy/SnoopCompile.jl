@@ -4,13 +4,13 @@ using Serialization
 
 """
 ```
-@snoopl "func_info.csv" "llvm_timings.csv" begin
+@snoopl "func_names.csv" "llvm_timings.yaml" begin
     # Commands to execute, in a new process
 end
 ```
 causes the julia compiler to emit the LLVM optimization times for
-of executing the commands to the file "compiledata.csv". This file
-can be used for the input to `snooplompile.read`.
+of executing the commands to the files "func_names.csv" and "llvm_timings.yaml". These files
+can be used for the input to <TODO>.
 """
 macro snoopl(flags, func_file, llvm_file, commands)
     return :(snoopl($(esc(flags)), $(esc(func_file)), $(esc(llvm_file)), $(QuoteNode(commands))))
