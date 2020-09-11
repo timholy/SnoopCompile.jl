@@ -24,7 +24,7 @@ if isdefined(Core.Compiler, :Params)
     end
     @noinline function stop_timing()
         ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
-        #Core.Compiler.__collect_inference_callees__[] = false
+        Core.Compiler.__collect_inference_callees__[] = false
     end
 else
     function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
@@ -47,13 +47,13 @@ else
     end
     @noinline function stop_timing()
         ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
-        #Core.Compiler.__collect_inference_callees__[] = false
+        Core.Compiler.__collect_inference_callees__[] = false
     end
 end
 
 @noinline function start_timing()
     ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
-    #Core.Compiler.__collect_inference_callees__[] = true
+    Core.Compiler.__collect_inference_callees__[] = true
 end
 
 function sort_timed_inf(tmin)
