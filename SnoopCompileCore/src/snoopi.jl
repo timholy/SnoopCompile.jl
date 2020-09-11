@@ -1,49 +1,69 @@
 export @snoopi
 
 const __inf_timing__ = Tuple{Float64,MethodInstance}[]
+const __inf_callees__ = Dict{MethodInstance, Vector{MethodInstance}}()
 
 if isdefined(Core.Compiler, :Params)
     function typeinf_ext_timed(linfo::Core.MethodInstance, params::Core.Compiler.Params)
+        empty!(Core.Compiler.__inference_callees__)
         tstart = time()
         ret = Core.Compiler.typeinf_ext(linfo, params)
         tstop = time()
         push!(__inf_timing__, (tstop-tstart, linfo))
+        __inf_callees__[linfo] = Core.Compiler.__inference_callees__
         return ret
     end
     function typeinf_ext_timed(linfo::Core.MethodInstance, world::UInt)
+        empty!(Core.Compiler.__inference_callees__)
         tstart = time()
         ret = Core.Compiler.typeinf_ext(linfo, world)
         tstop = time()
         push!(__inf_timing__, (tstop-tstart, linfo))
+        __inf_callees__[linfo] = Core.Compiler.__inference_callees__
         return ret
     end
-    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+    @noinline function stop_timing()
+        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+        #Core.Compiler.__collect_inference_callees__[] = false
+    end
 else
     function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
+        empty!(Core.Compiler.__inference_callees__)
         tstart = time()
         ret = Core.Compiler.typeinf_ext_toplevel(interp, linfo)
         tstop = time()
         push!(__inf_timing__, (tstop-tstart, linfo))
+        __inf_callees__[linfo] = Core.Compiler.__inference_callees__
         return ret
     end
     function typeinf_ext_timed(linfo::Core.MethodInstance, world::UInt)
+        empty!(Core.Compiler.__inference_callees__)
         tstart = time()
         ret = Core.Compiler.typeinf_ext_toplevel(linfo, world)
         tstop = time()
         push!(__inf_timing__, (tstop-tstart, linfo))
+        __inf_callees__[linfo] = Core.Compiler.__inference_callees__
         return ret
     end
-    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
+    @noinline function stop_timing()
+        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
+        #Core.Compiler.__collect_inference_callees__[] = false
+    end
 end
 
-@noinline start_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
+@noinline function start_timing()
+    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
+    #Core.Compiler.__collect_inference_callees__[] = true
+end
 
 function sort_timed_inf(tmin)
     data = __inf_timing__
     if tmin > 0.0
         data = filter(tl->tl[1] >= tmin, data)
     end
-    return sort(data; by=tl->tl[1])
+    data = sort(data; by=tl->tl[1])
+    out = Tuple{Float64,Vector{MethodInstance}}[(tl[1], __inf_callees__[tl[2]]) for tl in data]
+    return out
 end
 
 """
@@ -76,6 +96,7 @@ end
 function _snoopi(cmd::Expr, tmin = 0.0)
     return quote
         empty!(__inf_timing__)
+        empty!(__inf_callees__)
         start_timing()
         try
             $(esc(cmd))
