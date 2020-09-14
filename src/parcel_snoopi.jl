@@ -386,20 +386,28 @@ const default_exclusions = Set([
 ])
 
 
-function collect_per_method_inference_timings(snoopi_results::Vector)
-    total_time, root, mi_dep_graph = snoopi_results[1]
-    tt_deps = [a.specTypes => b.specTypes for (a,b) in mi_dep_graph]
+function collect_per_method_inference_timings(snoopi_results::Vector, init_commands)
+    outd = Dict{Any, Float64}()
+    for (total_time, root, mi_dep_graph) = snoopi_results
+        tt_deps = [a.specTypes => b.specTypes for (a,b) in mi_dep_graph]
 
-    per_method_instance_timings(root.specTypes, tt_deps)
+        timings = per_method_instance_timings(init_commands, root.specTypes, tt_deps)
+        @info "$root:\ttotal: $total_time\t: $(sum(values(timings)))"
+        display(timings)
+        merge!(outd, timings)
+    end
+    @info "Returning merged results:"
+    outd
 end
 
-struct Node{T}
-    key::T
-    children::Vector{Node{T}}
-    Node(key::T) where T = new{T}(key, Node{T}[])
-    Node{T}(key::T) where T = new{T}(key, Node{T}[])
-end
-function per_method_instance_timings(root, deps)
+#struct Node{T}
+#    key::T
+#    children::Vector{Node{T}}
+#    Node(key::T) where T = new{T}(key, Node{T}[])
+#    Node{T}(key::T) where T = new{T}(key, Node{T}[])
+#end
+Node(root) = (; key=root, children=Any[])
+function per_method_instance_timings(init_commands, root, deps)
     tree = Node(root)
     nodes = Dict(root => tree)
     for (k,v) in deps
@@ -415,12 +423,12 @@ function per_method_instance_timings(root, deps)
     # compiled fresh.
     tree_f, timings_f = tempname(), tempname()
     serialize(tree_f, tree)
-    _measure_inference_timings(tree_f, timings_f)
+    _measure_inference_timings(init_commands, tree_f, timings_f)
     return deserialize(timings_f)
 end
 
 
-function _measure_inference_timings(infilename, outfilename, flags = String[])
+function _measure_inference_timings(init_commands, infilename, outfilename, flags = String[])
     println("Launching new julia process to run commands...")
     # addprocs will run the unmodified version of julia, so we
     # launch it as a command.
@@ -432,25 +440,35 @@ function _measure_inference_timings(infilename, outfilename, flags = String[])
             """
     process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
     serialize(process, quote
-        let tree = deserialize($infilename)
-            try
-                out_times = Dict{typeof(root), Float64}()
-                function time_all_nodes(root, out_times::Dict)
-                    for n in root.children
-                        time_all_nodes(n, out_times)
-                    end
-                    time_type_inference(root.key, out_times)
-                end
-                function time_type_inference(tt::Type, out_times::Dict)
-                    _, time = @timed code_typed(tt)
-                    out_times[tt] = time
-                end
+        let
+            # First, run user-defined commands to load the namespace
+            Core.eval(Main, $(QuoteNode(init_commands)))
 
-                time_all_nodes(tree, out_times)
-                serialize($outfilename, out_times)
-            finally
-                close(io)
+            # Load the serialized results
+            tree = deserialize($infilename)
+
+            # warm up type inference machinery:
+            let
+                foo(x,y) = (x,y)
+                _ = code_typed(Tuple{foo, Int,Int})
             end
+
+
+            # Then, run the timings
+            function time_all_nodes(root, out_times::Dict)
+                for n in root.children
+                    time_all_nodes(n, out_times)
+                end
+                time_type_inference(root.key, out_times)
+            end
+            function time_type_inference(tt::Type, out_times::Dict)
+                _, time = @timed code_typed(tt)
+                out_times[tt] = time
+            end
+
+            out_times = Dict{Any, Float64}()
+            time_all_nodes(tree, out_times)
+            serialize($outfilename, out_times)
         end
         exit()
     end)
