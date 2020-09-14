@@ -1,3 +1,7 @@
+#using LightGraph
+#using AbstractTrees
+using Serialization
+
 function topmodule(mods)
     function ischild(c, mod)
         ok = false
@@ -380,3 +384,77 @@ end
 const default_exclusions = Set([
     r"\bMain\b",
 ])
+
+
+function collect_per_method_inference_timings(snoopi_results::Vector)
+    total_time, root, mi_dep_graph = snoopi_results[1]
+    tt_deps = [a.specTypes => b.specTypes for (a,b) in mi_dep_graph]
+
+    per_method_instance_timings(root.specTypes, tt_deps)
+end
+
+struct Node{T}
+    key::T
+    children::Vector{Node{T}}
+    Node(key::T) where T = new{T}(key, Node{T}[])
+    Node{T}(key::T) where T = new{T}(key, Node{T}[])
+end
+function per_method_instance_timings(root, deps)
+    tree = Node(root)
+    nodes = Dict(root => tree)
+    for (k,v) in deps
+        knode = get!(nodes, k, Node(k))
+        vnode = get!(nodes, v, Node(v))
+        push!(knode.children, vnode)
+    end
+    tree
+
+    # Now start timing how long it takes to compile each of them starting from the bottom
+    # working the way up.
+    # Do this timing measurement in a different process so that the functions will be
+    # compiled fresh.
+    tree_f, timings_f = tempname(), tempname()
+    serialize(tree_f, tree)
+    _measure_inference_timings(tree_f, timings_f)
+    return deserialize(timings_f)
+end
+
+
+function _measure_inference_timings(infilename, outfilename, flags = String[])
+    println("Launching new julia process to run commands...")
+    # addprocs will run the unmodified version of julia, so we
+    # launch it as a command.
+    code_object = """
+            using Serialization
+            while !eof(stdin)
+                Core.eval(Main, deserialize(stdin))
+            end
+            """
+    process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
+    serialize(process, quote
+        let tree = deserialize($infilename)
+            try
+                out_times = Dict{typeof(root), Float64}()
+                function time_all_nodes(root, out_times::Dict)
+                    for n in root.children
+                        time_all_nodes(n, out_times)
+                    end
+                    time_type_inference(root.key, out_times)
+                end
+                function time_type_inference(tt::Type, out_times::Dict)
+                    _, time = @timed code_typed(tt)
+                    out_times[tt] = time
+                end
+
+                time_all_nodes(tree, out_times)
+                serialize($outfilename, out_times)
+            finally
+                close(io)
+            end
+        end
+        exit()
+    end)
+    wait(process)
+    println("done.")
+    nothing
+end
