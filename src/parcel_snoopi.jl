@@ -388,16 +388,22 @@ const default_exclusions = Set([
 
 function collect_per_method_inference_timings(snoopi_results::Vector, init_commands)
     outd = Dict{Any, Float64}()
-    for (total_time, root, mi_dep_graph) = snoopi_results
-        tt_deps = [a.specTypes => b.specTypes for (a,b) in mi_dep_graph]
+    for snoopi_row in snoopi_results
+        timings = collect_per_method_inference_timings(snoopi_row, init_commands)
 
-        timings = per_method_instance_timings(init_commands, root.specTypes, tt_deps)
-        @info "$root:\ttotal: $total_time\t: $(sum(values(timings)))"
+        (total_time, root, mi_dep_graph) = snoopi_row
+        @info "$root:\ttotal: $total_time\tsum:$(sum(values(timings)))"
         display(timings)
         merge!(outd, timings)
     end
     @info "Returning merged results:"
     outd
+end
+function collect_per_method_inference_timings(snoopi_row, init_commands)
+    (total_time, root, mi_dep_graph) = snoopi_row
+    tt_deps = [a.specTypes => b.specTypes for (a,b) in mi_dep_graph]
+
+    return per_method_instance_timings(init_commands, root.specTypes, tt_deps)
 end
 
 #struct Node{T}
@@ -409,7 +415,7 @@ end
 Node(root) = (; key=root, children=Any[])
 function per_method_instance_timings(init_commands, root, deps)
     tree = Node(root)
-    nodes = Dict(root => tree)
+    nodes = Dict{Any,Any}(root => tree)
     for (k,v) in deps
         knode = get!(nodes, k, Node(k))
         vnode = get!(nodes, v, Node(v))
