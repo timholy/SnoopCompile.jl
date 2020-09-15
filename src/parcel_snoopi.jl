@@ -392,7 +392,7 @@ function collect_per_method_inference_timings(snoopi_results::Vector, init_comma
         timings = collect_per_method_inference_timings(snoopi_row, init_commands)
 
         (total_time, root, mi_dep_graph) = snoopi_row
-        @info "$root:\ttotal: $total_time\tsum:$(sum(values(timings)))"
+        @info "Total snoopi: $total_time\tSum all elements:$(sum(values(timings)))"
         display(timings)
         merge!(outd, timings)
     end
@@ -412,23 +412,55 @@ end
 #    Node(key::T) where T = new{T}(key, Node{T}[])
 #    Node{T}(key::T) where T = new{T}(key, Node{T}[])
 #end
-Node(root) = (; key=root, children=Any[])
-function per_method_instance_timings(init_commands, root, deps)
-    tree = Node(root)
-    nodes = Dict{Any,Any}(root => tree)
-    for (k,v) in deps
-        knode = get!(nodes, k, Node(k))
-        vnode = get!(nodes, v, Node(v))
-        push!(knode.children, vnode)
+Node(root) = (; key=root, parents=Any[])
+function per_method_instance_timings(init_commands, root, edges)
+    #NT = fieldtype(eltype(edges)::Type{<:Union{Pair,Tuple}}, 1)
+    NT = Any
+
+    # 😮 It appears that currently edges can have a lot of duplicates!
+    # Both exact duplicate edges, as well as multiple paths to the same node!
+    # We only want to time each node once, so we have to do some cleanup.
+
+    # First, let's deduplicate identical edges.
+    edges = unique(edges)
+    uniq_edges = edges
+
+    # Next, since we only care about the bottom-up paths through the tree, we'll build a
+    # tree with only parent edges, and collect all the leaves. We'll later traverse the
+    # tree bottom up starting from the leaves, and use a seen-Set to skip duplicates and
+    # time each node exactly once.
+
+    meth_instances = unique(Iterators.flatten(edges))
+
+    # Start with all nodes as leaves
+    leaves = Set(meth_instances)
+    delete!(leaves, root)
+
+    #nodes = Dict{NT,Any}(m => Node(m) for m in meth_instances)
+
+    # Build the tree by adding elements from the edges, and when we see a node as a caller,
+    # we remove it from leaves.
+    # Dict points from elements to their parents.
+    reverse_graph_dict = Dict{NT,Vector{NT}}(root=>NT[])  # The root has no parents.
+    for (k,v) in uniq_edges
+        if k in leaves
+            delete!(leaves, k)
+        end
+        #knode = nodes[k]
+        #vnode = nodes[v]
+        #push!(vnode.parents, knode)
+        push!(get!(reverse_graph_dict, v, NT[]), k)
     end
-    tree
+
+    @info "Root: $root"
+    @info "Collecting timings for $(length(meth_instances)) MethodInstances, with $(length(uniq_edges)) edges."
 
     # Now start timing how long it takes to compile each of them starting from the bottom
     # working the way up.
     # Do this timing measurement in a different process so that the functions will be
     # compiled fresh.
     tree_f, timings_f = tempname(), tempname()
-    serialize(tree_f, tree)
+    serialize(tree_f, (leaves, reverse_graph_dict))
     _measure_inference_timings(init_commands, tree_f, timings_f)
     return deserialize(timings_f)
 end
@@ -451,7 +483,7 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
             Core.eval(Main, $(QuoteNode(init_commands)))
 
             # Load the serialized results
-            tree = deserialize($infilename)
+            (leaves, reverse_graph_dict) = deserialize($infilename)
 
             # warm up type inference machinery:
             let
@@ -461,19 +493,29 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
 
 
             # Then, run the timings
-            function time_all_nodes(root, out_times::Dict)
-                for n in root.children
-                    time_all_nodes(n, out_times)
+            function time_all_nodes(node::Type, graph::Dict, seen::Set, out_times::Dict)
+                if node in seen
+                    return
                 end
-                time_type_inference(root.key, out_times)
+                push!(seen, node)
+                time_type_inference(node, out_times)
+                # TODO(PR): Switch to breadth-first search instead of function calls to avoid
+                # stackoverflow (also b/c this is doing depth-first seaerch!)
+                for p in graph[node]
+                    time_all_nodes(p, graph, seen, out_times)
+                end
             end
             function time_type_inference(tt::Type, out_times::Dict)
-                _, time = @timed code_typed(tt)
+                _, time = @timed precompile(tt)
                 out_times[tt] = time
             end
 
             out_times = Dict{Any, Float64}()
-            time_all_nodes(tree, out_times)
+            seen = Set{Type}()
+
+            for leaf in leaves
+                time_all_nodes(leaf, reverse_graph_dict, seen, out_times)
+            end
             serialize($outfilename, out_times)
         end
         exit()
