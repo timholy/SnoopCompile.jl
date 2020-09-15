@@ -493,29 +493,31 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
 
 
             # Then, run the timings
-            function time_all_nodes(node::Type, graph::Dict, seen::Set, out_times::Dict)
-                if node in seen
-                    return
-                end
-                push!(seen, node)
-                time_type_inference(node, out_times)
-                # TODO(PR): Switch to breadth-first search instead of function calls to avoid
-                # stackoverflow (also b/c this is doing depth-first seaerch!)
-                for p in graph[node]
-                    time_all_nodes(p, graph, seen, out_times)
+            function time_all_nodes(leaves, graph::Dict, seen::Set, out_times::Dict)
+                # Breadth-first search over the nodes graph, only touching each element once
+                # Start by enqueing all leaves.
+                queue = copy(leaves)
+                while !isempty(queue)
+                    node = pop!(queue)
+                    if node in seen
+                        continue
+                    end
+                    push!(seen, node)
+                    time_type_inference(node, out_times)
+                    for p in graph[node]
+                        push!(queue, p)
+                    end
                 end
             end
             function time_type_inference(tt::Type, out_times::Dict)
-                _, time = @timed precompile(tt)
+                _, time = @timed code_typed(tt)
                 out_times[tt] = time
             end
 
             out_times = Dict{Any, Float64}()
             seen = Set{Type}()
 
-            for leaf in leaves
-                time_all_nodes(leaf, reverse_graph_dict, seen, out_times)
-            end
+            time_all_nodes(leaves, reverse_graph_dict, seen, out_times)
             serialize($outfilename, out_times)
         end
         exit()
