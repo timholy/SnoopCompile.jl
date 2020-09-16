@@ -472,6 +472,7 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
     # launch it as a command.
     code_object = """
             using Serialization
+            import Random
             while !eof(stdin)
                 Core.eval(Main, deserialize(stdin))
             end
@@ -496,7 +497,7 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
             function time_all_nodes(leaves, graph::Dict, seen::Set, out_times::Dict)
                 # Breadth-first search over the nodes graph, only touching each element once
                 # Start by enqueing all leaves.
-                queue = copy(leaves)
+                queue = Random.shuffle(copy(leaves))
                 while !isempty(queue)
                     node = pop!(queue)
                     if node in seen
