@@ -510,7 +510,8 @@ function _measure_inference_timings(init_commands, infilename, outfilename, flag
                 end
             end
             function time_type_inference(tt::Type, out_times::Dict)
-                _, time = @timed code_typed(tt)
+                # TODO: Check how new code_typed_by_type() is, will this work in 1.5?
+                _, time = @timed Base.code_typed_by_type(tt)
                 out_times[tt] = time
             end
 
