@@ -36,7 +36,9 @@ if isdefined(Core.Compiler, :Params)
     end
     @noinline function stop_timing()
         ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
-        Core.Compiler.__collect_inference_callees__[] = false
+        #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), Core.Compiler.typeinf)
+        Core.Compiler._set_typeinf_func(Core.Compiler._typeinf)
+        #Core.Compiler.__collect_inference_callees__[] = false
     end
 else
     function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
@@ -69,13 +71,35 @@ else
     end
     @noinline function stop_timing()
         ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
-        Core.Compiler.__collect_inference_callees__[] = false
+        #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), Core.Compiler.typeinf)
+        Core.Compiler._set_typeinf_func(Core.Compiler._typeinf)
+        #Core.Compiler.__collect_inference_callees__[] = false
     end
 end
 
 @noinline function start_timing()
-    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
-    Core.Compiler.__collect_inference_callees__[] = true
+    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed2)
+    #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), typeinf_timed)
+    Core.Compiler._set_typeinf_func(typeinf_timed)
+    #Core.Compiler.__collect_inference_callees__[] = true
+end
+
+import TimerOutputs
+const _to_ = TimerOutputs.TimerOutput()
+function typeinf_timed(interp::Core.Compiler.AbstractInterpreter, frame::Core.Compiler.InferenceState)
+    TimerOutputs.@timeit _to_ string(frame.linfo) begin
+        Core.Compiler._typeinf(interp, frame)
+    end
+end
+function typeinf_ext_timed2(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
+    TimerOutputs.@timeit _to_ string(linfo) begin
+        return Core.Compiler.typeinf_ext_toplevel(interp, linfo)
+    end
+end
+function typeinf_ext_timed2(linfo::Core.MethodInstance, world::UInt)
+    TimerOutputs.@timeit _to_ string(linfo) begin
+        Core.Compiler.typeinf_ext_toplevel(linfo, world)
+    end
 end
 
 function sort_timed_inf(tmin)
@@ -127,16 +151,18 @@ end
 
 function _snoopi(cmd::Expr, tmin = 0.0)
     return quote
-        empty!(__inf_timing__)
+        #empty!(__inf_timing__)
         #empty!(__inf_callees__)
-        empty!(__inf_callee_edges4__)
+        #empty!(__inf_callee_edges4__)
+        TimerOutputs.reset_timer!(_to_)
         start_timing()
         try
             $(esc(cmd))
         finally
             stop_timing()
         end
-        $sort_timed_inf($tmin)
+        #$sort_timed_inf($tmin)
+        return deepcopy(_to_)
     end
 end
 
