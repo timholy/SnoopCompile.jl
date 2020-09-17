@@ -84,20 +84,79 @@ end
     #Core.Compiler.__collect_inference_callees__[] = true
 end
 
+# TODO(PR): This should not be needed...
+# Figure out why this was failing:
+#=
+Internal error: encountered unexpected error in runtime:
+ErrorException("type TypeVar has no field var")
+jl_errorf at /Users/nathandaly/src/julia/src/rtutils.c:77
+jl_field_index at /Users/nathandaly/src/julia/src/datatype.c:1005
+jl_f_getfield at /Users/nathandaly/src/julia/src/builtins.c:785
+getproperty at ./Base.jl:33
+show at ./show.jl:789
+unknown function (ip: 0x14b9f4048)
+show_datatype at ./show.jl:864
+show at ./show.jl:763
+unknown function (ip: 0x14b9f4048)
+show at ./show.jl:789
+print at ./strings/io.jl:35
+print_to_string at ./strings/io.jl:135
+string at ./strings/io.jl:174
+macro expansion at /Users/nathandaly/.julia/packages/TimerOutputs/dVnaw/src/TimerOutput.jl:185 [inlined]
+typeinf_timed at /Users/nathandaly/.julia/dev/SnoopCompile/SnoopCompileCore/src/snoopi.jl:90
+unknown function (ip: 0x10f21add8)
+jl_apply at /Users/nathandaly/src/julia/src/./julia.h:1752 [inlined]
+do_apply at /Users/nathandaly/src/julia/src/builtins.c:655
+jl_f__apply at /Users/nathandaly/src/julia/src/builtins.c:669 [inlined]
+jl_f__apply_latest at /Users/nathandaly/src/julia/src/builtins.c:705
+typeinf at ./compiler/typeinfer.jl:18 [inlined]
+typeinf_edge at ./compiler/typeinfer.jl:597
+=#
+function str_linfo(linfo::Core.MethodInstance)
+    try
+        string(linfo)
+    catch
+        try
+            string(linfo.specTypes)
+        catch
+            string(fieldtype(linfo.specTypes, 1))
+        end
+    end
+end
+function str_linfo(linfo)
+    @info typeof(linfo)
+    try
+        string(linfo)
+    catch
+        try
+            string(linfo.specTypes)
+        catch
+            string(fieldtype(linfo.specTypes, 1))
+        end
+    end
+end
+
+
 import TimerOutputs
 const _to_ = TimerOutputs.TimerOutput()
 function typeinf_timed(interp::Core.Compiler.AbstractInterpreter, frame::Core.Compiler.InferenceState)
-    TimerOutputs.@timeit _to_ string(frame.linfo) begin
-        Core.Compiler._typeinf(interp, frame)
+    try
+        TimerOutputs.@timeit _to_ str_linfo(frame.linfo) begin
+            Core.Compiler._typeinf(interp, frame)
+        end
+    catch
+        @info typeof(frame.linfo)
+        @info typeof(frame.linfo.specTypes)
+        rethrow()
     end
 end
 function typeinf_ext_timed2(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
-    TimerOutputs.@timeit _to_ string(linfo) begin
+    TimerOutputs.@timeit _to_ str_linfo(linfo) begin
         return Core.Compiler.typeinf_ext_toplevel(interp, linfo)
     end
 end
 function typeinf_ext_timed2(linfo::Core.MethodInstance, world::UInt)
-    TimerOutputs.@timeit _to_ string(linfo) begin
+    TimerOutputs.@timeit _to_ str_linfo(linfo) begin
         Core.Compiler.typeinf_ext_toplevel(linfo, world)
     end
 end
