@@ -35,7 +35,7 @@ if isdefined(Core.Compiler, :Params)
         return ret
     end
     @noinline function stop_timing()
-        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
+        #ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
         #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), Core.Compiler.typeinf)
         Core.Compiler._set_typeinf_func(Core.Compiler._typeinf)
         #Core.Compiler.__collect_inference_callees__[] = false
@@ -70,7 +70,7 @@ else
         return ret
     end
     @noinline function stop_timing()
-        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
+        #ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
         #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), Core.Compiler.typeinf)
         Core.Compiler._set_typeinf_func(Core.Compiler._typeinf)
         #Core.Compiler.__collect_inference_callees__[] = false
@@ -78,7 +78,7 @@ else
 end
 
 @noinline function start_timing()
-    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed2)
+    #ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed2)
     #ccall(:jl_set_typeinf_inner_func, Cvoid, (Any,), typeinf_timed)
     Core.Compiler._set_typeinf_func(typeinf_timed)
     #Core.Compiler.__collect_inference_callees__[] = true
@@ -123,14 +123,8 @@ end
 import TimerOutputs
 const _to_ = TimerOutputs.TimerOutput()
 function typeinf_timed(interp::Core.Compiler.AbstractInterpreter, frame::Core.Compiler.InferenceState)
-    try
-        TimerOutputs.@timeit _to_ str_linfo(frame.linfo) begin
-            Core.Compiler._typeinf(interp, frame)
-        end
-    catch
-        @info typeof(frame.linfo)
-        @info typeof(frame.linfo.specTypes)
-        rethrow()
+    TimerOutputs.@timeit _to_ str_linfo(frame.linfo) begin
+        Core.Compiler._typeinf(interp, frame)
     end
 end
 function typeinf_ext_timed2(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
@@ -221,5 +215,13 @@ function __init__()
     end
     precompile(start_timing, ())
     precompile(stop_timing, ())
+
+    # Precompile TimerOutputs approach
+    @assert precompile(typeinf_timed, (Core.Compiler.NativeInterpreter, Core.Compiler.InferenceState))
+    @assert precompile(str_linfo, (Core.MethodInstance,))
+
+    @assert precompile(getindex, (Type{TimerOutputs.TimerOutput},))
+    @assert precompile(TimerOutputs.TimerOutput, (String,))
+
     nothing
 end
