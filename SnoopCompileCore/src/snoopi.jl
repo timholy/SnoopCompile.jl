@@ -114,28 +114,11 @@ typeinf_edge at ./compiler/typeinfer.jl:597
 =#
 function str_linfo(linfo::Core.MethodInstance)
     try
-        string(linfo)
+        string(linfo.specTypes)
     catch
-        try
-            string(linfo.specTypes)
-        catch
-            string(fieldtype(linfo.specTypes, 1))
-        end
+        string(fieldtype(linfo.specTypes, 1))
     end
 end
-function str_linfo(linfo)
-    @info typeof(linfo)
-    try
-        string(linfo)
-    catch
-        try
-            string(linfo.specTypes)
-        catch
-            string(fieldtype(linfo.specTypes, 1))
-        end
-    end
-end
-
 
 import TimerOutputs
 const _to_ = TimerOutputs.TimerOutput()
@@ -151,14 +134,14 @@ function typeinf_timed(interp::Core.Compiler.AbstractInterpreter, frame::Core.Co
     end
 end
 function typeinf_ext_timed2(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
-    TimerOutputs.@timeit _to_ str_linfo(linfo) begin
+    #TimerOutputs.@timeit _to_ str_linfo(linfo) begin
         return Core.Compiler.typeinf_ext_toplevel(interp, linfo)
-    end
+    #end
 end
 function typeinf_ext_timed2(linfo::Core.MethodInstance, world::UInt)
-    TimerOutputs.@timeit _to_ str_linfo(linfo) begin
+    #TimerOutputs.@timeit _to_ str_linfo(linfo) begin
         Core.Compiler.typeinf_ext_toplevel(linfo, world)
-    end
+    #end
 end
 
 function sort_timed_inf(tmin)
@@ -221,7 +204,7 @@ function _snoopi(cmd::Expr, tmin = 0.0)
             stop_timing()
         end
         #$sort_timed_inf($tmin)
-        return deepcopy(_to_)
+        deepcopy(_to_)
     end
 end
 
