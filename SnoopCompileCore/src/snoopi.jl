@@ -58,20 +58,27 @@ function sort_timed_inf(tmin)
     return sort(data; by=tl->tl[1])
 end
 
-function exclusive_times(timings::Vector, tmin = 0)
+function exclusive_times(timings::Vector, tmin_secs = 0.0)
+    tmin_ns = tmin_secs * 1e9
     out = Any[]
     frontier = copy(timings)
+    i = 1
     while !isempty(frontier)
         t = popfirst!(frontier)
-        children_time = sum([0, (c.time for c in t.children)...])
-        push!(out, Float64((t.time - children_time) / 1e9) => t.name)
+        if i != 1 && t.time < tmin_ns
+            continue
+        end
+        if i !== 1  # Skip "root" node
+            children_time = sum([0, (c.time for c in t.children)...])
+            exclusive_time = (t.time - children_time) / 1e9
+            if exclusive_time >= tmin_secs
+                push!(out, exclusive_time => t.name)
+            end
+        end
+        i += 1
         for c in t.children
             push!(frontier, c)
         end
-    end
-    popfirst!(out) # Skip the root node
-    if tmin > 0.0
-        out = filter(tl->tl[1] >= tmin, out)
     end
     return sort(out; by=tl->tl[1])
 end
