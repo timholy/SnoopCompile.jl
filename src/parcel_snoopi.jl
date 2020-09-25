@@ -380,3 +380,77 @@ end
 const default_exclusions = Set([
     r"\bMain\b",
 ])
+
+
+import FlameGraphs
+import AbstractTrees
+
+using Base.StackTraces: StackFrame
+using LeftChildRightSiblingTrees: Node, addchild
+using Core.Compiler.Timings: Timing
+
+# TODO(PR): It would maybe be better to build up this inclusive timings information
+#   directly in julia so that we don't have to build a second graph structure? But I wanted
+#   to keep the amount of work done inside the snooping itself to a minimum? Not sure.
+struct InclusiveTiming
+    name::Any
+    inclusive_time::UInt64
+    start_time::UInt64
+    children::Vector{InclusiveTiming}
+end
+AbstractTrees.printnode(io::IO, t::InclusiveTiming) = print(io, (t.inclusive_time / 1e9 => t.name))
+AbstractTrees.children(t::InclusiveTiming) = t.children
+
+inclusive_time(t::InclusiveTiming) = t.inclusive_time
+
+function build_inclusive_times(t::Timing)
+    child_times = InclusiveTiming[
+        build_inclusive_times(child)
+        for child in t.children
+    ]
+    incl_time = t.time + sum(inclusive_time.(child_times); init=UInt64(0))
+    return InclusiveTiming(t.name, incl_time, t.start_time, child_times)
+end
+
+#function max_end_time(t::InclusiveTiming)
+#    return maximum(child.start_time + child.inclusive_time for child in t.children)
+#end
+
+# Make a flat frame for this Timing
+function _flamegraph_frame(to::InclusiveTiming, start_ns)
+    # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
+    tt = Symbol(to.name)
+    sf = StackFrame(tt, Symbol("none"), 0, nothing, false, false, UInt64(0x0))
+    status = 0x0  # "default" status -- See FlameGraphs.jl
+    start = to.start_time - start_ns
+    # TODO: is this supposed to be inclusive or exclusive?
+#    if toplevel
+#        # The root frame covers the total time being measured, so start when the first node
+#        # was created, and stop when the last node was finished.
+#        range = Int(start) : Int(start + (max_end_time(to) - start_ns))
+#    else
+        #range = Int(start) : Int(start + TimerOutputs.tottime(to))
+        range = Int(start) : Int(start + to.inclusive_time)
+    #end
+    return FlameGraphs.NodeData(sf, status, range)
+end
+
+function to_flamegraph(t::Timing)
+    it = build_inclusive_times(t)
+    to_flamegraph(it)
+end
+
+function to_flamegraph(to::InclusiveTiming)
+    # Skip the very top-level node, which contains no useful data
+    node_data = _flamegraph_frame(to, to.start_time)
+    root = Node(node_data)
+    return _to_flamegraph(to, root, to.start_time)
+end
+function _to_flamegraph(to::InclusiveTiming, root, start_ns)
+    for child in to.children
+        node_data = _flamegraph_frame(child, start_ns)
+        node = addchild(root, node_data)
+        _to_flamegraph(child, node, start_ns)
+    end
+    return root
+end
