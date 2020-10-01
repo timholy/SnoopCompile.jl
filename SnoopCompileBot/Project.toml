@@ -1,0 +1,13 @@
+name = "SnoopCompileBot"
+uuid = "1d5e0e55-7d74-4714-b8d8-efa80e938cf7"
+author = ["Amin Yahyaabadi <aminyahyaabadi74@gmail.com>"]
+version = "2.0.0"
+
+[deps]
+CompileBot = "877fb49a-56b0-480a-9049-319c0c353852"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[compat]
+CompileBot = "< 2"
+Reexport = "0.2"
+julia = "1"
