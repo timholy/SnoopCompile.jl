@@ -49,7 +49,8 @@ end
 end
 
 function sort_timed_inf(tmin)
-    return copy(Core.Compiler.Timings._timings)
+    Core.Compiler.Timings.close_current_timer()
+    return Core.Compiler.Timings._timings[1]
 
     data = __inf_timing__
     if tmin > 0.0
@@ -58,23 +59,19 @@ function sort_timed_inf(tmin)
     return sort(data; by=tl->tl[1])
 end
 
-function flatten_times(timings::Vector, tmin_secs = 0.0)
+function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
     tmin_ns = tmin_secs * 1e9
     out = Any[]
-    frontier = copy(timings)
-    i = 1
+    frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
-        if i != 1 && t.time < tmin_ns
+        if t.time < tmin_ns
             continue
         end
-        if i !== 1  # Skip "root" node
-            exclusive_time = (t.time / 1e9)
-            if exclusive_time >= tmin_secs
-                push!(out, exclusive_time => t.name)
-            end
+        exclusive_time = (t.time / 1e9)
+        if exclusive_time >= tmin_secs
+            push!(out, exclusive_time => t.name)
         end
-        i += 1
         for c in t.children
             push!(frontier, c)
         end
