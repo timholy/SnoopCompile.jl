@@ -19,8 +19,7 @@ if isdefined(Core.Compiler, :Params)
         return ret
     end
     @noinline stop_timing() = begin
-        #ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
-        Core.Compiler.__toggle_measure_typeinf(false)
+        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
     end
 else
     function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
@@ -38,45 +37,20 @@ else
         return ret
     end
     @noinline stop_timing() = begin
-        #ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
-        Core.Compiler.__toggle_measure_typeinf(false)
+        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
     end
 end
 
 @noinline start_timing() = begin
-    #ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
-    Core.Compiler.__toggle_measure_typeinf(true)
+    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
 end
 
 function sort_timed_inf(tmin)
-    Core.Compiler.Timings.close_current_timer()
-    return Core.Compiler.Timings._timings[1]
-
     data = __inf_timing__
     if tmin > 0.0
         data = filter(tl->tl[1] >= tmin, data)
     end
     return sort(data; by=tl->tl[1])
-end
-
-function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
-    tmin_ns = tmin_secs * 1e9
-    out = Any[]
-    frontier = [timing]
-    while !isempty(frontier)
-        t = popfirst!(frontier)
-        if t.time < tmin_ns
-            continue
-        end
-        exclusive_time = (t.time / 1e9)
-        if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.name)
-        end
-        for c in t.children
-            push!(frontier, c)
-        end
-    end
-    return sort(out; by=tl->tl[1])
 end
 
 """
@@ -119,6 +93,57 @@ function _snoopi(cmd::Expr, tmin = 0.0)
         $sort_timed_inf($tmin)
     end
 end
+
+function start_deep_timing()
+    Core.Compiler.__toggle_measure_typeinf(true)
+end
+function stop_deep_timing()
+    Core.Compiler.__toggle_measure_typeinf(false)
+    Core.Compiler.Timings.close_current_timer()
+end
+
+function finish_snoopi_deep()
+    return Core.Compiler.Timings._timings[1]
+end
+
+function _snoopi_deep(cmd::Expr)
+    return quote
+        Core.Compiler.Timings.reset_timings()
+        start_deep_timing()
+        try
+            $(esc(cmd))
+        finally
+            stop_deep_timing()
+        end
+        finish_snoopi_deep()
+    end
+end
+
+macro snoopi_deep(cmd)
+    return _snoopi_deep(cmd)
+end
+
+function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
+    tmin_ns = tmin_secs * 1e9
+    out = Any[]
+    frontier = [timing]
+    while !isempty(frontier)
+        t = popfirst!(frontier)
+        if t.time < tmin_ns
+            continue
+        end
+        exclusive_time = (t.time / 1e9)
+        if exclusive_time >= tmin_secs
+            push!(out, exclusive_time => t.name)
+        end
+        for c in t.children
+            push!(frontier, c)
+        end
+    end
+    return sort(out; by=tl->tl[1])
+end
+
+
 
 function __init__()
     # typeinf_ext_timed must be compiled before it gets run
