@@ -412,6 +412,14 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.name, incl_time, t.start_time, child_times)
 end
 
+# Special printing for Type Tuples so they're less ugly in the FlameGraph
+frame_name(n::Any) = n
+function frame_name(::Type{TT}) where TT<:Tuple
+    "$(fieldtype(TT, 1))(" *
+        join(String["::" * string(fieldtype(TT, i)) for i in 2:fieldcount(TT)], ", ") *
+    ")"
+end
+
 # NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
 # of the inference times (so it's missing the _overhead_ from the measurement).
 # SO we need to manually create a root node that covers the whole thing.
@@ -422,7 +430,7 @@ end
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
-    tt = Symbol(to.name)
+    tt = Symbol(frame_name(to.name))
     sf = StackFrame(tt, Symbol("none"), 0, nothing, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
