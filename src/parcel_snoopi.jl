@@ -383,7 +383,7 @@ const default_exclusions = Set([
 
 
 import FlameGraphs
-import AbstractTrees
+#import AbstractTrees
 
 using Base.StackTraces: StackFrame
 using LeftChildRightSiblingTrees: Node, addchild
@@ -398,8 +398,8 @@ struct InclusiveTiming
     start_time::UInt64
     children::Vector{InclusiveTiming}
 end
-AbstractTrees.printnode(io::IO, t::InclusiveTiming) = print(io, (t.inclusive_time / 1e9 => t.name))
-AbstractTrees.children(t::InclusiveTiming) = t.children
+#AbstractTrees.printnode(io::IO, t::InclusiveTiming) = print(io, (t.inclusive_time / 1e9 => t.name))
+#AbstractTrees.children(t::InclusiveTiming) = t.children
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
@@ -412,26 +412,26 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.name, incl_time, t.start_time, child_times)
 end
 
-#function max_end_time(t::InclusiveTiming)
-#    return maximum(child.start_time + child.inclusive_time for child in t.children)
-#end
+# NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
+# of the inference times (so it's missing the _overhead_ from the measurement).
+# SO we need to manually create a root node that covers the whole thing.
+function max_end_time(t::InclusiveTiming)
+    return maximum(child.start_time + child.inclusive_time for child in t.children)
+end
 
 # Make a flat frame for this Timing
-function _flamegraph_frame(to::InclusiveTiming, start_ns)
+function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
     tt = Symbol(to.name)
     sf = StackFrame(tt, Symbol("none"), 0, nothing, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
-    # TODO: is this supposed to be inclusive or exclusive?
-#    if toplevel
-#        # The root frame covers the total time being measured, so start when the first node
-#        # was created, and stop when the last node was finished.
-#        range = Int(start) : Int(start + (max_end_time(to) - start_ns))
-#    else
-        #range = Int(start) : Int(start + TimerOutputs.tottime(to))
+    if toplevel
+        # Compute a range over the whole profile for the top node.
+        range = Int(start) : max_end_time(to) - start_ns
+    else
         range = Int(start) : Int(start + to.inclusive_time)
-    #end
+    end
     return FlameGraphs.NodeData(sf, status, range)
 end
 
@@ -441,14 +441,14 @@ function to_flamegraph(t::Timing)
 end
 
 function to_flamegraph(to::InclusiveTiming)
-    # Skip the very top-level node, which contains no useful data
-    node_data = _flamegraph_frame(to, to.start_time)
+    # Compute a "root" frame for the top-level node, to cover the whole profile
+    node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
     root = Node(node_data)
     return _to_flamegraph(to, root, to.start_time)
 end
 function _to_flamegraph(to::InclusiveTiming, root, start_ns)
     for child in to.children
-        node_data = _flamegraph_frame(child, start_ns)
+        node_data = _flamegraph_frame(child, start_ns; toplevel=false)
         node = addchild(root, node_data)
         _to_flamegraph(child, node, start_ns)
     end

@@ -158,5 +158,12 @@ function __init__()
     end
     precompile(start_timing, ())
     precompile(stop_timing, ())
+
+    @assert precompile(Core.Compiler.Timings.reset_timings, ())
+    @assert precompile(start_deep_timing, ())
+    @assert precompile(stop_deep_timing, ())
+    @assert precompile(finish_snoopi_deep, ())
+
+    @assert precompile(flatten_times, (Core.Compiler.Timings.Timing, Float64))
     nothing
 end
