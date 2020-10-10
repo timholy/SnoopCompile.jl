@@ -95,10 +95,11 @@ function _snoopi(cmd::Expr, tmin = 0.0)
 end
 
 function start_deep_timing()
-    Core.Compiler.__toggle_measure_typeinf(true)
+    Core.Compiler.Timings.reset_timings()
+    Core.Compiler.__set_measure_typeinf(true)
 end
 function stop_deep_timing()
-    Core.Compiler.__toggle_measure_typeinf(false)
+    Core.Compiler.__set_measure_typeinf(false)
     Core.Compiler.Timings.close_current_timer()
 end
 
@@ -108,7 +109,6 @@ end
 
 function _snoopi_deep(cmd::Expr)
     return quote
-        Core.Compiler.Timings.reset_timings()
         start_deep_timing()
         try
             $(esc(cmd))
@@ -134,7 +134,7 @@ function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
         end
         exclusive_time = (t.time / 1e9)
         if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.name)
+            push!(out, exclusive_time => t.mi_info)
         end
         for c in t.children
             push!(frontier, c)

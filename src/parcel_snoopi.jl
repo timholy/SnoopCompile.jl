@@ -409,15 +409,29 @@ function build_inclusive_times(t::Timing)
         for child in t.children
     ]
     incl_time = t.time + sum(inclusive_time.(child_times); init=UInt64(0))
-    return InclusiveTiming(t.name, incl_time, t.start_time, child_times)
+    return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
+function frame_name(mi_info::Tuple)
+    frame_name(mi_info[1]::Core.Compiler.MethodInstance)
+end
+function frame_name(mi::Core.Compiler.MethodInstance)
+    frame_name(mi.def.name, mi.specTypes)
+end
 # Special printing for Type Tuples so they're less ugly in the FlameGraph
-frame_name(n::Any) = n
-function frame_name(::Type{TT}) where TT<:Tuple
-    "$(fieldtype(TT, 1))(" *
-        join(String["::" * string(fieldtype(TT, i)) for i in 2:fieldcount(TT)], ", ") *
-    ")"
+function frame_name(name, ::Type{TT}) where TT<:Tuple
+    #io = IOBuffer()
+    #Base.show_tuple_as_call(io, name, TT)
+    #v = String(take!(io))
+    #if v[1] == '('  # ugh, pprof isn't going to like this leading `(`...
+    #    return string(TT)  # return the ugly thing >.<
+    #else
+    #    return v
+    #end
+
+    # For now, since PProf name mangles strings that parse as functions, we'll just use the
+    # full Type Tuple string :|
+    return string(TT)
 end
 
 # NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
