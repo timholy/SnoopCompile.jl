@@ -381,6 +381,33 @@ const default_exclusions = Set([
     r"\bMain\b",
 ])
 
+"""
+    flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
+
+Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
+with the exclusive time for each invcation of type inference within the compiler, sorted by
+the exclusive time.
+"""
+function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
+    tmin_ns = tmin_secs * 1e9
+    out = Any[]
+    frontier = [timing]
+    while !isempty(frontier)
+        t = popfirst!(frontier)
+        if t.time < tmin_ns
+            continue
+        end
+        exclusive_time = (t.time / 1e9)
+        if exclusive_time >= tmin_secs
+            push!(out, exclusive_time => t.mi_info)
+        end
+        for c in t.children
+            push!(frontier, c)
+        end
+    end
+    return sort(out; by=tl->tl[1])
+end
+
 
 import FlameGraphs
 #import AbstractTrees

@@ -1,4 +1,4 @@
-export @snoopi
+export @snoopi, @snoopi_deep
 
 const __inf_timing__ = Tuple{Float64,MethodInstance}[]
 const __inner_timings__ = Ref{Vector{Any}}()
@@ -123,27 +123,6 @@ macro snoopi_deep(cmd)
     return _snoopi_deep(cmd)
 end
 
-function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
-    tmin_ns = tmin_secs * 1e9
-    out = Any[]
-    frontier = [timing]
-    while !isempty(frontier)
-        t = popfirst!(frontier)
-        if t.time < tmin_ns
-            continue
-        end
-        exclusive_time = (t.time / 1e9)
-        if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.mi_info)
-        end
-        for c in t.children
-            push!(frontier, c)
-        end
-    end
-    return sort(out; by=tl->tl[1])
-end
-
-
 
 function __init__()
     # typeinf_ext_timed must be compiled before it gets run
@@ -164,6 +143,5 @@ function __init__()
     @assert precompile(stop_deep_timing, ())
     @assert precompile(finish_snoopi_deep, ())
 
-    @assert precompile(flatten_times, (Core.Compiler.Timings.Timing, Float64))
     nothing
 end
