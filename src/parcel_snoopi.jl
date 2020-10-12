@@ -381,6 +381,8 @@ const default_exclusions = Set([
     r"\bMain\b",
 ])
 
+# === @snoopi_deep helper functions ========================================================
+
 """
     flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
 
@@ -410,23 +412,17 @@ end
 
 
 import FlameGraphs
-#import AbstractTrees
 
 using Base.StackTraces: StackFrame
 using LeftChildRightSiblingTrees: Node, addchild
 using Core.Compiler.Timings: Timing
 
-# TODO(PR): It would maybe be better to build up this inclusive timings information
-#   directly in julia so that we don't have to build a second graph structure? But I wanted
-#   to keep the amount of work done inside the snooping itself to a minimum? Not sure.
 struct InclusiveTiming
-    name::Any
+    mi_info::Core.Compiler.Timings.InferenceFrameInfo
     inclusive_time::UInt64
     start_time::UInt64
     children::Vector{InclusiveTiming}
 end
-#AbstractTrees.printnode(io::IO, t::InclusiveTiming) = print(io, (t.inclusive_time / 1e9 => t.name))
-#AbstractTrees.children(t::InclusiveTiming) = t.children
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
@@ -439,8 +435,35 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
-function frame_name(mi_info::Tuple)
-    frame_name(mi_info[1]::Core.Compiler.MethodInstance)
+"""
+    to_flamegraph(t::Core.Compiler.Timings.Timing)
+
+Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
+Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
+type inference.
+"""
+function to_flamegraph(t::Timing)
+    it = build_inclusive_times(t)
+    to_flamegraph(it)
+end
+
+function to_flamegraph(to::InclusiveTiming)
+    # Compute a "root" frame for the top-level node, to cover the whole profile
+    node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
+    root = Node(node_data)
+    return _to_flamegraph(to, root, to.start_time)
+end
+function _to_flamegraph(to::InclusiveTiming, root, start_ns)
+    for child in to.children
+        node_data = _flamegraph_frame(child, start_ns; toplevel=false)
+        node = addchild(root, node_data)
+        _to_flamegraph(child, node, start_ns)
+    end
+    return root
+end
+
+function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo)
+    frame_name(mi_info.mi::Core.Compiler.MethodInstance)
 end
 function frame_name(mi::Core.Compiler.MethodInstance)
     frame_name(mi.def.name, mi.specTypes)
@@ -471,7 +494,7 @@ end
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
-    tt = Symbol(frame_name(to.name))
+    tt = Symbol(frame_name(to.mi_info))
     sf = StackFrame(tt, Symbol("none"), 0, nothing, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
@@ -484,22 +507,3 @@ function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     return FlameGraphs.NodeData(sf, status, range)
 end
 
-function to_flamegraph(t::Timing)
-    it = build_inclusive_times(t)
-    to_flamegraph(it)
-end
-
-function to_flamegraph(to::InclusiveTiming)
-    # Compute a "root" frame for the top-level node, to cover the whole profile
-    node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
-    root = Node(node_data)
-    return _to_flamegraph(to, root, to.start_time)
-end
-function _to_flamegraph(to::InclusiveTiming, root, start_ns)
-    for child in to.children
-        node_data = _flamegraph_frame(child, start_ns; toplevel=false)
-        node = addchild(root, node_data)
-        _to_flamegraph(child, node, start_ns)
-    end
-    return root
-end
