@@ -481,7 +481,12 @@ function frame_name(name, ::Type{TT}) where TT<:Tuple
 
     # For now, since PProf name mangles strings that parse as functions, we'll just use the
     # full Type Tuple string :|
-    return string(TT)
+    try
+        return string(TT)
+    catch
+        # Some Type Tuples apparently cannot be printed to a string?
+        return "Unknown"
+    end
 end
 
 # NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
