@@ -220,3 +220,39 @@ end
     pc = SnoopCompile.parcel(tinf, remove_exclusions = false)
     @test count(isequal("Base.precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
 end
+
+using AbstractTrees  # For FlameGraphs tests
+
+@testset "@snoopi_deep" begin
+    # WARMUP
+    @eval module M  # Example with some functions that include type instability
+        i(x) = x+5
+        h(a::Array) = i(a[1]::Integer) + 2
+        g(y::Integer) = h(Any[y])
+    end
+    M.g(2)  # Warmup all deeply reachable functions
+
+    # Redefine the module, so the snoop will only show these functions:
+    @eval module M  # Example with some functions that include type instability
+        i(x) = x+5
+        h(a::Array) = i(a[1]::Integer) + 2
+        g(y::Integer) = h(Any[y])
+    end
+
+    timing = SnoopCompileCore.@snoopi_deep begin
+        M.g(2)
+    end
+    times = SnoopCompile.flatten_times(timing)
+    @test length(times) == 5  # ROOT, g(...), h(...), i(::Integer), i(::Int)
+    names = [mi_info.mi.def.name for (time, mi_info) in times]
+    @test sort(names) == [:ROOT, :g, :h, :i, :i]
+
+    # Test FlameGraph export
+    fg = SnoopCompile.to_flamegraph(timing)
+    @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
+    # Test that the span covers the whole tree.
+    for leaf in AbstractTrees.PreOrderDFS(fg)
+        @test leaf.data.span.start in fg.data.span
+        @test leaf.data.span.stop in fg.data.span
+    end
+end
