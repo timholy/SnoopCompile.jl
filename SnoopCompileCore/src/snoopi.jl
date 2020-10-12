@@ -119,6 +119,19 @@ function _snoopi_deep(cmd::Expr)
     end
 end
 
+"""
+    timing_tree = @snoopi_deep commands
+
+Produce a profile of julia's type inference, containing the amount of time spent infering
+for every `MethodInstance` processed while executing `commands`.
+
+The top-level node in this profile tree is `ROOT`, which contains the time spent _not_ in
+julia's type inference.
+
+To make use of these results, see the processing functions in SnoopCompile:
+    - [`SnoopCompile.flatten_times(timing_tree)`](@ref)
+    - [`SnoopCompile.to_flamegraph(timing_tree)`](@ref)
+"""
 macro snoopi_deep(cmd)
     return _snoopi_deep(cmd)
 end
