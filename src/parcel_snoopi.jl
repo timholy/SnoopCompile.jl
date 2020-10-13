@@ -426,25 +426,28 @@ end
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
-function build_inclusive_times(t::Timing)
+function build_inclusive_times(t::Timing, tmin_ns)
     child_times = InclusiveTiming[
-        build_inclusive_times(child)
+        build_inclusive_times(child, tmin_ns)
         for child in t.children
+        if child.time >= tmin_ns
     ]
     incl_time = t.time + sum(inclusive_time.(child_times); init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
-# TODO: Add `tmin=` to to_flamegraph()
 """
-    to_flamegraph(t::Core.Compiler.Timings.Timing)
+    to_flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
 type inference.
+
+Frames that take less than `tmin_secs` seconds of _inclusive time_ will not be included
+in the resultant FlameGraph (meaning total time including it and all of its children).
 """
-function to_flamegraph(t::Timing)
-    it = build_inclusive_times(t)
+function to_flamegraph(t::Timing; tmin_secs=0.0)
+    it = build_inclusive_times(t, UInt64(round(tmin_secs * 1e9)))
     to_flamegraph(it)
 end
 
@@ -494,7 +497,8 @@ end
 # of the inference times (so it's missing the _overhead_ from the measurement).
 # SO we need to manually create a root node that covers the whole thing.
 function max_end_time(t::InclusiveTiming)
-    return maximum(child.start_time + child.inclusive_time for child in t.children)
+    return maximum(child.start_time + child.inclusive_time for child in t.children;
+                    init = UInt64(t.start_time + t.inclusive_time))
 end
 
 # Make a flat frame for this Timing
