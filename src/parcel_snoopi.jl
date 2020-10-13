@@ -435,6 +435,7 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
+# TODO: Add `tmin=` to to_flamegraph()
 """
     to_flamegraph(t::Core.Compiler.Timings.Timing)
 
