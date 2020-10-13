@@ -146,13 +146,13 @@ julia> invalidations = @snoopr f(::AbstractString) = 2;
 julia> trees = invalidation_trees(invalidations)
 1-element Vector{SnoopCompile.MethodInvalidations}:
  inserting f(::AbstractString) in Main at REPL[6]:1 invalidated:
-   mt_backedges: 1: signature Tuple{typeof(f),String} triggered MethodInstance for callf(::Vector{String}) (1 children)
+   mt_backedges: 1: signature Tuple{typeof(f), String} triggered MethodInstance for callf(::Vector{String}) (1 children)
 
 
 julia> sig, root = trees[1].mt_backedges[end];
 
 julia> sig
-Tuple{typeof(f),String}
+Tuple{typeof(f), String}
 
 julia> root
 MethodInstance for callf(::Vector{String}) at depth 0 with 1 children
