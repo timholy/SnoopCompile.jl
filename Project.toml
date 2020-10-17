@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "2.1.1"
+version = "2.1.2"
 
 [deps]
 Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
@@ -13,7 +13,7 @@ SnoopCompileCore = "e2b509da-e806-4183-be48-004708413034"
 [compat]
 Cthulhu = "1.2"
 OrderedCollections = "1"
-SnoopCompileCore = "~2.1.1"
+SnoopCompileCore = "~2.1.2"
 julia = "1"
 
 [extras]
