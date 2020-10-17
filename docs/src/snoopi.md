@@ -33,10 +33,10 @@ sum(a::AbstractArray) in Base at reducedim.jl:652
 ```
 
 is much more general (i.e., defined for `AbstractArray`) than the `MethodInstance`
-(defined for `Array{Float16,1}`). This is because precompilation happens only for
-concrete objects passed as arguments.
+(defined for `Array{Float16,1}`). This is because precompilation requires the
+types of the arguments to specialize the code appropriately.
 
-The information obtained from `@snoopi` can be used in several ways, primarily to reduce "latency" during usage of your package:
+The information obtained from `@snoopi` can be used in several ways, primarily to reduce latency during usage of your package:
 
 - to help you understand which calls take the most inference time
 - to help you write `precompile` directives that run inference on specific calls during package precompilation, so that you don't pay this cost repeatedly each time you use the package
@@ -44,11 +44,17 @@ The information obtained from `@snoopi` can be used in several ways, primarily t
 
 If you're starting a project to try to reduce latency in your package, broadly speaking there are two paths you can take:
 
-1. you can use SnoopCompile, perhaps together with [SnoopCompileBot](https://github.com/aminya/CompileBot.jl), to automatically generate lists of precompile directives that may reduce latency;
+1. you can use SnoopCompile, perhaps together with [CompileBot](https://github.com/aminya/CompileBot.jl),
+   to automatically generate lists of precompile directives that may reduce latency;
 2. you can use SnoopCompile primarily as an analysis tool, and then intervene manually to reduce latency.
 
 Beginners often leap at option 1, but experience shows there are good reasons to consider option 2.
 To avoid introducing too much complexity early on, we'll defer this discussion to the end of this page, but readers who are serious about reducing latency should be sure to read [Understanding precompilation and its limitations](@ref).
+
+!!! note
+    Because invalidations can prevent effective precompilation, developers analyzing their
+    packages with `@snoopi` are encouraged to use Julia versions (1.6 and higher) that have a lower risk
+    of invalidations in Base and the standard library.
 
 ## [Precompile scripts](@id pcscripts)
 
@@ -303,11 +309,15 @@ Base
 ```
 
 !!! note
-    When using `@snoopi` you might sometimes see entries like `MethodInstance for (::GridLayoutBase.var"#10#12"{GridLayout})(::GeometryBasics.HyperRectangle{2, Float32})`. These typically correspond to closures/anonymous functions defined with `->` or `do` blocks.
-    `mi.def` will show you the file/line number that these are defined on. You can sometimes convert them into named functions to make them
-    easier to precompile, or you can fix inference problems as illustrated below.
+    When using `@snoopi` you might sometimes see entries like
+    `MethodInstance for (::SomeModule.var"#10#12"{SomeType})(::AnotherModule.AnotherType)`.
+    These typically correspond to closures/anonymous functions defined with `->` or `do` blocks,
+    but it may not be immediately obvious where these come from.
+    `mi.def` will show you the file/line number that these are defined on.
+    You can either convert them into named functions to make them easier to precompile,
+    or you can fix inference problems that prevent automatic precompilation (as illustrated below).
 
-Armed with this knowledge, let's start a fresh session (so that nothing is precompiled yet), and in addition to defining `index_midsum` and precompiling it, we add
+Armed with this knowledge, let's start a fresh session (so that nothing is precompiled yet), and in addition to defining `index_midsum` and precompiling it, we also execute
 
 ```julia
 julia> precompile(Base.__cat, (Vector{Int64}, Tuple{Int64}, Tuple{Bool}, Int, Vararg{Any, N} where N))
@@ -316,12 +326,14 @@ true
 
 Now if you try that `tinf = @snoopi index_midsum([1,2,3,4,100])` line, you'll see that the `__cat` call is omitted, suggesting success.
 
-However, if you put all this into your package with such `precompile` in it and then check with `@snoopi` again, you may be in for a rude surprise: the `__cat` precompile directive doesn't "work."
-That turns out to be because your package doesn't "own" that `__cat` method---the module is `Base` rather than `YourPackage`---and therefore Julia doesn't know where to store its precompiled form.
-(Successfully precompiled code is cached in the `*.ji` files in your `~/.julia/compiled` directory.)
+However, if you copy both `precompile` directives into your package source files and then check it with `@snoopi` again,
+you may be in for a rude surprise: the `__cat` precompile directive doesn't "work."
+That turns out to be because your package doesn't "own" that `__cat` method--the module is `Base` rather than `YourPackage`--and because inference cannot determine that it's needed by by `index_midsum(::Vector{Int})`, Julia doesn't know which `*.ji` file to use to
+store its precompiled form.
 
 How to fix this?
-Fundamentally, the problem is that `vcat` call: if we can write it in a way so that inference succeeds, then all these problems go away.
+Fundamentally, the problem is that `vcat` call: if we can write `index_midsum` in a way so that inference succeeds, then all these problems go away.
+(You can use `ascend(mi)`, where `mi` was obtained above, to discover that `__cat` gets called from `vcat`. See [ascend](@ref) for more information.)
 It turns out that `vcat` is inferrable if all the arguments have the same type, so just changing `vcat(0, a)` to `vcat([zero(eltype(a))], a)` fixes the problem.
 (Alternatively, you could make a copy and then use `pushfirst!`.)
 In a fresh Julia session:
@@ -343,6 +355,8 @@ Tuple{Float64, Core.MethodInstance}[]
 ```
 
 Tada! No additional inference was needed, ensuring that your users will not suffer any latency due to type-inference of this particular method/argument combination.
+In addition to identifing a call deserving of precompilation, `@snoopi` helped us identify a weakness in its implementation.
+Fixing that weakness reduced latency, made the code more resistant to invalidation, and may improve runtime performance.
 
 In other cases, manual inspection of the results from `@snoopi` may lead you in a different direction: you may discover that a huge number of specializations are being created for a method that doesn't need them.
 Typical examples are methods that take types or functions as inputs: for example, there is no reason to recompile `methods(f)` for each separate `f`.
