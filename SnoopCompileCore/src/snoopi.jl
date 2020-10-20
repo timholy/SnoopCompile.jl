@@ -1,7 +1,6 @@
 export @snoopi, @snoopi_deep
 
 const __inf_timing__ = Tuple{Float64,MethodInstance}[]
-const __inner_timings__ = Ref{Vector{Any}}()
 
 if isdefined(Core.Compiler, :Params)
     function typeinf_ext_timed(linfo::Core.MethodInstance, params::Core.Compiler.Params)
@@ -18,9 +17,7 @@ if isdefined(Core.Compiler, :Params)
         push!(__inf_timing__, (tstop-tstart, linfo))
         return ret
     end
-    @noinline stop_timing() = begin
-        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
-    end
+    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext)
 else
     function typeinf_ext_timed(interp::Core.Compiler.AbstractInterpreter, linfo::Core.MethodInstance)
         tstart = time()
@@ -36,14 +33,10 @@ else
         push!(__inf_timing__, (tstop-tstart, linfo))
         return ret
     end
-    @noinline stop_timing() = begin
-        ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
-    end
+    @noinline stop_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), Core.Compiler.typeinf_ext_toplevel)
 end
 
-@noinline start_timing() = begin
-    ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
-end
+@noinline start_timing() = ccall(:jl_set_typeinf_func, Cvoid, (Any,), typeinf_ext_timed)
 
 function sort_timed_inf(tmin)
     data = __inf_timing__
@@ -83,7 +76,6 @@ end
 function _snoopi(cmd::Expr, tmin = 0.0)
     return quote
         empty!(__inf_timing__)
-        Core.Compiler.Timings.reset_timings()
         start_timing()
         try
             $(esc(cmd))
