@@ -118,11 +118,36 @@ Produce a profile of julia's type inference, containing the amount of time spent
 for every `MethodInstance` processed while executing `commands`.
 
 The top-level node in this profile tree is `ROOT`, which contains the time spent _not_ in
-julia's type inference.
+julia's type inference (codegen, llvm_opt, runtime, etc).
 
 To make use of these results, see the processing functions in SnoopCompile:
     - [`SnoopCompile.flatten_times(timing_tree)`](@ref)
     - [`SnoopCompile.to_flamegraph(timing_tree)`](@ref)
+
+# Examples
+```julia
+julia> timing = SnoopCompileCore.@snoopi_deep begin
+           @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
+       end;
+
+julia> using SnoopCompile, ProfileView
+
+julia> times = SnoopCompile.flatten_times(timing, tmin_secs=0.001)
+4-element Vector{Any}:
+ 0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(::Vector{Float64}, ::Base.Sort.QuickSortAlg, ::Base.Order.ForwardOrdering), 0x00000000000072e4, Any[], Any[Vector{Float64}, Core.Const(Base.Sort.QuickSortAlg()), Core.Const(Base.Order.ForwardOrdering()), Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}])
+ 0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(::Random.MersenneTwister, ::Random.UnsafeView{Float64}, ::Random.SamplerTrivial{Random.CloseOpen01{Float64}, Float64}), 0x00000000000072e4, Any[], Any[Random.MersenneTwister, Random.UnsafeView{Float64}, Core.Const(Random.SamplerTrivial{Random.CloseOpen01{Float64}, Float64}(Random.CloseOpen01{Float64}())), Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}])
+ 0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(::Random.MersenneTwister, ::Random.UnsafeView{Float64}, ::Random.CloseOpen01{Float64}), 0x00000000000072e4, Any[], Any[Random.MersenneTwister, Random.UnsafeView{Float64}, Core.Const(Random.CloseOpen01{Float64}()), Union{}, Union{}, Union{}, Union{}])
+ 0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), 0x0000000000000000, Any[], Any[])
+
+julia> fg = SnoopCompile.to_flamegraph(timing)
+Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
+
+julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
+
+julia> fg = SnoopCompile.to_flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
+```
+
 """
 macro snoopi_deep(cmd)
     return _snoopi_deep(cmd)

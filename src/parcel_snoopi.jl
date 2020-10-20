@@ -388,7 +388,7 @@ const default_exclusions = Set([
 
 Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
 with the exclusive time for each invcation of type inference within the compiler, sorted by
-the exclusive time.
+the exclusive time, skipping any frames that took less than `tmin_secs` seconds.
 """
 function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
     out = Any[]
@@ -433,6 +433,7 @@ end
 
 """
     to_flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
+    to_flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
@@ -440,6 +441,28 @@ type inference.
 
 Frames that take less than `tmin_secs` seconds of _inclusive time_ will not be included
 in the resultant FlameGraph (meaning total time including it and all of its children).
+This can be helpful if you have a very big profile, to save on processing time.
+
+# Examples
+```julia
+julia> timing = SnoopCompileCore.@snoopi_deep begin
+           @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
+       end;
+
+julia> fg = SnoopCompile.to_flamegraph(timing)
+Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
+
+julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
+
+julia> fg = SnoopCompile.to_flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
+```
+
+NOTE: This function must touch every frame in the provided `Timing` to build inclusive
+timing information (`InclusiveTiming`). If you have a very large profile, and you plan to
+call this function multiple times (say with different values for `tmin_secs`), you can save
+some intermediate time by first calling [`build_inclusive_times(t)`](@ref), only once,
+and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
 function to_flamegraph(t::Timing; tmin_secs = 0.0)
     it = build_inclusive_times(t)
