@@ -384,21 +384,17 @@ const default_exclusions = Set([
 # === @snoopi_deep helper functions ========================================================
 
 """
-    flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
+    flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
 Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
 with the exclusive time for each invcation of type inference within the compiler, sorted by
 the exclusive time.
 """
-function flatten_times(timing::Core.Compiler.Timings.Timing, tmin_secs = 0.0)
-    tmin_ns = tmin_secs * 1e9
+function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
     out = Any[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
-        if t.time < tmin_ns
-            continue
-        end
         exclusive_time = (t.time / 1e9)
         if exclusive_time >= tmin_secs
             push!(out, exclusive_time => t.mi_info)
@@ -426,11 +422,10 @@ end
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
-function build_inclusive_times(t::Timing, tmin_ns)
+function build_inclusive_times(t::Timing)
     child_times = InclusiveTiming[
-        build_inclusive_times(child, tmin_ns)
+        build_inclusive_times(child)
         for child in t.children
-        if child.time >= tmin_ns
     ]
     incl_time = t.time + sum(inclusive_time.(child_times); init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
@@ -446,22 +441,26 @@ type inference.
 Frames that take less than `tmin_secs` seconds of _inclusive time_ will not be included
 in the resultant FlameGraph (meaning total time including it and all of its children).
 """
-function to_flamegraph(t::Timing; tmin_secs=0.0)
-    it = build_inclusive_times(t, UInt64(round(tmin_secs * 1e9)))
-    to_flamegraph(it)
+function to_flamegraph(t::Timing; tmin_secs = 0.0)
+    it = build_inclusive_times(t)
+    to_flamegraph(it; tmin_secs=tmin_secs)
 end
 
-function to_flamegraph(to::InclusiveTiming)
+function to_flamegraph(to::InclusiveTiming; tmin_secs = 0.0)
+    tmin_ns = UInt64(round(tmin_secs * 1e9))
+
     # Compute a "root" frame for the top-level node, to cover the whole profile
     node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
     root = Node(node_data)
-    return _to_flamegraph(to, root, to.start_time)
+    return _build_flamegraph!(root, to, to.start_time, tmin_ns)
 end
-function _to_flamegraph(to::InclusiveTiming, root, start_ns)
+function _build_flamegraph!(root, to::InclusiveTiming, start_ns, tmin_ns)
     for child in to.children
-        node_data = _flamegraph_frame(child, start_ns; toplevel=false)
-        node = addchild(root, node_data)
-        _to_flamegraph(child, node, start_ns)
+        if child.inclusive_time > tmin_ns
+            node_data = _flamegraph_frame(child, start_ns; toplevel=false)
+            node = addchild(root, node_data)
+            _build_flamegraph!(node, child, start_ns, tmin_ns)
+        end
     end
     return root
 end
