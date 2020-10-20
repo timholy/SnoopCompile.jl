@@ -496,8 +496,9 @@ end
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
+    mi = to.mi_info.mi
     tt = Symbol(frame_name(to.mi_info))
-    sf = StackFrame(tt, Symbol("none"), 0, nothing, false, false, UInt64(0x0))
+    sf = StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
     if toplevel
