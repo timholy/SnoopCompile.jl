@@ -247,6 +247,9 @@ using AbstractTrees  # For FlameGraphs tests
     names = [mi_info.mi.def.name for (time, mi_info) in times]
     @test sort(names) == [:ROOT, :g, :h, :i, :i]
 
+    longest_frame_time = times[end][1]
+    @test length(SnoopCompile.flatten_times(timing, tmin_secs=longest_frame_time)) == 1
+
     # Test FlameGraph export
     fg = SnoopCompile.to_flamegraph(timing)
     @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
@@ -255,4 +258,8 @@ using AbstractTrees  # For FlameGraphs tests
         @test leaf.data.span.start in fg.data.span
         @test leaf.data.span.stop in fg.data.span
     end
+
+    cutoff_bottom_frame = (times[1][1] + times[2][1]) / 2
+    fg2 = SnoopCompile.to_flamegraph(timing, tmin_secs = cutoff_bottom_frame)
+    @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
 end
