@@ -474,23 +474,15 @@ function frame_name(mi::Core.Compiler.MethodInstance)
 end
 # Special printing for Type Tuples so they're less ugly in the FlameGraph
 function frame_name(name, ::Type{TT}) where TT<:Tuple
-    #io = IOBuffer()
-    #Base.show_tuple_as_call(io, name, TT)
-    #v = String(take!(io))
-    #if v[1] == '('  # ugh, pprof isn't going to like this leading `(`...
-    #    return string(TT)  # return the ugly thing >.<
-    #else
-    #    return v
+    #try
+        io = IOBuffer()
+        Base.show_tuple_as_call(io, name, TT)
+        v = String(take!(io))
+        return v
+    #catch  # TODO: Narrow this to only swallowing the expected exception type
+    #    # Some Type Tuples apparently cannot be printed to a string?
+    #    return name
     #end
-
-    # For now, since PProf name mangles strings that parse as functions, we'll just use the
-    # full Type Tuple string :|
-    try
-        return string(TT)
-    catch
-        # Some Type Tuples apparently cannot be printed to a string?
-        return "Unknown"
-    end
 end
 
 # NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
