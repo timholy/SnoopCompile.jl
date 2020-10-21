@@ -518,7 +518,7 @@ function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     start = to.start_time - start_ns
     if toplevel
         # Compute a range over the whole profile for the top node.
-        range = Int(start) : max_end_time(to) - start_ns
+        range = Int(start) : Int(max_end_time(to) - start_ns)
     else
         range = Int(start) : Int(start + to.inclusive_time)
     end
