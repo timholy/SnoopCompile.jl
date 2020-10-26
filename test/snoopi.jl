@@ -1,6 +1,8 @@
 using SnoopCompile
 using Test
 
+const SP = VERSION >= v"1.6.0-DEV.771" ? " " : "" # JuliaLang/julia #37085
+
 push!(LOAD_PATH, joinpath(@__DIR__, "testmodules"))
 using A
 using E
@@ -106,7 +108,7 @@ uncompiled(x) = x + 1
     @test any(str->occursin("typeof(which(FuncKinds.gen2,($Int,Any,)).generator.gen)", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw2)})", str), FK)
-    @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,), Tuple{String}},typeof(FuncKinds.genkw2)}", str), FK)
+    @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(FuncKinds.genkw2)}", str), FK)
     if VERSION >=  v"1.4.0-DEV.215"
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw1, ()))", str), FK)
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw2, ()))", str), FK)
