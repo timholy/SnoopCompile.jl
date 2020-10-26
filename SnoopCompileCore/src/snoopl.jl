@@ -10,7 +10,7 @@ end
 ```
 causes the julia compiler to emit the LLVM optimization times for
 of executing the commands to the files "func_names.csv" and "llvm_timings.yaml". These files
-can be used for the input to <TODO>.
+can be used for the input to `SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml")`
 """
 macro snoopl(flags, func_file, llvm_file, commands)
     return :(snoopl($(esc(flags)), $(esc(func_file)), $(esc(llvm_file)), $(QuoteNode(commands))))

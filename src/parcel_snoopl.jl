@@ -4,7 +4,7 @@
 Reads the log file produced by the compiler and returns the structured representations.
 """
 function read_snoopl(func_csv_file, llvm_yaml_file)
-    func_csv = CSV.File(func_csv_file, header=false)
+    func_csv = CSV.File(func_csv_file, header=false, delim='\t', types=[String, String])
     llvm_yaml = YAML.load_file(llvm_yaml_file)
 
     jl_names = Dict(r[1] => r[2] for r in func_csv)
@@ -38,6 +38,6 @@ function read_snoopl(func_csv_file, llvm_yaml_file)
     )
 
 
-    # Save the most costly for last
+    # sort times so that the most costly items are displayed last
     return (sort(times), info)
 end
