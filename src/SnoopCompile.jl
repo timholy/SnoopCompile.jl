@@ -25,10 +25,9 @@ if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
 end
 
-# TODO: version bounds
-#if VERSION >= v"1.2.0-DEV.573"
+if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
     include("parcel_snoopl.jl")
-#end
+end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")

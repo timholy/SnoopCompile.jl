@@ -16,8 +16,8 @@ if VERSION >= v"1.6.0-DEV.154"
     include("snoopr.jl")
 end
 
-#if VERSION >= v"1.6.0-DEV.548"  # TODO(NHD)
+if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
     include("snoopl.jl")
-#end
+end
 
 end
