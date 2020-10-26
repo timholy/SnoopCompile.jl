@@ -26,19 +26,23 @@ Some aspects of this process are documented [here](https://docs.julialang.org/en
 
 Every time you load a package in a fresh Julia session, the methods you use
 need to be JIT-compiled, and this contributes to the latency of using the package.
-In some circumstances, you can save some of the work to reduce the burden next time.
+In some circumstances, you can partially cache the results of compilation to a file
+(the `*.ji` files that live in your `~/.julia/compiled` directory) to reduce the burden
+when your package is used.
 This is called *precompilation*.
 Unfortunately, precompilation is not as comprehensive as one might hope.
-Currently, Julia is only capable of saving inference results (not native code) in the
-`*.ji` files that are the result of precompilation.
+Currently, Julia is only able to save inference results (not native code) in the
+`*.ji` files, and thus precompilation only eliminates the time needed for type inference.
 Moreover, there are some significant constraints that sometimes prevent Julia from
-saving even the inference results;
-and finally, what does get saved can sometimes be invalidated if later packages
-provide more specific methods that supersede some of the calls in the precompiled methods.
+saving even the inference results--for example, currently you cannot cache inference results
+for "top level" calls to methods defined in Julia or other packages, even if you are calling them
+with types defined in your package.
+Finally, what does get saved can sometimes be invalidated by loading other packages.
 
 Despite these limitations, there are cases where precompilation can substantially reduce
 latency.
-SnoopCompile is designed to try to make it easy to try precompilation to see whether
+SnoopCompile is designed to try to allow you to analyze the costs of JIT-compilation, identify
+key bottlenecks that contribute to latency, and set up `precompile` directives to see whether
 it produces measurable benefits.
 
 ## Who should use this package
@@ -46,15 +50,20 @@ it produces measurable benefits.
 SnoopCompile is intended primarily for package *developers* who want to improve the
 experience for their users.
 Because the results of SnoopCompile are typically stored in the `*.ji` precompile files,
-anyone can take advantage of the reduced latency.
+users automatically get the benefit of any latency reductions achieved by adding
+`precompile` directives to your package.
 
 [PackageCompiler](https://github.com/JuliaLang/PackageCompiler.jl) is an alternative
 that *non-developer users* may want to consider for their own workflow.
-It performs more thorough precompilation than the "standard" usage of SnoopCompile,
-although one can achieve a similar effect by creating [`userimg.jl` files](@ref userimg).
-However, the cost is vastly increased build times, which for package developers is
-unlikely to be productive.
+It builds an entire system image (Julia + a set of selected packages) and caches both the
+results of type inference and the native code.
+Typically, PackageCompiler reduces latency more than just "plain" `precompile` directives.
+However, PackageCompiler does have significant downsides, of which the largest is that
+it is incompatible with package updates--any packages built into your system image
+cannot be updated without rebuilding the entire system.
+Particularly for people who develop or frequently update their packages, the downsides of
+PackageCompiler may outweigh its benefits.
 
-Finally, another alternative that reduces latency without any modifications
+Finally, another alternative for reducing latency without any modifications
 to package files is [Revise](https://github.com/timholy/Revise.jl).
 It can be used in conjunction with SnoopCompile.

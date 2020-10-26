@@ -33,8 +33,28 @@ sum(a::AbstractArray) in Base at reducedim.jl:652
 ```
 
 is much more general (i.e., defined for `AbstractArray`) than the `MethodInstance`
-(defined for `Array{Float16,1}`). This is because precompilation happens only for
-concrete objects passed as arguments.
+(defined for `Array{Float16,1}`). This is because precompilation requires the
+types of the arguments to specialize the code appropriately.
+
+The information obtained from `@snoopi` can be used in several ways, primarily to reduce latency during usage of your package:
+
+- to help you understand which calls take the most inference time
+- to help you write `precompile` directives that run inference on specific calls during package precompilation, so that you don't pay this cost repeatedly each time you use the package
+- to help you identify inference problems that prevent successful or comprehensive precompilation
+
+If you're starting a project to try to reduce latency in your package, broadly speaking there are two paths you can take:
+
+1. you can use SnoopCompile, perhaps together with [CompileBot](https://github.com/aminya/CompileBot.jl),
+   to automatically generate lists of precompile directives that may reduce latency;
+2. you can use SnoopCompile primarily as an analysis tool, and then intervene manually to reduce latency.
+
+Beginners often leap at option 1, but experience shows there are good reasons to consider option 2.
+To avoid introducing too much complexity early on, we'll defer this discussion to the end of this page, but readers who are serious about reducing latency should be sure to read [Understanding precompilation and its limitations](@ref).
+
+!!! note
+    Because invalidations can prevent effective precompilation, developers analyzing their
+    packages with `@snoopi` are encouraged to use Julia versions (1.6 and higher) that have a lower risk
+    of invalidations in Base and the standard library.
 
 ## [Precompile scripts](@id pcscripts)
 
@@ -228,3 +248,118 @@ julia> msgs = String(take!(logger.stream))
 ```
 
 The omitted method signatures will be logged to the string `msgs`.
+
+
+## Understanding precompilation and its limitations
+
+Suppose your package includes the following method:
+
+```julia
+"""
+    idx = index_midsum(a)
+
+Return the index of the first item more than "halfway to the cumulative sum,"
+meaning the smallest integer so that `sum(a[begin:idx]) >= sum(a)/2`.
+"""
+function index_midsum(a::AbstractVector)
+    ca = cumsum(vcat(0, a))   # cumulative sum of items in a, starting from 0
+    s = ca[end]               # the sum of all elements
+    return findfirst(x->x >= s/2, ca) - 1  # compensate for inserting 0
+end
+```
+Now, suppose that you'd like to reduce latency in using this method, and you know that an important use case is when `a` is a `Vector{Int}`.
+Therefore, you might precompile it:
+
+```julia
+julia> precompile(index_midsum, (Vector{Int},))
+true
+```
+This will cause Julia to infer this method for the given argument types. If you add such statements to your package, it potentially saves your users from having to wait for it to be inferred each time they use your package.
+
+!!! note
+    The `true` indicates that Julia was successfully able to find a method supporting this signature and precompile it.
+    Some people put `@assert` in front of their package's `precompile` statements--this way, if you delete or modify methods, "stale"
+    `precompile` directives will trigger an error, thus notifying you that they need to be updated.
+
+
+But if you execute these lines in the REPL, and then check how well it worked, you might see something like the following:
+```julia
+julia> using SnoopCompile
+
+julia> tinf = @snoopi index_midsum([1,2,3,4,100])
+3-element Vector{Tuple{Float64, Core.MethodInstance}}:
+ (0.00048613548278808594, MethodInstance for cat_similar(::Int64, ::Type, ::Tuple{Int64}))
+ (0.010090827941894531, MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::Int64, ::Vararg{Any, N} where N))
+ (0.016659975051879883, MethodInstance for __cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::Int64, ::Vararg{Any, N} where N))
+```
+Even though we'd already said `precompile(index_midsum, (Vector{Int},))` in this session, somehow we needed *more* inference of various concatenation methods.
+Why does this happen?
+A detailed investigation (e.g., using [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl) or `@code_warntype`) would reveal that `vcat(0, a)` is not inferrable "all the way down," and hence the `precompile` directive couldn't predict everything that was going to be needed.
+
+No problem, you say: let's just precompile those methods too. The most expensive is the last one. You might not know where `__cat` is defined, but you can find out with
+```julia
+julia> mi = tinf[end][2]    # get the MethodInstance
+MethodInstance for __cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::Int64, ::Vararg{Any, N} where N)
+
+julia> mi.def               # get the Method
+__cat(A, shape::Tuple{Vararg{Int64, M}}, catdims, X...) where M in Base at abstractarray.jl:1599
+
+julia> mi.def.module        # which module was this method defined in?
+Base
+```
+
+!!! note
+    When using `@snoopi` you might sometimes see entries like
+    `MethodInstance for (::SomeModule.var"#10#12"{SomeType})(::AnotherModule.AnotherType)`.
+    These typically correspond to closures/anonymous functions defined with `->` or `do` blocks,
+    but it may not be immediately obvious where these come from.
+    `mi.def` will show you the file/line number that these are defined on.
+    You can either convert them into named functions to make them easier to precompile,
+    or you can fix inference problems that prevent automatic precompilation (as illustrated below).
+
+Armed with this knowledge, let's start a fresh session (so that nothing is precompiled yet), and in addition to defining `index_midsum` and precompiling it, we also execute
+
+```julia
+julia> precompile(Base.__cat, (Vector{Int64}, Tuple{Int64}, Tuple{Bool}, Int, Vararg{Any, N} where N))
+true
+```
+
+Now if you try that `tinf = @snoopi index_midsum([1,2,3,4,100])` line, you'll see that the `__cat` call is omitted, suggesting success.
+
+However, if you copy both `precompile` directives into your package source files and then check it with `@snoopi` again,
+you may be in for a rude surprise: the `__cat` precompile directive doesn't "work."
+That turns out to be because your package doesn't "own" that `__cat` method--the module is `Base` rather than `YourPackage`--and because inference cannot determine that it's needed by by `index_midsum(::Vector{Int})`, Julia doesn't know which `*.ji` file to use to
+store its precompiled form.
+
+How to fix this?
+Fundamentally, the problem is that `vcat` call: if we can write `index_midsum` in a way so that inference succeeds, then all these problems go away.
+(You can use `ascend(mi)`, where `mi` was obtained above, to discover that `__cat` gets called from `vcat`. See [ascend](@ref) for more information.)
+It turns out that `vcat` is inferrable if all the arguments have the same type, so just changing `vcat(0, a)` to `vcat([zero(eltype(a))], a)` fixes the problem.
+(Alternatively, you could make a copy and then use `pushfirst!`.)
+In a fresh Julia session:
+
+```julia
+function index_midsum(a::AbstractVector)
+    ca = cumsum(vcat([zero(eltype(a))], a))   # cumulative sum of items in a, starting from 0
+    s = ca[end]               # the sum of all elements
+    return findfirst(x->x >= s/2, ca) - 1  # compensate for inserting 0
+end
+
+julia> precompile(index_midsum, (Vector{Int},))
+true
+
+julia> using SnoopCompile
+
+julia> tinf = @snoopi index_midsum([1,2,3,4,100])
+Tuple{Float64, Core.MethodInstance}[]
+```
+
+Tada! No additional inference was needed, ensuring that your users will not suffer any latency due to type-inference of this particular method/argument combination.
+In addition to identifing a call deserving of precompilation, `@snoopi` helped us identify a weakness in its implementation.
+Fixing that weakness reduced latency, made the code more resistant to invalidation, and may improve runtime performance.
+
+In other cases, manual inspection of the results from `@snoopi` may lead you in a different direction: you may discover that a huge number of specializations are being created for a method that doesn't need them.
+Typical examples are methods that take types or functions as inputs: for example, there is no reason to recompile `methods(f)` for each separate `f`.
+In such cases, by far your best option is to add `@nospecialize` annotations to one or more of the arguments of that method. Such changes can have dramatic impact on the latency of your package.
+
+The ability to make interventions like these--which can both reduce latency and improve runtime speed--is a major reason to consider `@snoopi` primarily as an analysis tool rather than just a utility to blindly generate lists of precompile directives.

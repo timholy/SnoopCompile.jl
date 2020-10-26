@@ -10,9 +10,3 @@ loading packages and using them to do "real work."
 See the documentation:
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/SnoopCompile.jl/stable)
-
-## Packages that use SnoopCompile
-
-Quite a few packages have used SnoopCompile to reduce startup latency, and some have preserved their scripts which may serve as an example to other users:
-
-- MatLang ([deps/SnoopCompile Folder](https://github.com/juliamatlab/MatLang/tree/master/deps/SnoopCompile).
