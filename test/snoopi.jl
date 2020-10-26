@@ -106,7 +106,7 @@ uncompiled(x) = x + 1
     @test any(str->occursin("typeof(which(FuncKinds.gen2,($Int,Any,)).generator.gen)", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(FuncKinds.genkw2)})", str), FK)
-    @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,),Tuple{String}},typeof(FuncKinds.genkw2)}", str), FK)
+    @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,), Tuple{String}},typeof(FuncKinds.genkw2)}", str), FK)
     if VERSION >=  v"1.4.0-DEV.215"
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw1, ()))", str), FK)
         @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw2, ()))", str), FK)
@@ -219,47 +219,4 @@ end
     end
     pc = SnoopCompile.parcel(tinf, remove_exclusions = false)
     @test count(isequal("Base.precompile(Tuple{typeof(generated)})"), pc[:Main]) == 1
-end
-
-using AbstractTrees  # For FlameGraphs tests
-
-@testset "@snoopi_deep" begin
-    # WARMUP
-    @eval module M  # Example with some functions that include type instability
-        i(x) = x+5
-        h(a::Array) = i(a[1]::Integer) + 2
-        g(y::Integer) = h(Any[y])
-    end
-    M.g(2)  # Warmup all deeply reachable functions
-
-    # Redefine the module, so the snoop will only show these functions:
-    @eval module M  # Example with some functions that include type instability
-        i(x) = x+5
-        h(a::Array) = i(a[1]::Integer) + 2
-        g(y::Integer) = h(Any[y])
-    end
-
-    timing = SnoopCompileCore.@snoopi_deep begin
-        M.g(2)
-    end
-    times = SnoopCompile.flatten_times(timing)
-    @test length(times) == 5  # ROOT, g(...), h(...), i(::Integer), i(::Int)
-    names = [mi_info.mi.def.name for (time, mi_info) in times]
-    @test sort(names) == [:ROOT, :g, :h, :i, :i]
-
-    longest_frame_time = times[end][1]
-    @test length(SnoopCompile.flatten_times(timing, tmin_secs=longest_frame_time)) == 1
-
-    # Test FlameGraph export
-    fg = SnoopCompile.to_flamegraph(timing)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
-    # Test that the span covers the whole tree.
-    for leaf in AbstractTrees.PreOrderDFS(fg)
-        @test leaf.data.span.start in fg.data.span
-        @test leaf.data.span.stop in fg.data.span
-    end
-
-    cutoff_bottom_frame = (times[1][1] + times[2][1]) / 2
-    fg2 = SnoopCompile.to_flamegraph(timing, tmin_secs = cutoff_bottom_frame)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
 end

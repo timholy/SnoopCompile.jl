@@ -24,6 +24,10 @@ if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
 end
 
+if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
+    include("parcel_snoopi_deep.jl")
+end
+
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
 end
