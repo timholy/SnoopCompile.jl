@@ -51,7 +51,7 @@ end
     inf_timing = @snoopi tmin=0.0 commands
 
 Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
-tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
+tuples, where `t` is the amount of time spent inferring `linfo` (a `MethodInstance`).
 
 Methods that take less time than `tmin` will not be reported.
 """
@@ -114,8 +114,8 @@ end
 """
     timing_tree = @snoopi_deep commands
 
-Produce a profile of julia's type inference, containing the amount of time spent infering
-for every `MethodInstance` processed while executing `commands`.
+Produce a profile of julia's type inference, containing the amount of time spent inferring
+every `MethodInstance` processed while executing `commands`.
 
 The top-level node in this profile tree is `ROOT`, which contains the time spent _not_ in
 julia's type inference (codegen, llvm_opt, runtime, etc).
@@ -134,10 +134,10 @@ julia> using SnoopCompile, ProfileView
 
 julia> times = SnoopCompile.flatten_times(timing, tmin_secs=0.001)
 4-element Vector{Any}:
- 0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(::Vector{Float64}, ::Base.Sort.QuickSortAlg, ::Base.Order.ForwardOrdering), 0x00000000000072e4, Any[], Any[Vector{Float64}, Core.Const(Base.Sort.QuickSortAlg()), Core.Const(Base.Order.ForwardOrdering()), Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}])
- 0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(::Random.MersenneTwister, ::Random.UnsafeView{Float64}, ::Random.SamplerTrivial{Random.CloseOpen01{Float64}, Float64}), 0x00000000000072e4, Any[], Any[Random.MersenneTwister, Random.UnsafeView{Float64}, Core.Const(Random.SamplerTrivial{Random.CloseOpen01{Float64}, Float64}(Random.CloseOpen01{Float64}())), Union{}, Union{}, Union{}, Union{}, Union{}, Union{}, Union{}])
- 0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(::Random.MersenneTwister, ::Random.UnsafeView{Float64}, ::Random.CloseOpen01{Float64}), 0x00000000000072e4, Any[], Any[Random.MersenneTwister, Random.UnsafeView{Float64}, Core.Const(Random.CloseOpen01{Float64}()), Union{}, Union{}, Union{}, Union{}])
- 0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), 0x0000000000000000, Any[], Any[])
+ 0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(...
+ 0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(...
+ 0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(...
+ 0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), ...
 
 julia> fg = SnoopCompile.to_flamegraph(timing)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))

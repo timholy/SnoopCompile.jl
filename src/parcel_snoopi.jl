@@ -387,8 +387,8 @@ const default_exclusions = Set([
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
 Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
-with the exclusive time for each invcation of type inference within the compiler, sorted by
-the exclusive time, skipping any frames that took less than `tmin_secs` seconds.
+with the exclusive time for each invocation of type inference, skipping any frames that
+took less than `tmin_secs` seconds. Results are sorted by time.
 """
 function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
     out = Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
@@ -408,7 +408,7 @@ end
 import FlameGraphs
 
 using Base.StackTraces: StackFrame
-using LeftChildRightSiblingTrees: Node, addchild
+using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
 using Core.Compiler.Timings: Timing
 
 struct InclusiveTiming
