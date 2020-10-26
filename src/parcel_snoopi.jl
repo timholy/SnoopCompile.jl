@@ -391,7 +391,7 @@ with the exclusive time for each invcation of type inference within the compiler
 the exclusive time, skipping any frames that took less than `tmin_secs` seconds.
 """
 function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
-    out = Any[]
+    out = Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
@@ -399,9 +399,7 @@ function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
         if exclusive_time >= tmin_secs
             push!(out, exclusive_time => t.mi_info)
         end
-        for c in t.children
-            push!(frontier, c)
-        end
+        append!(frontier, t.children)
     end
     return sort(out; by=tl->tl[1])
 end
@@ -427,7 +425,7 @@ function build_inclusive_times(t::Timing)
         build_inclusive_times(child)
         for child in t.children
     ]
-    incl_time = t.time + sum(inclusive_time.(child_times); init=UInt64(0))
+    incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
@@ -502,7 +500,7 @@ function frame_name(name, ::Type{TT}) where TT<:Tuple
     return v
 end
 
-# NOTE: The "root" node doesn't cover th whole profile, because it's only the _complement_
+# NOTE: The "root" node doesn't cover the whole profile, because it's only the _complement_
 # of the inference times (so it's missing the _overhead_ from the measurement).
 # SO we need to manually create a root node that covers the whole thing.
 function max_end_time(t::InclusiveTiming)
@@ -526,4 +524,3 @@ function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     end
     return FlameGraphs.NodeData(sf, status, range)
 end
-
