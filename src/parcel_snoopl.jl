@@ -3,7 +3,7 @@
 
 Reads the log file produced by the compiler and returns the structured representations.
 """
-function read_snoopl(func_csv_file, llvm_yaml_file)
+function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
     func_csv = CSV.File(func_csv_file, header=false, delim='\t', types=[String, String])
     llvm_yaml = YAML.load_file(llvm_yaml_file)
 
@@ -16,10 +16,15 @@ function read_snoopl(func_csv_file, llvm_yaml_file)
             name
         end
 
-    times = [llvm_module["time_ns"] => [
-        try_get_jl_name(name)
-        for (name,_) in llvm_module["before"]
-    ] for llvm_module in llvm_yaml]
+    time_secs(llvm_module) = llvm_module["time_ns"] / 1e9
+
+    times = [
+        time_secs(llvm_module) => [
+            try_get_jl_name(name)
+            for (name,_) in llvm_module["before"]
+        ] for llvm_module in llvm_yaml
+        if time_secs(llvm_module) > tmin_secs
+    ]
 
     info = Dict(
         try_get_jl_name(name) => (;
@@ -35,6 +40,7 @@ function read_snoopl(func_csv_file, llvm_yaml_file)
         for llvm_module in llvm_yaml
         for (name, before_stats) in llvm_module["before"]
         for (name, after_stats)  in llvm_module["after"]
+        if time_secs(llvm_module) > tmin_secs
     )
 
 
