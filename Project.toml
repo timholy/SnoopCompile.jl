@@ -14,7 +14,9 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
 Cthulhu = "1.2"
+CSV = "0.7"
 OrderedCollections = "1"
+YAML = "0.4"
 SnoopCompileCore = "~2.1.2"
 julia = "1"
 
