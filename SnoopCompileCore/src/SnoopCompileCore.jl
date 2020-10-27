@@ -23,4 +23,8 @@ if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
     include("snoopl.jl")
 end
 
+if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
+    include("snoop_all.jl")
+end
+
 end
