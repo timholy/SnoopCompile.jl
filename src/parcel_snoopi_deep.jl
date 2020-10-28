@@ -118,8 +118,14 @@ end
 # of the inference times (so it's missing the _overhead_ from the measurement).
 # SO we need to manually create a root node that covers the whole thing.
 function max_end_time(t::InclusiveTiming)
-    return maximum(child.start_time + child.inclusive_time for child in t.children;
-                    init = UInt64(t.start_time + t.inclusive_time))
+    # It's possible that t is already the longest-reaching node.
+    t_end = UInt64(t.start_time + t.inclusive_time)
+    # It's also possible that the last child extends past the end of t. (I think this is
+    # possible because of the small unmeasured overhead in computing these measurements.)
+    last_node = length(t.children) > 0 ? t.children[end] : t
+    child_end = last_node.start_time + last_node.inclusive_time
+    # Return the maximum end time to make sure the top node covers the entire graph.
+    return max(t_end, child_end)
 end
 
 # Make a flat frame for this Timing
