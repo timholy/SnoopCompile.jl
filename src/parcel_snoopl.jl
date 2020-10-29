@@ -7,7 +7,7 @@ function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
     func_csv = CSV.File(func_csv_file, header=false, delim='\t', types=[String, String])
     llvm_yaml = YAML.load_file(llvm_yaml_file)
 
-    jl_names = Dict(r[1] => r[2] for r in func_csv)
+    jl_names = Dict(r[1]::String => r[2]::String for r in func_csv)
 
     try_get_jl_name(name) = if name in keys(jl_names)
         jl_names[name]
