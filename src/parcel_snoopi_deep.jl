@@ -4,6 +4,8 @@ using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
 using Core.Compiler.Timings: Timing
 
+const flamegraph = FlameGraphs.flamegraph  # For re-export
+
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
@@ -44,8 +46,8 @@ function build_inclusive_times(t::Timing)
 end
 
 """
-    to_flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
-    to_flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)
+    flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
+    flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
@@ -61,12 +63,12 @@ julia> timing = SnoopCompileCore.@snoopi_deep begin
            @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
        end;
 
-julia> fg = SnoopCompile.to_flamegraph(timing)
+julia> fg = SnoopCompile.flamegraph(timing)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 
-julia> fg = SnoopCompile.to_flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+julia> fg = SnoopCompile.flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
 
@@ -76,12 +78,12 @@ call this function multiple times (say with different values for `tmin_secs`), y
 some intermediate time by first calling [`build_inclusive_times(t)`](@ref), only once,
 and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
-function to_flamegraph(t::Timing; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0)
     it = build_inclusive_times(t)
-    to_flamegraph(it; tmin_secs=tmin_secs)
+    flamegraph(it; tmin_secs=tmin_secs)
 end
 
-function to_flamegraph(to::InclusiveTiming; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(to::InclusiveTiming; tmin_secs = 0.0)
     tmin_ns = UInt64(round(tmin_secs * 1e9))
 
     # Compute a "root" frame for the top-level node, to cover the whole profile

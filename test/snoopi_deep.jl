@@ -44,7 +44,7 @@ end
     end
     times = SnoopCompile.flatten_times(timing)
 
-    fg = SnoopCompile.to_flamegraph(timing)
+    fg = SnoopCompile.flamegraph(timing)
     @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
     # Test that the span covers the whole tree.
     for leaf in AbstractTrees.PreOrderDFS(fg)
@@ -53,6 +53,6 @@ end
     end
 
     cutoff_bottom_frame = (times[1][1] + times[2][1]) / 2
-    fg2 = SnoopCompile.to_flamegraph(timing, tmin_secs = cutoff_bottom_frame)
+    fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
     @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
 end

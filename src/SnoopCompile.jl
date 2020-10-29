@@ -3,6 +3,9 @@ module SnoopCompile
 using SnoopCompileCore
 export @snoopc
 isdefined(SnoopCompileCore, Symbol("@snoopi")) && export @snoopi
+if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
+    export @snoopi_deep, flamegraph, flatten_times
+end
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 end

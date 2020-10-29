@@ -34,7 +34,7 @@ julia's type inference (codegen, llvm_opt, runtime, etc).
 
 To make use of these results, see the processing functions in SnoopCompile:
     - [`SnoopCompile.flatten_times(timing_tree)`](@ref)
-    - [`SnoopCompile.to_flamegraph(timing_tree)`](@ref)
+    - [`SnoopCompile.flamegraph(timing_tree)`](@ref)
 
 # Examples
 ```julia
@@ -51,12 +51,12 @@ julia> times = SnoopCompile.flatten_times(timing, tmin_secs=0.001)
  0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(...
  0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), ...
 
-julia> fg = SnoopCompile.to_flamegraph(timing)
+julia> fg = SnoopCompile.flamegraph(timing)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 
-julia> fg = SnoopCompile.to_flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+julia> fg = SnoopCompile.flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
 
