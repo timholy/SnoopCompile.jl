@@ -75,7 +75,7 @@ Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 NOTE: This function must touch every frame in the provided `Timing` to build inclusive
 timing information (`InclusiveTiming`). If you have a very large profile, and you plan to
 call this function multiple times (say with different values for `tmin_secs`), you can save
-some intermediate time by first calling [`build_inclusive_times(t)`](@ref), only once,
+some intermediate time by first calling [`SnoopCompile.build_inclusive_times(t)`](@ref), only once,
 and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
 function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0)
