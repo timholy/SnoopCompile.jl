@@ -38,28 +38,27 @@ To make use of these results, see the processing functions in SnoopCompile:
 
 # Examples
 ```julia
-julia> timing = SnoopCompileCore.@snoopi_deep begin
+julia> timing = @snoopi_deep begin
            @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
        end;
 
 julia> using SnoopCompile, ProfileView
 
-julia> times = SnoopCompile.flatten_times(timing, tmin_secs=0.001)
+julia> times = flatten_times(timing, tmin_secs=0.001)
 4-element Vector{Any}:
  0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(...
  0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(...
  0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(...
  0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), ...
 
-julia> fg = SnoopCompile.flamegraph(timing)
+julia> fg = flamegraph(timing)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 
-julia> fg = SnoopCompile.flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+julia> fg = flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
-
 """
 macro snoopi_deep(cmd)
     return _snoopi_deep(cmd)

@@ -59,16 +59,16 @@ This can be helpful if you have a very big profile, to save on processing time.
 
 # Examples
 ```julia
-julia> timing = SnoopCompileCore.@snoopi_deep begin
+julia> timing = @snoopi_deep begin
            @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
        end;
 
-julia> fg = SnoopCompile.flamegraph(timing)
+julia> fg = flamegraph(timing)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 
-julia> fg = SnoopCompile.flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+julia> fg = flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
 
@@ -132,7 +132,6 @@ end
 
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
-    # TODO: Use a better conversion to a StackFrame so this contains the right kind of data
     mi = to.mi_info.mi
     tt = Symbol(frame_name(to.mi_info))
     sf = StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0))
