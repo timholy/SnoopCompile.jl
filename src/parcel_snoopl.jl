@@ -4,7 +4,7 @@
 Reads the log file produced by the compiler and returns the structured representations.
 """
 function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
-    func_csv = CSV.File(func_csv_file, header=false, delim='\t', types=[String, String])
+    func_csv = _read_snoopl_csv(func_csv_file)
     llvm_yaml = YAML.load_file(llvm_yaml_file)
 
     jl_names = Dict(r[1]::String => r[2]::String for r in func_csv)
@@ -46,4 +46,21 @@ function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
 
     # sort times so that the most costly items are displayed last
     return (sort(times), info)
+end
+
+
+"""
+`SnoopCompile._read_snoopl_csv("compiledata.csv")` reads the log file produced by the
+compiler and returns the function names as an array of pairs.
+"""
+function _read_snoopl_csv(filename)
+    data = Vector{Pair{String,String}}()
+    # Format is [^\t]+\t[^\t]+. That is, tab-separated entries. No quotations or other
+    # whitespace are considered.
+    for line in eachline(filename)
+        c_name, jl_type = split2(line, '\t')
+        (length(c_name) < 2 || length(jl_type) < 2) && continue
+        push!(data, c_name => jl_type)
+    end
+    return data
 end

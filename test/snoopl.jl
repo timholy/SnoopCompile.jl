@@ -1,7 +1,6 @@
 using Test
 
 using SnoopCompile
-using SnoopCompile.SnoopCompileCore
 
 @testset "@snoopl" begin
 

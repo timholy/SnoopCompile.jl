@@ -4,7 +4,6 @@ author = ["Tim Holy <tim.holy@gmail.com>"]
 version = "2.1.2"
 
 [deps]
-CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
@@ -14,10 +13,9 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
 Cthulhu = "1.2"
-CSV = "0.7"
 OrderedCollections = "1"
-YAML = "0.4"
 SnoopCompileCore = "~2.1.2"
+YAML = "0.4"
 julia = "1"
 
 [extras]

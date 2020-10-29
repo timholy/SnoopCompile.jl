@@ -6,10 +6,13 @@ isdefined(SnoopCompileCore, Symbol("@snoopi")) && export @snoopi
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 end
+if isdefined(SnoopCompileCore, Symbol("@snoopl"))
+    export @snoopl, read_snoopl
+end
 
 using Core: MethodInstance, CodeInfo
 using Serialization, OrderedCollections
-import YAML,CSV  # For @snoopl
+import YAML  # For @snoopl
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
