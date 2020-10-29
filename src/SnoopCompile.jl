@@ -25,12 +25,7 @@ if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
 end
 
-# TODO(PR): It seems reasonable to me to leave this alaways available, since even if you're
-# using a version of julia that doesn't support `@snoopl`, it seems like it's still nice to
-# let you _read and reason about_ the results of a snoopl run?
-#if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
-    include("parcel_snoopl.jl")
-#end
+include("parcel_snoopl.jl")
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
