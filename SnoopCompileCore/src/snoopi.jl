@@ -1,4 +1,4 @@
-export @snoopi
+export @snoopi, @snoopi_deep
 
 const __inf_timing__ = Tuple{Float64,MethodInstance}[]
 
@@ -51,7 +51,7 @@ end
     inf_timing = @snoopi tmin=0.0 commands
 
 Execute `commands` while snooping on inference. Returns an array of `(t, linfo)`
-tuples, where `t` is the amount of time spent infering `linfo` (a `MethodInstance`).
+tuples, where `t` is the amount of time spent inferring `linfo` (a `MethodInstance`).
 
 Methods that take less time than `tmin` will not be reported.
 """
@@ -99,5 +99,6 @@ function __init__()
     end
     precompile(start_timing, ())
     precompile(stop_timing, ())
+
     nothing
 end

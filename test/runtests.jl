@@ -1,11 +1,18 @@
+using Test
+
 if VERSION >= v"1.2.0-DEV.573"
     include("snoopi.jl")
+end
+
+if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
+    @testset "snoopi_deep" begin
+        include("snoopi_deep.jl")
+    end
 end
 
 using SnoopCompile
 using JLD
 using SparseArrays
-using Test
 
 # issue #26
 logfile = joinpath(tempdir(), "anon.log")
