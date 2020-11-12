@@ -11,8 +11,6 @@ if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
 end
 
 using SnoopCompile
-using JLD
-using SparseArrays
 
 # issue #26
 logfile = joinpath(tempdir(), "anon.log")
@@ -29,16 +27,18 @@ keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symb
 @test pcstring == "Tuple{getfield(JLD, Symbol(\"##s27#8\")), Int, Int, Int, Int, Int}"
 @test topmod == :JLD
 @test name == "##s27#8"
-matfile = joinpath(tempdir(), "mat.jld")
-save(matfile, "mat", sprand(10, 10, 0.1))
-logfile = joinpath(tempdir(), "jldanon.log")
+logfile = joinpath(tempdir(), "isdefined.log")
 @snoopc logfile begin
-    using JLD, SparseArrays
-    mat = load(joinpath(tempdir(), "mat.jld"), "mat")
+    @eval module IsDef
+        @generated function tm(x)
+            return :(typemax($x))
+        end
+    end
+    IsDef.tm(1)
 end
 data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
-@test any(startswith.(pc[:JLD], "isdefined"))
+@test any(startswith.(pc[:IsDef], "isdefined"))
 
 #=
 # Simple call
