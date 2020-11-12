@@ -134,6 +134,14 @@ end
     end
     @test fnode.mi.def === m
 
+    # Method deletion
+    m = which(SnooprTests.f, (Bool,))
+    invs = @snoopr Base.delete_method(m)
+    trees = invalidation_trees(invs)
+    tree = only(trees)
+    @test tree.reason === :deleting
+    @test tree.method == m
+
     # Exclusion of Core.Compiler methods
     invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
     umis1 = uinvalidated(invs)
