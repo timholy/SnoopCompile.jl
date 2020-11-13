@@ -45,9 +45,13 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
+@enum FrameDisplayType slottypes method_instance method function_name
+
 """
-    flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
-    flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)
+    flamegraph(t::Core.Compiler.Timings.Timing;
+                tmin_secs = 0.0, display_type = FrameDisplayType.method_instance)
+    flamegraph(t::SnoopCompile.InclusiveTiming;
+                tmin_secs = 0.0, display_type = FrameDisplayType.method_instance)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
@@ -56,6 +60,15 @@ type inference.
 Frames that take less than `tmin_secs` seconds of _inclusive time_ will not be included
 in the resultant FlameGraph (meaning total time including it and all of its children).
 This can be helpful if you have a very big profile, to save on processing time.
+
+To make it easier to aggregate and understand results, you might try setting a less-precise
+display type via e.g. `display_type=FrameDisplayType.method` or
+`display_type=FrameDisplayType.function_name`. This can be especially useful for
+graph-based displays, such as PProf.jl.
+
+# Keyword Arguments
+- `display_type::FrameDisplayType`: How to print the inference frame in the FlameGraph
+    - Options: `slottypes, method_instance, method, function_name`
 
 # Examples
 ```julia
@@ -78,42 +91,63 @@ call this function multiple times (say with different values for `tmin_secs`), y
 some intermediate time by first calling [`SnoopCompile.build_inclusive_times(t)`](@ref), only once,
 and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
-function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0, display_type = method_instance)
     it = build_inclusive_times(t)
-    flamegraph(it; tmin_secs=tmin_secs)
+    flamegraph(it; tmin_secs=tmin_secs, display_type=display_type)
 end
 
-function FlameGraphs.flamegraph(to::InclusiveTiming; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(to::InclusiveTiming; tmin_secs = 0.0, display_type = method_instance)
     tmin_ns = UInt64(round(tmin_secs * 1e9))
 
     # Compute a "root" frame for the top-level node, to cover the whole profile
-    node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
+    node_data = _flamegraph_frame(to, to.start_time; toplevel=true, display_type=display_type)
     root = Node(node_data)
-    return _build_flamegraph!(root, to, to.start_time, tmin_ns)
+    return _build_flamegraph!(root, to, to.start_time, tmin_ns, display_type)
 end
-function _build_flamegraph!(root, to::InclusiveTiming, start_ns, tmin_ns)
+function _build_flamegraph!(root, to::InclusiveTiming, start_ns, tmin_ns, display_type)
     for child in to.children
         if child.inclusive_time > tmin_ns
-            node_data = _flamegraph_frame(child, start_ns; toplevel=false)
+            node_data = _flamegraph_frame(child, start_ns; toplevel=false, display_type=display_type)
             node = addchild(root, node_data)
-            _build_flamegraph!(node, child, start_ns, tmin_ns)
+            _build_flamegraph!(node, child, start_ns, tmin_ns, display_type)
         end
     end
     return root
 end
 
-function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo)
-    frame_name(mi_info.mi::Core.Compiler.MethodInstance)
+function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_type)
+    try
+        mi = mi_info.mi
+        if display_type == slottypes
+            "TODO"
+        elseif display_type == function_name
+            name = mi.def.name
+            string(name)
+        elseif display_type == method
+            string(mi.def)
+        elseif display_type == method_instance
+            name = mi.def.name
+            frame_name(mi.def.name, mi.specTypes)
+        else
+            throw("Unsupported display_type: $display_type")
+        end
+    catch e
+        e isa InterruptException && rethrow()
+        @warn "Error displaying frame: $e"
+        return "<Error displaying frame>"
+    end
 end
-function frame_name(mi::Core.Compiler.MethodInstance)
-    frame_name(mi.def.name, mi.specTypes)
-end
-# Special printing for Type Tuples so they're less ugly in the FlameGraph
 function frame_name(name, ::Type{TT}) where TT<:Tuple
-    io = IOBuffer()
-    Base.show_tuple_as_call(io, name, TT)
-    v = String(take!(io))
-    return v
+    try
+        io = IOBuffer()
+        Base.show_tuple_as_call(io, name, TT)
+        v = String(take!(io))
+        return v
+    catch e
+        e isa InterruptException && rethrow()
+        @warn "Error displaying frame: $e"
+        return name
+    end
 end
 
 # NOTE: The "root" node doesn't cover the whole profile, because it's only the _complement_
@@ -131,9 +165,9 @@ function max_end_time(t::InclusiveTiming)
 end
 
 # Make a flat frame for this Timing
-function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
+function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel, display_type)
     mi = to.mi_info.mi
-    tt = Symbol(frame_name(to.mi_info))
+    tt = Symbol(frame_name(to.mi_info; display_type=display_type))
     sf = StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
