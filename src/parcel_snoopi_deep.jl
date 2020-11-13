@@ -120,7 +120,13 @@ function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_t
         mi = mi_info.mi
         name = mi.def.name
         if display_type == slottypes
-            frame_name_slottype(mi_info.slottypes)
+            # nargs added in https://github.com/JuliaLang/julia/pull/38416
+            st = if hasfield(Core.Compiler.Timings.InferenceFrameInfo, :nargs)
+                mi_info.slottypes[1:mi_info.nargs]
+            else
+                mi_info.slottypes
+            end
+            frame_name_slottypes(st)
         elseif display_type == function_name
             string(name)
         elseif display_type == method
@@ -148,10 +154,11 @@ function frame_name(name, ::Type{TT}) where TT<:Tuple
         return name
     end
 end
-function frame_name_slottype(slottypes)
+function frame_name_slottypes(slottypes)
+    name = slottypes[1].val
     try
-        return "$(repr(slottypes[1].val))(" *
-        join((if t isa Core.Const "Const($(t.val))::$(typeof(t.val))" else "::$t" end
+        return "$(repr(name))(" *
+        join((if t isa Core.Const "$t::$(typeof(t.val))" else "::$t" end
             for t in slottypes[2:end]),
             ", "
         ) *
