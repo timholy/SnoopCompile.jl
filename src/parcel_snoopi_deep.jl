@@ -118,15 +118,14 @@ end
 function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_type)
     try
         mi = mi_info.mi
+        name = mi.def.name
         if display_type == slottypes
-            "TODO"
+            frame_name_slottype(mi_info.slottypes)
         elseif display_type == function_name
-            name = mi.def.name
             string(name)
         elseif display_type == method
             string(mi.def)
         elseif display_type == method_instance
-            name = mi.def.name
             frame_name(mi.def.name, mi.specTypes)
         else
             throw("Unsupported display_type: $display_type")
@@ -143,6 +142,20 @@ function frame_name(name, ::Type{TT}) where TT<:Tuple
         Base.show_tuple_as_call(io, name, TT)
         v = String(take!(io))
         return v
+    catch e
+        e isa InterruptException && rethrow()
+        @warn "Error displaying frame: $e"
+        return name
+    end
+end
+function frame_name_slottype(slottypes)
+    try
+        return "$(repr(slottypes[1].val))(" *
+        join((if t isa Core.Const "Const($(t.val))::$(typeof(t.val))" else "::$t" end
+            for t in slottypes[2:end]),
+            ", "
+        ) *
+        ")"
     catch e
         e isa InterruptException && rethrow()
         @warn "Error displaying frame: $e"
