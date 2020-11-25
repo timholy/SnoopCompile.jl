@@ -100,4 +100,8 @@ f5(x::Array{Float64,K}; y::Int=0) where K = K
 # Default and keyword args
 f6(x, y="hello"; z::Int=0) = 1
 
+fsort() = @eval sortperm(rand(5); rev=true, by=sin)
+fsort2() = @eval sortperm(rand(5); rev=true, by=x->x^2)
+fsort3() = sortperm(rand(Float16, 5))
+
 end
