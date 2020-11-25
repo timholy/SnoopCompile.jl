@@ -106,7 +106,9 @@ function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo)
     frame_name(mi_info.mi::Core.Compiler.MethodInstance)
 end
 function frame_name(mi::Core.Compiler.MethodInstance)
-    frame_name(mi.def.name, mi.specTypes)
+    m = mi.def
+    isa(m, Module) && return "thunk"
+    return frame_name(m.name, mi.specTypes)
 end
 # Special printing for Type Tuples so they're less ugly in the FlameGraph
 function frame_name(name, ::Type{TT}) where TT<:Tuple
@@ -134,7 +136,9 @@ end
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     mi = to.mi_info.mi
     tt = Symbol(frame_name(to.mi_info))
-    sf = StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0))
+    m = mi.def
+    sf = isa(m, Method) ? StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
+                          StackFrame(tt, :unknown, 0, mi, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
     if toplevel
