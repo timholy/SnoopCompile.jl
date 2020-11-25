@@ -52,7 +52,10 @@ end
         @test leaf.data.span.stop in fg.data.span
     end
 
-    cutoff_bottom_frame = (times[1][1] + times[2][1]) / 2
-    fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
+    t1, t2 = times[1][1], times[2][1]
+    if t1 != t2   # in rare cases it happens that the bottom two have the same time, but the test requires a gap
+        cutoff_bottom_frame = (t1 + t2) / 2
+        fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
+        @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
+    end
 end
