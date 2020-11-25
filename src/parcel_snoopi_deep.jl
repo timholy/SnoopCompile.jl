@@ -11,6 +11,9 @@ isROOT(mi_info::InferenceFrameInfo) = isROOT(mi_info.mi)
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
+# Record instruction pointers we've already looked up (performance optimization)
+const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
@@ -332,6 +335,335 @@ function runtime_inferencetime(tinf::Timing, pdata; lidict, consts::Bool=true, d
     savings((trun, tinfer, nspec)::Tuple{Float64,Float64,Int}) = tinfer * (nspec - 1)
     savings(pr::Pair) = savings(pr.second)
     return sort(collect(ridata); by=savings)
+end
+
+"""
+    InferenceBreak(it::InclusiveTiming, st::Vector{StackFrame}, stidx::Int, bt)
+
+Store data about a "break" in inference, a fresh entry into inference via a call dispatched at runtime.
+`it` measures the inclusive inference time, `st` is conceptually the stackframe of the call that was made by runtime dispatch;
+it's a `Vector{StackFrame}` due to the possibility that the caller was inlined into something else, in which case the first entry
+is the inlined caller and the last entry is the method into which it was ultimately inlined. `stidx` is the index in `bt`, the
+backtrace collected upon entry into inference, corresponding to `st`.
+"""
+struct InferenceBreak
+    it::InclusiveTiming
+    st::Vector{StackTraces.StackFrame}
+    stidx::Int   # st = StackTraces.lookup(bt[stidx])
+    bt::Vector{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}}
+end
+
+function Base.show(io::IO, ib::InferenceBreak)
+    sf = first(ib.st)
+    print(io, "Inference break costing ")
+    printstyled(io, ib.it.inclusive_time/10^9; color=:yellow)
+    print(io, "s: dispatch ", ib.it.mi_info.mi, " from ")
+    printstyled(io, sf.func; bold=true)
+    print(io, " at ")
+    printstyled(io, sf.file, ':', sf.line; color=:blue)
+end
+
+inclusive_time(ib::InferenceBreak) = inclusive_time(ib.it)
+
+# Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
+function next_julia_frame(bt, idx)
+    while idx < length(bt)
+        ip = bt[idx+=1]
+        sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
+        sf = sfs[end]
+        sf.from_c && continue
+        mi = sf.linfo
+        isa(mi, Core.MethodInstance) || continue
+        m = mi.def
+        isa(m, Method) || continue
+        m.module === Core.Compiler && continue
+        return sfs, idx
+    end
+    return nothing
+end
+
+"""
+    ibs = inference_breaks(t::Timing, [tinc::InclusiveTiming=build_inclusive_times(t)]; exclude_toplevel=true)
+
+Collect the "breaks" in inference, each a fresh entry into inference via a call dispatched at runtime.
+All the entries in `ibs` are previously uninferred, or are freshly-inferred for specific constant inputs.
+The cost of each break is quoted as the *inclusive* time, meaning the time for this entire entrance to inference
+(the direct callee and all of its inferrable calls).
+
+`exclude_toplevel` determines whether calls made from the REPL, `include`, or test suites are excluded.
+
+# Example
+
+In a fresh Julia session, `sqrt(::Int)` has not been inferred:
+
+```julia
+julia> using SnoopCompile, MethodAnalysis
+
+julia> methodinstance(sqrt, (Int,))
+
+```
+
+However, if we do the following,
+
+```julia
+julia> c = (1, 2)
+(1, 2)
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> ibs = inference_breaks(tinf)
+SnoopCompile.InferenceBreak[]
+```
+
+we get no output. Let's see them all:
+
+```julia
+julia> ibs = inference_breaks(tinf; exclude_toplevel=false)
+1-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.000706839s: dispatch MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64}) from eval at ./boot.jl:360
+```
+
+This output indicates that `map(::typeof(sqrt), ::Tuple{Int64, Int64})` was runtime-dispatched as a call from `eval`, and that the cost
+of inferring it and all of its callees was about 0.7ms. `sqrt(::Int)` does not appear because it was inferred from `map`:
+
+```julia
+julia> mi = methodinstance(sqrt, (Int,))    # now this is an inferred MethodInstance
+MethodInstance for sqrt(::Int64)
+
+julia> terminal_backedges(mi)
+1-element Vector{Core.MethodInstance}:
+ MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64})
+```
+
+If we change `c` to a `Vector{Int}`, we get more examples of runtime dispatch:
+
+```julia
+julia> c = [1, 2];
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> ibs = inference_breaks(tinf)
+2-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.000656328s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Int64}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.0196351s: dispatch MethodInstance for collect_similar(::Vector{Int64}, ::Base.Generator{Vector{Int64}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
+```
+
+These are not inferrable from `map` because `map(f, ::AbstractArray)` does not specialize on `f`, whereas it does for tuples.
+"""
+function inference_breaks(t::Timing, tinc::InclusiveTiming=build_inclusive_times(t); exclude_toplevel::Bool=true)
+    function first_julia_frame(bt)
+        ret = next_julia_frame(bt, 1)
+        if ret === nothing
+            display(stacktrace(bt))
+            error("failed to find a Julia frame")
+        end
+        return ret
+    end
+
+    breaks = map(t.children, tinc.children) do tc, tic
+        InferenceBreak(tic, first_julia_frame(tc.bt)..., tc.bt)
+    end
+    if exclude_toplevel
+        breaks = filter(maybe_internal, breaks)
+    end
+    return sort(breaks; by = inclusive_time)
+end
+
+const rextest = r"stdlib.*Test.jl$"
+function maybe_internal(ib::InferenceBreak)
+    for sf in ib.st
+        linfo = sf.linfo
+        if isa(linfo, Core.MethodInstance)
+            m = linfo.def
+            if isa(m, Method)
+                m.module === Base && m.name === :include_string && return false
+                m.name === :eval && return false
+            end
+        end
+        match(rextest, string(sf.file)) !== nothing && return false
+    end
+    return true
+end
+
+"""
+    ibcaller = callingframe(ib::InferenceBreak)
+
+"Step out" one layer, returning data on the caller triggering `ib`.
+
+# Example
+
+```julia
+julia> mymap(f, container) = map(f, container)
+mymap (generic function with 1 method)
+
+julia> container = [1 2 3]
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> mymap(identity, container)
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> tinf = @snoopi_deep mymap(x->x^2, container);
+
+# The breaks in inference (here because this function wasn't called previously) are attributed to `map`
+julia> ibs = inference_breaks(tinf)
+2-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from map at ./abstractarray.jl:2282
+
+# But we can see that `map` was called by `mymap`:
+julia> callingframe.(ibs)
+2-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from mymap at ./REPL[2]:1
+ Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from mymap at ./REPL[2]:1
+```
+"""
+function callingframe(ib::InferenceBreak)
+    idx = ib.stidx
+    if idx < length(ib.bt)
+        ret = next_julia_frame(ib.bt, idx)
+        if ret !== nothing
+            return InferenceBreak(ib.it, ret..., ib.bt)
+        end
+    end
+    return ib
+end
+
+struct Location  # a portion of a StackFrame, plus total time
+    func::Symbol
+    file::Symbol
+    line::Int
+end
+Location(ib::InferenceBreak) = (sf = ib.st[1]; Location(sf.func, sf.file, sf.line))
+
+Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
+
+struct LocationBreaks
+    loc::Location
+    ibs::Vector{InferenceBreak}
+end
+
+Base.show(io::IO, locbs::LocationBreaks) = print(io, locbs.loc, " (", length(locbs.ibs), " instances)")
+
+"""
+    libs = accumulate_by_source(ibs::AbstractVector{InferenceBreak})
+
+Aggregate inference breaks by location (function, file, and line number) of the caller.
+The reported time is the time of all instances.
+
+# Example
+
+```julia
+julia> c = Any[1, 1.0, 0x01, Float16(1)];
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> ibs = inference_breaks(tinf)
+9-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.000243905s: dispatch MethodInstance for sqrt(::Int64) from iterate at ./generator.jl:47
+ Inference break costing 0.000259601s: dispatch MethodInstance for sqrt(::UInt8) from iterate at ./generator.jl:47
+ Inference break costing 0.000353063s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Any}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.000411542s: dispatch MethodInstance for _similar_for(::Vector{Any}, ::Type{Float64}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Base.HasShape{1}) from _collect at ./array.jl:682
+ Inference break costing 0.000568054s: dispatch MethodInstance for sqrt(::Float16) from iterate at ./generator.jl:47
+ Inference break costing 0.002503302s: dispatch MethodInstance for collect_to_with_first!(::Vector{Float64}, ::Float64, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64) from _collect at ./array.jl:682
+ Inference break costing 0.002741125s: dispatch MethodInstance for collect_to!(::Vector{AbstractFloat}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64, ::Int64) from collect_to! at ./array.jl:718
+ Inference break costing 0.003836296s: dispatch MethodInstance for collect_similar(::Vector{Any}, ::Base.Generator{Vector{Any}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
+
+julia> libs = accumulate_by_source(ibs)
+5-element Vector{Pair{Float64, SnoopCompile.LocationBreaks}}:
+            0.00107156 => iterate at ./generator.jl:47 (3 instances)
+           0.002741125 => collect_to! at ./array.jl:718 (1 instances)
+ 0.0029148439999999998 => _collect at ./array.jl:682 (2 instances)
+           0.004189359 => map at ./abstractarray.jl:2282 (2 instances)
+           0.010411171 => collect_to! at ./array.jl:717 (1 instances)
+```
+
+`iterate` accounted for 3 inference breaks, yet the aggregate cost of these was still dwarfed by one made from `collect_to!`.
+Let's see what this call was:
+
+```julia
+julia> libs[end][2].ibs
+1-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
+```
+
+So inferring `setindex_widen_up_to` was much more expensive than inferring 3 calls of `sqrt`.
+"""
+function accumulate_by_source(ibs::AbstractVector{InferenceBreak})
+    cs = Dict{Location,Pair{Float64,Vector{InferenceBreak}}}()
+    for ib in ibs
+        loc = Location(ib)
+        val = get(cs, loc, nothing)
+        if val !== nothing
+            t, libs = val
+            push!(libs, ib)
+        else
+            t, libs = 0.0, [ib]
+        end
+        cs[loc] = t + inclusive_time(ib)/10^9 => libs
+    end
+    return sort([t => LocationBreaks(loc, libs) for (loc, (t, libs)) in cs]; by=first)
+end
+
+"""
+    mis = collect_callerinstances(loc, tinf::Timing)
+
+Collect `MethodInstance`s corresponding to a caller method at location `loc`.
+These can be used to inspect the calling method for inference problems.
+
+### Example
+
+```julia
+julia> function f(x)
+           x < 0.25 ? 1 :
+           x < 0.5  ? 1.0 :
+           x < 0.75 ? 0x01 : Float16(1)
+       end
+f (generic function with 1 method)
+
+julia> g(c) = f(c[1]) + f(c[2])
+g (generic function with 1 method)
+
+julia> tinf = @snoopi_deep g([0.7, 0.8]);
+
+julia> ibs = inference_breaks(tinf)
+1-element Vector{SnoopCompile.InferenceBreak}:
+ Inference break costing 0.001455366s: dispatch MethodInstance for +(::UInt8, ::Float16) from g at ./REPL[3]:1
+
+ julia> mis = collect_callerinstances(ibs[1], tinf)
+ 1-element Vector{Core.MethodInstance}:
+  MethodInstance for g(::Vector{Float64})
+ ```
+
+The entries of `mis` may be inspected (for example with Cthulhu) for inference problems.
+"""
+function collect_callerinstances(loc::Location, t::Timing)
+    mis = collect(collect_callerinstances!(Set{MethodInstance}(), loc, t))
+    # collect_callerinstances! gets any method of that name that occurs earlier in the file; to be sure we've got the right method,
+    # make sure the body of the method includes the specific line number.
+    ms = unique(mi.def for mi in mis)
+    length(ms) < 2 && return mis
+    sort!(ms; by=m->m.line)
+    m = ms[end] # the last one should be the one that includes the given line
+    return filter(mi -> mi.def == m, mis)
+end
+
+collect_callerinstances(lib::LocationBreaks, t::Timing) = collect_callerinstances(lib.loc, t)
+collect_callerinstances(ib::InferenceBreak, t::Timing) = collect_callerinstances(Location(ib), t)
+
+function collect_callerinstances!(mis, loc, t::Timing)
+    m = t.mi_info.mi.def
+    if isa(m, Method)
+        if m.name === loc.func && endswith(string(loc.file), string(m.file)) && m.line <= loc.line
+            push!(mis, t.mi_info.mi)
+        end
+    end
+    foreach(t.children) do child
+        collect_callerinstances!(mis, loc, child)
+    end
+    return mis
 end
 
 """
