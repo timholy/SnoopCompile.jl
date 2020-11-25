@@ -59,6 +59,28 @@ using AbstractTrees  # For FlameGraphs tests
     @test length(timesmod) == 1
 end
 
+@testset "module_roots" begin
+    @eval module M
+        f(x) = x < 0.5
+    end
+    filter(M.f, [0, 1])  # warmup
+    @eval module M
+        f(x) = x < 0.5
+    end
+    timing = SnoopCompileCore.@snoopi_deep begin
+        filter(M.f, [0, 1])
+    end
+    # It's important to build the inclusive times only once, because otherwise `==` will fail in `mroot ∈ broot.children`
+    timingi = SnoopCompile.build_inclusive_times(timing)
+    mroot = only(module_roots(M, timingi))
+    broot = only(module_roots(Base, timingi))
+    @test mroot != broot
+    @test mroot ∈ broot.children
+    io = IOBuffer()
+    show(io, mroot)
+    @test endswith(String(take!(io)), "MethodInstance for f(::Int64) with 0 direct children")
+end
+
 @testset "flamegraph_export" begin
     @eval module M  # Take another timing
         i(x) = x+5

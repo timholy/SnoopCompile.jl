@@ -78,8 +78,16 @@ struct InclusiveTiming
     children::Vector{InclusiveTiming}
 end
 
+Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", t.mi_info.mi, " with ", length(t.children), " direct children")
+
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
+"""
+    tinc = SnoopCompile.build_inclusive_times(t::Core.Compiler.Timings.Timing)
+
+Calculate times for inference for a node and all its children. `tinc.inclusive_time` records this time for
+node `tinc`; `tinc.children` gives you access to the children of this node.
+"""
 function build_inclusive_times(t::Timing)
     child_times = InclusiveTiming[
         build_inclusive_times(child)
@@ -87,6 +95,54 @@ function build_inclusive_times(t::Timing)
     ]
     incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
+end
+
+"""
+    roots = module_roots(mod::Module, t)
+
+Identify the "root" `MethodInstance`s in module `mod` on each branch of the children of `t`, where `t`
+comes from [`@snoopi_deep`](@ref). Each may or may not be the entrance point for a fresh inference tree,
+but on each branch it is the closest-to-the-root of any method in `mod`.
+
+# Example
+
+```julia
+julia> module M
+       f(x) = x > 0.5
+       end
+Main.M
+
+julia> t = @snoopi_deep filter(M.f, [0, 1]);
+
+julia> module_roots(Base, t)
+1-element Vector{SnoopCompile.InclusiveTiming}:
+ InclusiveTiming: 0.001296559 for MethodInstance for filter(::typeof(Main.M.f), ::Vector{Int64}) with 2 direct children
+
+ julia> module_roots(M, t)
+1-element Vector{SnoopCompile.InclusiveTiming}:
+ InclusiveTiming: 0.000274648 for MethodInstance for f(::Int64) with 1 direct children
+```
+
+Be aware that `InclusiveTiming` objects for the "same" node built from two separate calls to `module_roots` will not
+compare as equal. If you need that property, call [`SnoopCompile.build_inclusive_times`](@ref) to construct the tree
+`tinc` of `InclusiveTiming` nodes, and then select the roots from `tinc`.
+"""
+module_roots(mod::Module, t::Timing) = module_roots(mod, build_inclusive_times(t))
+module_roots(mod::Module, t::InclusiveTiming) = sort(module_roots!(InclusiveTiming[], mod, t); by=inclusive_time)
+
+function module_roots!(tmi, mod::Module, t::InclusiveTiming)
+    mi = t.mi_info.mi
+    m = mi.def
+    if isa(m, Method)
+        if m.module === mod
+            push!(tmi, t)
+            return tmi
+        end
+    end
+    foreach(t.children) do c
+        module_roots!(tmi, mod, c)
+    end
+    return tmi
 end
 
 """
