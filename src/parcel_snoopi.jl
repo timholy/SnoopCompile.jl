@@ -247,11 +247,15 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         # need to be defined; we collect all the corresponding modules and assign it to the
         # "topmost".
         empty!(mods)
-        push!(mods, Base.moduleroot(m.module))
+        mroot = Base.moduleroot(m.module)
+        push!(mods, mroot)
         addmodules!(mods, tt.parameters)
         topmod = topmodule(mods)
         if topmod === nothing
             @debug "Skipping $tt due to lack of a suitable top module"
+            continue
+        elseif topmod !== mroot
+            @debug "Skipping $tt due to lack of method ownership"
             continue
         end
         # If we haven't yet started the list for this module, initialize
