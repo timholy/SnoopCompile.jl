@@ -65,7 +65,11 @@ uncompiled(x) = x + 1
 
     # Identify kwfuncs, whose naming depends on the Julia version (issue #46)
     # Also check for kw body functions (also tested below)
-    tinf = @snoopi sortperm(rand(5); rev=true)
+    tinf = @snoopi begin
+        FuncKinds.fsort()
+        FuncKinds.fsort2()
+        FuncKinds.fsort3()
+    end
     pc = SnoopCompile.parcel(tinf)
     FK = pc[:Base]
     @test any(str->occursin("kwftype", str), FK)
