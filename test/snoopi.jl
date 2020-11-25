@@ -72,7 +72,8 @@ uncompiled(x) = x + 1
     end
     pc = SnoopCompile.parcel(tinf)
     FK = pc[:Base]
-    @test any(str->occursin("kwftype", str), FK)
+    @test  any(str->occursin("kwftype", str), FK)
+    @test !any(str->occursin(r"Type\{NamedTuple.*typeof\(sin\)", str), FK)
     if VERSION >= v"1.4.0-DEV.215"
         @test any(str->occursin("__lookup_kwbody__", str), FK)
     else
