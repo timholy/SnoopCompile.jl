@@ -12,6 +12,8 @@ const flamegraph = FlameGraphs.flamegraph  # For re-export
 Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
 with the exclusive time for each invocation of type inference, skipping any frames that
 took less than `tmin_secs` seconds. Results are sorted by time.
+
+`ROOT` is a dummy element whose time corresponds to the total time for the operation, not just inference time.
 """
 function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
     out = Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
@@ -24,7 +26,45 @@ function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
         end
         append!(frontier, t.children)
     end
-    return sort(out; by=tl->tl[1])
+    return sort(out; by=first)
+end
+
+"""
+    accumulate_by_method(pairs; tmin_secs = 0.0)
+
+Add the inference timings for all `MethodInstance`s of a single `Method` together.
+`pairs` is the output of [`flatten_times`](@ref).
+Returns a list of `t => method` pairs.
+
+When the accumulated time for a `Method` is large, but each instance is small, it indicates
+that it is being inferred for many specializations (which might include specializations for different constants).
+
+# Example
+
+```julia
+julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
+
+julia> tm = accumulate_by_method(flatten_times(tinf); tmin_secs=0.0005)
+6-element Vector{Pair{Float64, Method}}:
+ 0.000590579 => _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307
+ 0.000616788 => partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578
+ 0.000634394 => sort!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, ::Base.Sort.InsertionSortAlg, o::Base.Order.Ordering) in Base.Sort at sort.jl:527
+ 0.000720815 => Vector{T}(::UndefInitializer, m::Int64) where T in Core at boot.jl:448
+ 0.001157551 => getindex(::Type{T}, x, y, z) where T in Base at array.jl:394
+ 0.046509861 => ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75
+```
+
+`ROOT` is a dummy element whose time corresponds to the total time for the operation, not just inference time.
+"""
+function accumulate_by_method(pairs::Vector{Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}}; tmin_secs = 0.0)
+    tmp = Dict{Method,Float64}()
+    for (t, info) in pairs
+        m = info.mi.def
+        if isa(m, Method)
+            tmp[m] = get(tmp, m, 0.0) + t
+        end
+    end
+    return sort([t=>m for (m, t) in tmp if t >= tmin_secs]; by=first)
 end
 
 struct InclusiveTiming

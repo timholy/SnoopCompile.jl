@@ -12,6 +12,7 @@ using AbstractTrees  # For FlameGraphs tests
         g(y::Integer) = h(Any[y])
     end
     M.g(2)  # Warmup all deeply reachable functions
+    M.g(true)
 
     # Redefine the module, so the snoop will only show these functions:
     @eval module M  # Example with some functions that include type instability
@@ -22,14 +23,22 @@ using AbstractTrees  # For FlameGraphs tests
 
     timing = SnoopCompileCore.@snoopi_deep begin
         M.g(2)
+        M.g(true)
     end
-    times = SnoopCompile.flatten_times(timing)
-    @test length(times) == 5  # ROOT, g(...), h(...), i(::Integer), i(::Int)
+    times = flatten_times(timing)
+    @test length(times) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
     names = [mi_info.mi.def.name for (time, mi_info) in times]
-    @test sort(names) == [:ROOT, :g, :h, :i, :i]
+    @test sort(names) == [:ROOT, :g, :g, :h, :i, :i, :i]
 
     longest_frame_time = times[end][1]
-    @test length(SnoopCompile.flatten_times(timing, tmin_secs=longest_frame_time)) == 1
+    @test length(flatten_times(timing, tmin_secs=longest_frame_time)) == 1
+
+    timesm = accumulate_by_method(times)
+    @test length(timesm) == 4
+    names = [m.name for (time, m) in timesm]
+    @test sort(names) == [:ROOT, :g, :h, :i]
+    longest_method_time = timesm[end][1]
+    @test length(accumulate_by_method(times; tmin_secs=longest_method_time)) == 1
 end
 
 @testset "flamegraph_export" begin
@@ -42,7 +51,7 @@ end
     timing = SnoopCompileCore.@snoopi_deep begin
         M.g(2)
     end
-    times = SnoopCompile.flatten_times(timing)
+    times = flatten_times(timing)
 
     fg = SnoopCompile.flamegraph(timing)
     @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
