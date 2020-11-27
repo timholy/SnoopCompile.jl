@@ -119,22 +119,28 @@ function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_t
     try
         mi = mi_info.mi
         name = mi.def.name
-        if display_type == slottypes
-            # nargs added in https://github.com/JuliaLang/julia/pull/38416
-            st = if hasfield(Core.Compiler.Timings.InferenceFrameInfo, :nargs)
-                mi_info.slottypes[1:mi_info.nargs]
+        try
+            if display_type == slottypes
+                # nargs added in https://github.com/JuliaLang/julia/pull/38416
+                st = if hasfield(Core.Compiler.Timings.InferenceFrameInfo, :nargs)
+                    mi_info.slottypes[1:mi_info.nargs]
+                else
+                    mi_info.slottypes
+                end
+                frame_name_slottypes(name, st)
+            elseif display_type == function_name
+                string(name)
+            elseif display_type == method
+                string(mi.def)
+            elseif display_type == method_instance
+                frame_name(mi.def.name, mi.specTypes)
             else
-                mi_info.slottypes
+                throw("Unsupported display_type: $display_type")
             end
-            frame_name_slottypes(st)
-        elseif display_type == function_name
-            string(name)
-        elseif display_type == method
-            string(mi.def)
-        elseif display_type == method_instance
-            frame_name(mi.def.name, mi.specTypes)
-        else
-            throw("Unsupported display_type: $display_type")
+        catch e
+            e isa InterruptException && rethrow()
+            @warn "Error displaying frame $name: $e"
+            return name
         end
     catch e
         e isa InterruptException && rethrow()
@@ -150,14 +156,13 @@ function frame_name(name, @nospecialize(tt::Type{<:Tuple}))
         return v
     catch e
         e isa InterruptException && rethrow()
-        @warn "Error displaying frame: $e"
+        @warn "Error displaying frame $name: $e"
         return name
     end
 end
-function frame_name_slottypes(slottypes)
-    name = slottypes[1].val
+function frame_name_slottypes(name, slottypes)
     try
-        return "$(repr(name))(" *
+        return "$name(" *
         join((if t isa Core.Const "$t::$(typeof(t.val))" else "::$t" end
             for t in slottypes[2:end]),
             ", "
@@ -165,7 +170,7 @@ function frame_name_slottypes(slottypes)
         ")"
     catch e
         e isa InterruptException && rethrow()
-        @warn "Error displaying frame: $e"
+        @warn "Error displaying frame $name: $e"
         return name
     end
 end
