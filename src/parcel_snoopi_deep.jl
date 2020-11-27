@@ -142,10 +142,10 @@ function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_t
         return "<Error displaying frame>"
     end
 end
-function frame_name(name, ::Type{TT}) where TT<:Tuple
+function frame_name(name, @nospecialize(tt::Type{<:Tuple}))
     try
         io = IOBuffer()
-        Base.show_tuple_as_call(io, name, TT)
+        Base.show_tuple_as_call(io, name, tt)
         v = String(take!(io))
         return v
     catch e
