@@ -118,7 +118,9 @@ end
 function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_type)
     try
         mi = mi_info.mi
-        name = mi.def.name
+        m = mi.def
+        isa(m, Module) && return "thunk"
+        name = m.name
         try
             if display_type == slottypes
                 # nargs added in https://github.com/JuliaLang/julia/pull/38416
@@ -131,9 +133,9 @@ function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo; display_t
             elseif display_type == function_name
                 string(name)
             elseif display_type == method
-                string(mi.def)
+                string(m)
             elseif display_type == method_instance
-                frame_name(mi.def.name, mi.specTypes)
+                frame_name(name, mi.specTypes)
             else
                 throw("Unsupported display_type: $display_type")
             end
@@ -193,7 +195,9 @@ end
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel, display_type)
     mi = to.mi_info.mi
     tt = Symbol(frame_name(to.mi_info; display_type=display_type))
-    sf = StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0))
+    m = mi.def
+    sf = isa(m, Method) ? StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
+                          StackFrame(tt, :unknown, 0, mi, false, false, UInt64(0x0))
     status = 0x0  # "default" status -- See FlameGraphs.jl
     start = to.start_time - start_ns
     if toplevel
