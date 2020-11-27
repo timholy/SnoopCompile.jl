@@ -109,9 +109,9 @@ function frame_name(mi::Core.Compiler.MethodInstance)
     frame_name(mi.def.name, mi.specTypes)
 end
 # Special printing for Type Tuples so they're less ugly in the FlameGraph
-function frame_name(name, ::Type{TT}) where TT<:Tuple
+function frame_name(name, @nospecialize(tt::Type{<:Tuple}))
     io = IOBuffer()
-    Base.show_tuple_as_call(io, name, TT)
+    Base.show_tuple_as_call(io, name, tt)
     v = String(take!(io))
     return v
 end
