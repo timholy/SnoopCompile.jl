@@ -13,7 +13,9 @@ Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vecto
 with the exclusive time for each invocation of type inference, skipping any frames that
 took less than `tmin_secs` seconds. Results are sorted by time.
 
-`ROOT` is a dummy element whose time corresponds to the total time for the operation, not just inference time.
+`ROOT` is a dummy element whose time corresponds to the sum of time spent outside inference. It's
+the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
+to get the total inference time, and `sum(first.(result))` to get the total time overall.
 """
 function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
     out = Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
