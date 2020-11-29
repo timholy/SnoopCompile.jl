@@ -39,6 +39,24 @@ using AbstractTrees  # For FlameGraphs tests
     @test sort(names) == [:ROOT, :g, :h, :i]
     longest_method_time = timesm[end][1]
     @test length(accumulate_by_source(times; tmin_secs=longest_method_time)) == 1
+
+    # Also check module-level thunks
+    @eval module M  # Example with some functions that include type instability
+        i(x) = x+5
+        h(a::Array) = i(a[1]::Integer) + 2
+        g(y::Integer) = h(Any[y])
+    end
+    timingmod = @snoopi_deep begin
+        @eval @testset "Outer" begin
+            @testset "Inner" begin
+                for i = 1:2 M.g(2) end
+            end
+        end
+    end
+    times = flatten_times(timingmod)
+    timesm = accumulate_by_source(times)
+    timesmod = filter(pr -> isa(pr.second, Core.MethodInstance), timesm)
+    @test length(timesmod) == 1
 end
 
 @testset "flamegraph_export" begin
