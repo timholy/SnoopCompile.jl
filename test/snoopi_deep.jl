@@ -33,12 +33,12 @@ using AbstractTrees  # For FlameGraphs tests
     longest_frame_time = times[end][1]
     @test length(flatten_times(timing, tmin_secs=longest_frame_time)) == 1
 
-    timesm = accumulate_by_method(times)
+    timesm = accumulate_by_source(times)
     @test length(timesm) == 4
     names = [m.name for (time, m) in timesm]
     @test sort(names) == [:ROOT, :g, :h, :i]
     longest_method_time = timesm[end][1]
-    @test length(accumulate_by_method(times; tmin_secs=longest_method_time)) == 1
+    @test length(accumulate_by_source(times; tmin_secs=longest_method_time)) == 1
 end
 
 @testset "flamegraph_export" begin

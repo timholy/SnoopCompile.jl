@@ -32,21 +32,21 @@ function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 end
 
 """
-    accumulate_by_method(pairs; tmin_secs = 0.0)
+    accumulate_by_source(pairs; tmin_secs = 0.0)
 
 Add the inference timings for all `MethodInstance`s of a single `Method` together.
 `pairs` is the output of [`flatten_times`](@ref).
 Returns a list of `t => method` pairs.
 
 When the accumulated time for a `Method` is large, but each instance is small, it indicates
-that it is being inferred for many specializations (which might include specializations for different constants).
+that it is being inferred for many specializations (which might include specializations with different constants).
 
 # Example
 
 ```julia
 julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
 
-julia> tm = accumulate_by_method(flatten_times(tinf); tmin_secs=0.0005)
+julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
 6-element Vector{Pair{Float64, Method}}:
  0.000590579 => _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307
  0.000616788 => partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578
@@ -56,14 +56,16 @@ julia> tm = accumulate_by_method(flatten_times(tinf); tmin_secs=0.0005)
  0.046509861 => ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75
 ```
 
-`ROOT` is a dummy element whose time corresponds to the total time for the operation, not just inference time.
+`ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
 """
-function accumulate_by_method(pairs::Vector{Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}}; tmin_secs = 0.0)
-    tmp = Dict{Method,Float64}()
+function accumulate_by_source(pairs::Vector{Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}}; tmin_secs = 0.0)
+    tmp = Dict{Union{Method,MethodInstance},Float64}()
     for (t, info) in pairs
         m = info.mi.def
         if isa(m, Method)
             tmp[m] = get(tmp, m, 0.0) + t
+        else
+            tmp[info.mi] = t    # module-level thunks are stored verbatim
         end
     end
     return sort([t=>m for (m, t) in tmp if t >= tmin_secs]; by=first)
