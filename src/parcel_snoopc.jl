@@ -79,6 +79,16 @@ function parse_call(line; subst=Vector{Pair{String, String}}(), exclusions=Strin
 
     check = Meta.isexpr(func, :call) && length(func.args) == 3 && func.args[1] == :getfield
     name = (check ? func.args[3].args[2] : "")
+    if !check
+        if occursin("var\"", repr(func))
+            check = true
+            name = func.args[end]
+            if isa(name, QuoteNode)
+                name = name.value
+            end
+            name = String(name)::String
+        end
+    end
 
     # make some substitutions to try to form a leaf types tuple
     changed = false

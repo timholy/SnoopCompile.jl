@@ -3,6 +3,9 @@ module SnoopCompile
 using SnoopCompileCore
 export @snoopc
 isdefined(SnoopCompileCore, Symbol("@snoopi")) && export @snoopi
+if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
+    export @snoopi_deep, flamegraph, flatten_times, accumulate_by_source
+end
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 end
@@ -26,6 +29,10 @@ include("parcel_snoopc.jl")
 
 if VERSION >= v"1.2.0-DEV.573"
     include("parcel_snoopi.jl")
+end
+
+if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
+    include("parcel_snoopi_deep.jl")
 end
 
 include("parcel_snoopl.jl")

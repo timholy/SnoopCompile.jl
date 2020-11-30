@@ -288,6 +288,13 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         push!(backedges, root)
                     end
                     leaf = nothing
+                elseif loctag == "jl_method_table_disable"
+                    root = getroot(leaf)
+                    root.mi = mi
+                    if !exclude_corecompiler || !from_corecompiler(mi)
+                        push!(backedges, root)
+                    end
+                    leaf = nothing
                 elseif loctag == "insert_backedges"
                     println("insert_backedges for ", mi)
                 else
