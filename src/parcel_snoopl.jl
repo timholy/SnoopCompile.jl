@@ -1,7 +1,39 @@
 """
-    times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml")
+    times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml"; tmin_secs=0.0)
 
 Reads the log file produced by the compiler and returns the structured representations.
+
+The results will only contain modules that took longer than `tmin_secs` to optimize.
+
+## Return value
+- `times` contains the time spent optimizing each module, as a Pair from the time to an
+array of Strings, one for every MethodInstance in that llvm module.
+- `info` is a Dict containing statistics for each MethodInstance encountered, from before
+and after optimization, including number of instructions and number of basicblocks.
+
+## Example
+```julia
+julia> @snoopl "func_names.csv" "llvm_timings.yaml" begin
+           using InteractiveUtils
+           @eval InteractiveUtils.peakflops()
+       end
+Launching new julia process to run commands...
+done.
+
+julia> times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml", tmin_secs = 0.025);
+
+julia> times
+3-element Vector{Pair{Float64, Vector{String}}}:
+ 0.028170923 => ["Tuple{typeof(LinearAlgebra.copy_transpose!), Array{Float64, 2}, Base.UnitRange{Int64}, Base.UnitRange{Int64}, Array{Float64, 2}, Base.UnitRange{Int64}, Base.UnitRange{Int64}}"]
+ 0.031356962 => ["Tuple{typeof(Base.copyto!), Array{Float64, 2}, Base.UnitRange{Int64}, Base.UnitRange{Int64}, Array{Float64, 2}, Base.UnitRange{Int64}, Base.UnitRange{Int64}}"]
+ 0.149138788 => ["Tuple{typeof(LinearAlgebra._generic_matmatmul!), Array{Float64, 2}, Char, Char, Array{Float64, 2}, Array{Float64, 2}, LinearAlgebra.MulAddMul{true, true, Bool, Bool}}"]
+
+julia> info
+Dict{String, NamedTuple{(:before, :after), Tuple{NamedTuple{(:instructions, :basicblocks), Tuple{Int64, Int64}}, NamedTuple{(:instructions, :basicblocks), Tuple{Int64, Int64}}}}} with 3 entries:
+  "Tuple{typeof(LinearAlgebra.copy_transpose!), Ar… => (before = (instructions = 651, basicblocks = 83), after = (instructions = 348, basicblocks = 40…
+  "Tuple{typeof(Base.copyto!), Array{Float64, 2}, … => (before = (instructions = 617, basicblocks = 77), after = (instructions = 397, basicblocks = 37…
+  "Tuple{typeof(LinearAlgebra._generic_matmatmul!)… => (before = (instructions = 4796, basicblocks = 824), after = (instructions = 1421, basicblocks =…
+```
 """
 function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
     func_csv = _read_snoopl_csv(func_csv_file)
