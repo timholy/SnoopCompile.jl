@@ -10,6 +10,12 @@ if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
     end
 end
 
+if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
+    @testset "snoopl" begin
+        include("snoopl.jl")
+    end
+end
+
 using SnoopCompile
 
 # issue #26

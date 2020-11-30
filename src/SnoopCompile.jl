@@ -9,9 +9,13 @@ end
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 end
+if isdefined(SnoopCompileCore, Symbol("@snoopl"))
+    export @snoopl, read_snoopl
+end
 
 using Core: MethodInstance, CodeInfo
 using Serialization, OrderedCollections
+import YAML  # For @snoopl
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
@@ -30,6 +34,8 @@ end
 if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
     include("parcel_snoopi_deep.jl")
 end
+
+include("parcel_snoopl.jl")
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
