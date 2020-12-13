@@ -1,5 +1,5 @@
 # Write precompiles for userimg.jl
-function write(io::IO, pc::Vector)
+function write(io::IO, pc::Vector{<:AbstractString})
     for ln in pc
         println(io, ln)
     end
@@ -10,10 +10,11 @@ function write(filename::AbstractString, pc::Vector)
     if !isdir(path)
         mkpath(path)
     end
+    ret = nothing
     open(filename, "w") do io
-        write(io, pc)
+        ret = write(io, pc)
     end
-    nothing
+    return ret
 end
 
 """

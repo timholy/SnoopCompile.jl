@@ -27,8 +27,9 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["AbstractTrees", "ColorTypes", "Documenter", "FixedPointNumbers", "InteractiveUtils", "MethodAnalysis", "Pkg", "Test"]
+test = ["AbstractTrees", "ColorTypes", "Documenter", "FixedPointNumbers", "InteractiveUtils", "MethodAnalysis", "Random", "Pkg", "Test"]

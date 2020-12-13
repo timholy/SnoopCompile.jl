@@ -157,6 +157,9 @@ tuplestring(params) = isempty(params) ? "()" : '(' * join(params, ',') * ",)"
 
 wrap_precompile(ttstr::AbstractString) = "Base.precompile(" * ttstr * ')' # use `Base.` to avoid conflict with Core and Pkg
 
+append_time(str, ::Nothing) = str
+append_time(str, t::AbstractFloat) = str * "   # time: " * string(Float32(t))
+
 """
      add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
 
@@ -164,15 +167,16 @@ Adds the precompilation statements only if they can be evaled. It uses [`can_eva
 
 In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
 """
-function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true)
+function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true, time=nothing)
     ttstr = tupletypestring(fstr, params)
     can, exc = can_eval(mod, ttstr, check_eval)
     if can
-        push!(pclist, prefix*wrap_precompile(ttstr))
+        push!(pclist, append_time(prefix*wrap_precompile(ttstr), time))
+        return true
     else
         @debug "Module $mod: skipping $tt due to eval failure" exception=exc _module=mod _file="precompile_$mod.jl"
     end
-    return pclist
+    return false
 end
 
 function reprcontext(mod::Module, @nospecialize(T::Type))
@@ -186,6 +190,24 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
         # Add full module context
         return repr(T; context=:module=>nothing)
     end
+end
+
+function known_type(mod::Module, @nospecialize(T::Type))
+    # First check whether supplying module context allows evaluation
+    rplain = repr(T; context=:module=>mod)
+    try
+        ex = Meta.parse(rplain)
+        Core.eval(mod, ex)
+        return true
+    catch
+        # Add full module context
+        try
+            Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
+            return true
+        catch
+        end
+    end
+    return false
 end
 
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
@@ -238,7 +260,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     modgens = Dict{Module, Vector{Method}}() # methods with generators in a module
     mods = OrderedSet{Module}()                     # module of each parameter for a given method
     sym_module = Dict{Symbol, Module}() # 1-1 association between modules and module name
-    for (t, mi) in reverse(tinf)
+    for (_, mi) in reverse(tinf)
         isdefined(mi, :specTypes) || continue
         tt = mi.specTypes
         m = mi.def
@@ -268,78 +290,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                 Core.eval(topmod, lookup_kwbody_ex)
             end
         end
-        # Create the string representation of the signature
-        # Use special care with keyword functions, anonymous functions
-        p = tt.parameters[1]   # the portion of the signature related to the function itself
-        paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
-
-        if any(str->occursin('#', str), paramrepr)
-            @debug "Skipping $tt due to argument types having anonymous bindings"
-            continue
-        end
-        mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
-        mkw = match(kwrex, mname)
-        mkwbody = match(kwbodyrex, mname)
-        isgen = match(genrex, mname) !== nothing
-        isanon = match(anonrex, mname) !== nothing || match(innerrex, mname) !== nothing
-        isgen && (mkwbody = nothing)
-        if VERSION < v"1.4.0-DEV.215"  # before this version, we can't robustly look up kwbody callers (missing `nkw`)
-            isanon |= mkwbody !== nothing  # treat kwbody methods the same way we treat anonymous functions
-            mkwbody = nothing
-        end
-        if mkw !== nothing
-            # Keyword function
-            fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
-            fkw = "Core.kwftype(typeof($mmod.$fname))"
-            add_if_evals!(pc[topmodname], topmod, fkw, paramrepr, tt; check_eval=check_eval)
-        elseif mkwbody !== nothing
-            ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
-            if ret !== nothing
-                push!(pc[topmodname], ret)
-            end
-        elseif isgen
-            # Generator for a @generated function
-            if !haskey(modgens, m.module)
-                callers = modgens[m.module] = methods_with_generators(m.module)
-            else
-                callers = modgens[m.module]
-            end
-            for caller in callers
-                if nameof(caller.generator.gen) == m.name
-                    # determine whether the generator is being called from a kwbody method
-                    sig = Base.unwrap_unionall(caller.sig)
-                    cname, cmod = String(sig.parameters[1].name.name), caller.module
-                    cparamrepr = map(repr, Iterators.drop(sig.parameters, 1))
-                    csigstr = tuplestring(cparamrepr)
-                    mkwc = match(kwbodyrex, cname)
-                    if mkwc === nothing
-                        getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
-                        add_if_evals!(pc[topmodname], topmod, getgen, paramrepr, tt; check_eval=check_eval)
-                    else
-                        if VERSION >= v"1.4.0-DEV.215"
-                            getgen = "which(Core.kwfunc($cmod.$(mkwc.captures[1])),$csigstr).generator.gen"
-                            ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
-                            if ret !== nothing
-                                push!(pc[topmodname], ret)
-                            end
-                        else
-                            # Bail and treat as if anonymous
-                            prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
-                            fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-                            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval=check_eval)
-                        end
-                    end
-                    break
-                end
-            end
-        elseif isanon
-            # Anonymous function, wrap in an `isdefined`
-            prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
-            fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-            add_if_evals!(pc[topmodname], topmod, fstr, paramrepr, tt; prefix=prefix, check_eval = check_eval)
-        else
-            add_if_evals!(pc[topmodname], topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval)
-        end
+        add_repr!(pc[topmodname], modgens, mi, topmod; check_eval=check_eval)
     end
 
     # loop over the output
@@ -350,6 +301,84 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
         end
     end
     return Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
+end
+
+function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing)
+    # Create the string representation of the signature
+    # Use special care with keyword functions, anonymous functions
+    tt = mi.specTypes
+    m = mi.def
+    p = tt.parameters[1]   # the portion of the signature related to the function itself
+    paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
+
+    if any(str->occursin('#', str), paramrepr)
+        @debug "Skipping $tt due to argument types having anonymous bindings"
+        return false
+    end
+    mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
+    mkw = match(kwrex, mname)
+    mkwbody = match(kwbodyrex, mname)
+    isgen = match(genrex, mname) !== nothing
+    isanon = match(anonrex, mname) !== nothing || match(innerrex, mname) !== nothing
+    isgen && (mkwbody = nothing)
+    if VERSION < v"1.4.0-DEV.215"  # before this version, we can't robustly look up kwbody callers (missing `nkw`)
+        isanon |= mkwbody !== nothing  # treat kwbody methods the same way we treat anonymous functions
+        mkwbody = nothing
+    end
+    if mkw !== nothing
+        # Keyword function
+        fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
+        fkw = "Core.kwftype(typeof($mmod.$fname))"
+        return add_if_evals!(list, topmod, fkw, paramrepr, tt; check_eval=check_eval, time=time)
+    elseif mkwbody !== nothing
+        ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
+        if ret !== nothing
+            push!(list, append_time(ret, time))
+            return true
+        end
+    elseif isgen
+        # Generator for a @generated function
+        if !haskey(modgens, m.module)
+            callers = modgens[m.module] = methods_with_generators(m.module)
+        else
+            callers = modgens[m.module]
+        end
+        for caller in callers
+            if nameof(caller.generator.gen) == m.name
+                # determine whether the generator is being called from a kwbody method
+                sig = Base.unwrap_unionall(caller.sig)
+                cname, cmod = String(sig.parameters[1].name.name), caller.module
+                cparamrepr = map(repr, Iterators.drop(sig.parameters, 1))
+                csigstr = tuplestring(cparamrepr)
+                mkwc = match(kwbodyrex, cname)
+                if mkwc === nothing
+                    getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
+                    return add_if_evals!(list, topmod, getgen, paramrepr, tt; check_eval=check_eval, time=time)
+                else
+                    if VERSION >= v"1.4.0-DEV.215"
+                        getgen = "which(Core.kwfunc($cmod.$(mkwc.captures[1])),$csigstr).generator.gen"
+                        ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
+                        if ret !== nothing
+                            push!(list, append_time(ret, time))
+                            return true
+                        end
+                    else
+                        # Bail and treat as if anonymous
+                        prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
+                        fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
+                        return add_if_evals!(list, topmod, fstr, paramrepr, tt; prefix=prefix, check_eval=check_eval, time=time)
+                    end
+                end
+                break
+            end
+        end
+    elseif isanon
+        # Anonymous function, wrap in an `isdefined`
+        prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
+        fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
+        return add_if_evals!(list, topmod, fstr, paramrepr, tt; prefix=prefix, check_eval = check_eval, time=time)
+    end
+    return add_if_evals!(list, topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval, time=time)
 end
 
 """
