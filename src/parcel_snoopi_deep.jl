@@ -97,6 +97,131 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
+struct Precompiles
+    mi_info::Core.Compiler.Timings.InferenceFrameInfo
+    total_time::UInt64
+    precompiles::Vector{Tuple{UInt64,MethodInstance}}
+end
+Precompiles(it::InclusiveTiming) = Precompiles(it.mi_info, it.inclusive_time, Tuple{UInt64,MethodInstance}[])
+
+inclusive_time(t::Precompiles) = t.total_time
+precompilable_time(precompiles::Vector{Tuple{UInt64,MethodInstance}}) = sum(first, precompiles; init=zero(UInt64))
+precompilable_time(pc::Precompiles) = precompilable_time(pc.precompiles)
+
+function Base.show(io::IO, pc::Precompiles)
+    tpc = precompilable_time(pc)
+    print(io, "Precompiles: ", pc.total_time/10^9, " for ", pc.mi_info.mi,
+              " had ", length(pc.precompiles), " precompilable roots reclaiming ", tpc/10^9,
+              " ($(round(Int, 100*tpc/pc.total_time))%)")
+end
+
+precompilable_roots(t::Timing) = precompilable_roots(build_inclusive_times(t))
+function precompilable_roots(t::InclusiveTiming)
+    pcs = [precompilable_roots!(Precompiles(it), it) for it in t.children]
+    tpc = precompilable_time.(pcs)
+    p = sortperm(tpc)
+    return pcs[p]
+end
+
+function precompilable_roots!(pc, t::InclusiveTiming)
+    mi = t.mi_info.mi
+    m = mi.def
+    if isa(m, Method)
+        mod = m.module
+        params = Base.unwrap_unionall(mi.specTypes)::DataType
+        can_eval = true
+        for p in params.parameters
+            if !known_type(mod, p)
+                can_eval = false
+                break
+            end
+        end
+        if can_eval
+            push!(pc.precompiles, (t.inclusive_time, mi))
+            return pc
+        end
+    end
+    foreach(t.children) do c
+        precompilable_roots!(pc, c)
+    end
+    return pc
+end
+
+function parcel(pcs::Vector{Precompiles})
+    tosecs((t, mi)::Tuple{UInt64,MethodInstance}) = (t/10^9, mi)
+    pcdict = Dict{Module,Vector{Tuple{UInt64,MethodInstance}}}()
+    t_grand_total = sum(inclusive_time, pcs; init=zero(UInt64))
+    for pc in pcs
+        for (t, mi) in pc.precompiles
+            m = mi.def
+            mod = isa(m, Method) ? m.module : m
+            list = get!(Vector{Tuple{UInt64,MethodInstance}}, pcdict, mod)
+            push!(list, (t, mi))
+        end
+    end
+    pclist = [mod => (precompilable_time(list)/10^9, sort!(tosecs.(list); by=first)) for (mod, list) in pcdict]
+    sort!(pclist; by = pr -> pr.second[1])
+    return t_grand_total/10^9, pclist
+end
+
+parcel(t::InclusiveTiming) = parcel(precompilable_roots(t))
+parcel(t::Timing) = parcel(build_inclusive_times(t))
+
+function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001)
+    strs = OrderedSet{String}()
+    modgens = Dict{Module, Vector{Method}}()
+    tmp = String[]
+    twritten = 0.0
+    for (t, mi) in reverse(tmi)
+        if t >= tmin
+            if add_repr!(tmp, modgens, mi; check_eval=false, time=t)
+                str = pop!(tmp)
+                if !any(rex -> occursin(rex, str), default_exclusions)
+                    push!(strs, str)
+                    twritten += t
+                end
+            end
+        end
+    end
+    return strs, twritten
+end
+
+function write(io::IO, tmi::Vector{Tuple{Float64,MethodInstance}}; indent::AbstractString="    ", kwargs...)
+    strs, twritten = get_reprs(tmi; kwargs...)
+    for str in strs
+        println(io, indent, str)
+    end
+    return twritten, length(strs)
+end
+
+function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vector{Tuple{Float64,MethodInstance}}}}}; ioreport::IO=stdout, header::Bool=true, always::Bool=false, kwargs...)
+    if !isdir(prefix)
+        mkpath(prefix)
+    end
+    for (mod, ttmi) in pc
+        tmod, tmi = ttmi
+        v, twritten = get_reprs(tmi; kwargs...)
+        if isempty(v)
+            println(ioreport, "$mod: no precompile statements out of $tmod")
+            continue
+        end
+        open(joinpath(prefix, "precompile_$(mod).jl"), "w") do io
+            if header
+                if any(str->occursin("__lookup", str), v)
+                    println(io, lookup_kwbody_str)
+                end
+                println(io, "function _precompile_()")
+                !always && println(io, "    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing")
+            end
+            for ln in v
+                println(io, "    ", ln)
+            end
+            header && println(io, "end")
+        end
+        println(ioreport, "$mod: precompiled $twritten out of $tmod")
+    end
+end
+
 """
     flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
     flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)

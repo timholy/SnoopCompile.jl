@@ -1,6 +1,7 @@
 using SnoopCompile
 using SnoopCompile.SnoopCompileCore
 using Test
+using Random
 
 using AbstractTrees  # For FlameGraphs tests
 
@@ -21,7 +22,7 @@ using AbstractTrees  # For FlameGraphs tests
         g(y::Integer) = h(Any[y])
     end
 
-    timing = SnoopCompileCore.@snoopi_deep begin
+    timing = @snoopi_deep begin
         M.g(2)
         M.g(true)
     end
@@ -66,7 +67,7 @@ end
         g(y::Integer) = h(Any[y])
     end
 
-    timing = SnoopCompileCore.@snoopi_deep begin
+    timing = @snoopi_deep begin
         M.g(2)
     end
     times = flatten_times(timing)
@@ -86,4 +87,61 @@ end
         fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
+end
+
+include("testmodules/SnoopBench.jl")
+@testset "parcel" begin
+    a = SnoopBench.A()
+    tinf = @snoopi_deep SnoopBench.f1(a)
+    ttot, prs = SnoopCompile.parcel(tinf)
+    mod, (tmod, tmis) = only(prs)
+    @test mod === SnoopBench
+    t, mi = only(tmis)
+    @test ttot == tmod == t  # since there is only one
+    @test mi.def.name === :f1
+
+    A = [a]
+    tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
+    ttot, prs = SnoopCompile.parcel(tinf)
+    mod, (tmod, tmis) = only(prs)
+    @test mod === SnoopBench
+    @test ttot == tmod  # since there is only one
+    @test length(tmis) == 2
+    io = IOBuffer()
+    SnoopCompile.write(io, tmis; tmin=0.0)
+    str = String(take!(io))
+    @test occursin(r"typeof\(mappushes\),Any,Vector\{A\}", str)
+    @test occursin(r"typeof\(mappushes!\),typeof\(identity\),Vector\{Any\},Vector\{A\}", str)
+
+    list = Any[1, 1.0, Float16(1.0), a]
+    tinf = @snoopi_deep SnoopBench.mappushes(isequal(Int8(1)), list)
+    ttot, prs = SnoopCompile.parcel(tinf)
+    @test length(prs) == 2
+    _, (tmodBase, tmis) = prs[findfirst(pr->pr.first === Base, prs)]
+    tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
+    @test 0.0 <= tw <= tmodBase && 0 <= nw <= length(tmis)-1
+    str = String(take!(io))
+    @test !occursin(r"Base.Fix2\{typeof\(isequal\).*SnoopBench.A\}", str)
+    @test length(split(chomp(str), '\n')) == nw
+    _, (tmodBench, tmis) = prs[findfirst(pr->pr.first === SnoopBench, prs)]
+    @test tmodBench + tmodBase ≈ ttot
+    tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
+    @test nw == 2
+    str = String(take!(io))
+    @test occursin(r"typeof\(mappushes\),Any,Vector\{Any\}", str)
+    @test occursin(r"typeof\(mappushes!\),Base.Fix2\{typeof\(isequal\).*\},Vector\{Any\},Vector\{Any\}", str)
+
+    td = joinpath(tempdir(), randstring(8))
+    SnoopCompile.write(td, prs; ioreport=io)
+    str = String(take!(io))
+    @test occursin(r"Base: precompiled [\d\.]+ out of [\d\.]+", str)
+    @test occursin(r"SnoopBench: precompiled [\d\.]+ out of [\d\.]+", str)
+    file_base = joinpath(td, "precompile_Base.jl")
+    @test isfile(file_base)
+    @test occursin("ccall(:jl_generating_output", read(file_base, String))
+    rm(td, recursive=true, force=true)
+    SnoopCompile.write(td, prs; ioreport=io, header=false)
+    str = String(take!(io))  # just to clear it in case we use it again
+    @test !occursin("ccall(:jl_generating_output", read(file_base, String))
+    rm(td, recursive=true, force=true)
 end
