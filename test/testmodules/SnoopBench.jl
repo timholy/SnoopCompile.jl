@@ -22,4 +22,22 @@ function mappushes3!(f, dest, src)
 end
 mappushes3(@nospecialize(f), src) = mappushes3!(f, [], src)
 
+# Useless specialization
+function spell_spec(::Type{T}) where T
+    name = Base.unwrap_unionall(T).name.name
+    str = ""
+    for c in str
+        str *= c
+    end
+    return str
+end
+function spell_unspec(@nospecialize(T))
+    name = Base.unwrap_unionall(T).name.name
+    str = ""
+    for c in str
+        str *= c
+    end
+    return str
+end
+
 end

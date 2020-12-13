@@ -2,6 +2,7 @@ using SnoopCompile
 using SnoopCompile.SnoopCompileCore
 using Test
 using Random
+using Profile
 
 using AbstractTrees  # For FlameGraphs tests
 
@@ -144,4 +145,36 @@ include("testmodules/SnoopBench.jl")
     str = String(take!(io))  # just to clear it in case we use it again
     @test !occursin("ccall(:jl_generating_output", read(file_base, String))
     rm(td, recursive=true, force=true)
+end
+
+@testset "Specialization" begin
+    Ts = subtypes(Any)
+    tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
+    tinf_spec =   @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
+    tf_unspec = flatten_times(tinf_unspec)
+    tf_spec   = flatten_times(tinf_spec)
+    @test length(tf_unspec) < 10
+    @test any(tmi -> occursin("spell_unspec(::Any)", repr(tmi[2])), tf_unspec)
+    @test length(tf_spec) >= length(Ts)
+    @test !any(tmi -> occursin("spell_spec(::Any)", repr(tmi[2])), tf_unspec)
+
+    nruns = 10^3
+    @profile for i = 1:nruns
+        SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
+    end
+    rit = runtime_inferencetime(tinf_spec)
+    nc = count(rit) do (mi, (tr, ti))
+        ti > tr
+    end
+    @test nc > 0.95 * length(rit)
+
+    Profile.clear()
+    @profile for i = 1:nruns
+        SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
+    end
+    rit = runtime_inferencetime(tinf_unspec)
+    nc = count(rit) do (mi, (tr, ti))
+        ti > tr
+    end
+    @test nc < 0.3 * length(rit)
 end

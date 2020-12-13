@@ -3,6 +3,7 @@ import FlameGraphs
 using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
 using Core.Compiler.Timings: Timing
+using Profile
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
 
@@ -220,6 +221,41 @@ function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vect
         end
         println(ioreport, "$mod: precompiled $twritten out of $tmod")
     end
+end
+
+"""
+    ridata = runtime_inferencetime(tinf::Timing)
+    ridata = runtime_inferencetime(tinf::Timing, profiledata; lidict)
+
+Compare runtime and inference-time on a per-MethodInstance basis. `ridata[mi]` returns `(trun, tinfer)`,
+measuring the approximate amount of time spent running `mi` and inferring `mi`, respectively.
+`trun` is estimated from profiling data, which the user is responsible for capturing before the call.
+Typically `tinf` is collected via `@snoopi_deep` on the first call (in a fresh session) to a workload,
+and the profiling data collected on a subsequent call. In some cases you may want to repeat the workload
+several times to collect enough profiling samples.
+"""
+function runtime_inferencetime(tinf::Timing)
+    pdata, lidict = Profile.retrieve()
+    return runtime_inferencetime(tinf, pdata; lidict=lidict)
+end
+function runtime_inferencetime(tinf::Timing, pdata; lidict, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
+    lilist, ns, ms, totalshots = Profile.parse_flat(StackTraces.StackFrame, Profile.retrieve()..., false)
+    tf = flatten_times(tinf)
+    ctlookup = Dict(mi => t for (t, mi) in tf)
+    ridata = Dict{MethodInstance,Tuple{Float64,Float64}}()
+    for (sf, m) in zip(lilist, ms)
+        mi = sf.linfo
+        if isa(mi, MethodInstance)
+            ridata[mi] = (m/delay, get(ctlookup, mi, 0.0))
+        end
+    end
+    for (t, mi_info) in tf
+        mi = mi_info.mi
+        if !haskey(ridata, mi)
+            ridata[mi] = (0.0, t)
+        end
+    end
+    return ridata
 end
 
 """
