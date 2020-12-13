@@ -176,8 +176,8 @@ function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check
 end
 
 function reprcontext(mod::Module, @nospecialize(T::Type))
-    # First try without the full module context
-    rplain = repr(T)
+    # First check whether supplying module context allows evaluation
+    rplain = repr(T; context=:module=>mod)
     try
         ex = Meta.parse(rplain)
         Core.eval(mod, ex)
