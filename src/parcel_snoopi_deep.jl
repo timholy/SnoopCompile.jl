@@ -78,8 +78,16 @@ struct InclusiveTiming
     children::Vector{InclusiveTiming}
 end
 
+Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", t.mi_info.mi, " with ", length(t.children), " direct children")
+
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
+"""
+    tinc = SnoopCompile.build_inclusive_times(t::Core.Compiler.Timings.Timing)
+
+Calculate times for inference for a node and all its children. `tinc.inclusive_time` records this time for
+node `tinc`; `tinc.children` gives you access to the children of this node.
+"""
 function build_inclusive_times(t::Timing)
     child_times = InclusiveTiming[
         build_inclusive_times(child)
