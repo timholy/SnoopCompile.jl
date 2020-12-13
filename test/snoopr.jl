@@ -1,5 +1,7 @@
 using SnoopCompile, InteractiveUtils, MethodAnalysis, Test
 
+const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
+
 module SnooprTests
 f(x::Int)  = 1
 f(x::Bool) = 2
@@ -28,6 +30,8 @@ end
 end
 
 @testset "@snoopr" begin
+    prefix = qualify_mi ? "$(@__MODULE__).SnooprTests." : ""
+
     c = Any[1]
     @test SnooprTests.callapplyf(c) == 1
     mi1 = instance(SnooprTests.applyf, (Vector{Any},))
@@ -60,7 +64,7 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::AbstractFloat)")
     @test occursin("mt_backedges: 1: signature", str)
-    @test occursin("triggered MethodInstance for applyf(::$(Vector{Any})) (1 children)", str)
+    @test occursin("triggered MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)", str)
 
     cf = Any[1.0f0]
     @test SnooprTests.callapplyf(cf) == 3
@@ -95,19 +99,19 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::Float32)")
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
-    @test occursin("with MethodInstance for f(::AbstractFloat) (2 children)", str)
+    @test occursin("with MethodInstance for $(prefix)f(::AbstractFloat) (2 children)", str)
 
     show(io, root; minchildren=1)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
     @test length(lines) == 3
-    @test lines[1] == "MethodInstance for f(::AbstractFloat) (2 children)"
-    @test lines[2] == " MethodInstance for applyf(::$(Vector{Any})) (1 children)"
+    @test lines[1] == "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)"
+    @test lines[2] == " MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)"
     show(io, root; minchildren=2)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
     @test length(lines) == 2
-    @test lines[1] == "MethodInstance for f(::AbstractFloat) (2 children)"
+    @test lines[1] == "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)"
     @test lines[2] == "⋮"
 
     ftrees = filtermod(@__MODULE__, trees)
