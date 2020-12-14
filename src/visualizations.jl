@@ -40,3 +40,6 @@ function specialization_plot(ridata; kwargs...)
     fig, ax = plt.subplots()
     return specialization_plot(ax, ridata; kwargs...)
 end
+
+specialization_plot(ax::PyCall.PyObject, tinf::Timing; consts::Bool=true, kwargs...) = specialization_plot(ax, runtime_inferencetime(tinf; consts); kwargs...)
+specialization_plot(tinf::Timing; consts::Bool=true, kwargs...) = specialization_plot(runtime_inferencetime(tinf; consts); kwargs...)

@@ -63,18 +63,21 @@ julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
 
 `ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
 """
-function accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; tmin_secs = 0.0)
-    tmp = Dict{Union{Method,MethodInstance},Float64}()
+function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFrameInfo}}; tmin_secs = 0.0) where M<:Union{Method,MethodInstance}
+    tmp = Dict{Union{M,MethodInstance},Float64}()
     for (t, info) in pairs
-        m = info.mi.def
-        if isa(m, Method)
+        mi = info.mi
+        if M === Method && isa(mi.def, Method)
+            m = mi.def::Method
             tmp[m] = get(tmp, m, 0.0) + t
         else
-            tmp[info.mi] = t    # module-level thunks are stored verbatim
+            tmp[mi] = t    # module-level thunks are stored verbatim
         end
     end
     return sort([t=>m for (m, t) in tmp if t >= tmin_secs]; by=first)
 end
+
+accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
 
 struct InclusiveTiming
     mi_info::InferenceFrameInfo
@@ -247,11 +250,11 @@ Typically `tinf` is collected via `@snoopi_deep` on the first call (in a fresh s
 and the profiling data collected on a subsequent call. In some cases you may want to repeat the workload
 several times to collect enough profiling samples.
 """
-function runtime_inferencetime(tinf::Timing)
+function runtime_inferencetime(tinf::Timing; kwargs...)
     pdata, lidict = Profile.retrieve()
-    return runtime_inferencetime(tinf, pdata; lidict=lidict)
+    return runtime_inferencetime(tinf, pdata; lidict=lidict, kwargs...)
 end
-function runtime_inferencetime(tinf::Timing, pdata; lidict, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
+function runtime_inferencetime(tinf::Timing, pdata; lidict, consts::Bool=true, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
     lilist, nsamples, nselfs, totalsamples = Profile.parse_flat(StackTraces.StackFrame, pdata, lidict, false)
     tf = flatten_times(tinf)
     tm = accumulate_by_source(tf)
@@ -291,9 +294,14 @@ function runtime_inferencetime(tinf::Timing, pdata; lidict, delay=ccall(:jl_prof
     end
     @assert all(ttn -> ttn[2] == 0.0, values(ridata))
     # Now add inference times & specialization counts. To get the counts we go back to tf rather than using tm.
-    for (t, mi_info) in tf
-        isROOT(mi_info) && continue
-        m = mi_info.mi.def
+    if !consts
+        tf = accumulate_by_source(MethodInstance, tf)
+    end
+    getmi(mi::MethodInstance) = mi
+    getmi(mi_info::InferenceFrameInfo) = mi_info.mi
+    for (t, info) in tf
+        isROOT(info) && continue
+        m = getmi(info).def
         if isa(m, Method)
             trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
             ridata[m] = (trun, tinfer + t, nspecializations + 1)
