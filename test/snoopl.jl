@@ -18,4 +18,6 @@ using SnoopCompile
     @test length(times) == 3  # i(), h(), g()
     @test length(info) == 3  # i(), h(), g()
 
+    rm("func_names.csv")
+    rm("llvm_timings.yaml")
 end
