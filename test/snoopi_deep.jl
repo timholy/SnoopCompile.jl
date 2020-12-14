@@ -4,7 +4,7 @@ using Test
 using InteractiveUtils
 using Random
 using Profile
-using PyPlot: PyPlot, plt
+# using PyPlot: PyPlot, plt    # uncomment to test visualizations
 
 using AbstractTrees  # For FlameGraphs tests
 
@@ -160,7 +160,7 @@ end
     @test length(tf_spec) >= length(Ts)
     @test !any(tmi -> occursin("spell_spec(::Any)", repr(tmi[2])), tf_unspec)
 
-    fig, axs = plt.subplots(1, 2)
+    # fig, axs = plt.subplots(1, 2)
 
     nruns = 10^3
     @profile for i = 1:nruns
@@ -171,7 +171,7 @@ end
     tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test ti > tr
     @test nspec >= length(Ts)
-    specialization_plot(axs[1], rit; interactive=false)
+    # specialization_plot(axs[1], rit; interactive=false)
 
     Profile.clear()
     @profile for i = 1:nruns
@@ -182,5 +182,5 @@ end
     tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test ti < tr
     @test nspec == 1
-    specialization_plot(axs[2], rit; interactive=false)
+    # specialization_plot(axs[2], rit; interactive=false)
 end
