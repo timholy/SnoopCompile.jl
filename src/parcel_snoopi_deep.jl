@@ -2,10 +2,14 @@ import FlameGraphs
 
 using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
-using Core.Compiler.Timings: Timing
+using Core.Compiler.Timings: Timing, InferenceFrameInfo
 using Profile
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
+
+isROOT(mi_info::InferenceFrameInfo) = isROOT(mi_info.mi)
+isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
+isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
@@ -18,8 +22,8 @@ took less than `tmin_secs` seconds. Results are sorted by time.
 the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
 to get the total inference time, and `sum(first.(result))` to get the total time overall.
 """
-function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
-    out = Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
+function flatten_times(timing::Timing; tmin_secs = 0.0)
+    out = Pair{Float64,InferenceFrameInfo}[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
@@ -59,7 +63,7 @@ julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
 
 `ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
 """
-function accumulate_by_source(pairs::Vector{Pair{Float64,Core.Compiler.Timings.InferenceFrameInfo}}; tmin_secs = 0.0)
+function accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; tmin_secs = 0.0)
     tmp = Dict{Union{Method,MethodInstance},Float64}()
     for (t, info) in pairs
         m = info.mi.def
@@ -73,7 +77,7 @@ function accumulate_by_source(pairs::Vector{Pair{Float64,Core.Compiler.Timings.I
 end
 
 struct InclusiveTiming
-    mi_info::Core.Compiler.Timings.InferenceFrameInfo
+    mi_info::InferenceFrameInfo
     inclusive_time::UInt64
     start_time::UInt64
     children::Vector{InclusiveTiming}
@@ -99,7 +103,7 @@ function build_inclusive_times(t::Timing)
 end
 
 struct Precompiles
-    mi_info::Core.Compiler.Timings.InferenceFrameInfo
+    mi_info::InferenceFrameInfo
     total_time::UInt64
     precompiles::Vector{Tuple{UInt64,MethodInstance}}
 end
@@ -223,12 +227,21 @@ function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vect
     end
 end
 
+struct MethodLoc
+    func::Symbol
+    file::Symbol
+    line::Int
+end
+MethodLoc(sf::StackTraces.StackFrame) = MethodLoc(sf.func, sf.file, sf.line)
+
+Base.show(io::IO, ml::MethodLoc) = print(io, ml.func, " at ", ml.file, ':', ml.line, " [inlined and pre-inferred]")
+
 """
     ridata = runtime_inferencetime(tinf::Timing)
     ridata = runtime_inferencetime(tinf::Timing, profiledata; lidict)
 
-Compare runtime and inference-time on a per-MethodInstance basis. `ridata[mi]` returns `(trun, tinfer)`,
-measuring the approximate amount of time spent running `mi` and inferring `mi`, respectively.
+Compare runtime and inference-time on a per-method basis. `ridata[m::Method]` returns `(trun, tinfer, nspecializations)`,
+measuring the approximate amount of time spent running `m`, inferring `m`, and the number of type-specializations, respectively.
 `trun` is estimated from profiling data, which the user is responsible for capturing before the call.
 Typically `tinf` is collected via `@snoopi_deep` on the first call (in a fresh session) to a workload,
 and the profiling data collected on a subsequent call. In some cases you may want to repeat the workload
@@ -239,23 +252,62 @@ function runtime_inferencetime(tinf::Timing)
     return runtime_inferencetime(tinf, pdata; lidict=lidict)
 end
 function runtime_inferencetime(tinf::Timing, pdata; lidict, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
-    lilist, ns, ms, totalshots = Profile.parse_flat(StackTraces.StackFrame, Profile.retrieve()..., false)
+    lilist, nsamples, nselfs, totalsamples = Profile.parse_flat(StackTraces.StackFrame, pdata, lidict, false)
     tf = flatten_times(tinf)
-    ctlookup = Dict(mi => t for (t, mi) in tf)
-    ridata = Dict{MethodInstance,Tuple{Float64,Float64}}()
-    for (sf, m) in zip(lilist, ms)
+    tm = accumulate_by_source(tf)
+    # MethodInstances that get inlined don't have the linfo field. Guess the method from the name/line/file.
+    # Filenames are complicated because of variations in how paths are encoded, especially for methods in Base & stdlibs.
+    methodlookup = Dict{Tuple{Symbol,Int},Vector{Pair{String,Method}}}()  # (func, line) => [file => method]
+    for (_, m) in tm
+        fm = get!(Vector{Pair{String,Method}}, methodlookup, (m.name, Int(m.line)))
+        push!(fm, string(m.file) => m)
+    end
+
+    function matchloc(loc::MethodLoc)
+        fm = get(methodlookup, (loc.func, Int(loc.line)), nothing)
+        fm === nothing && return loc
+        meths = Set{Method}()
+        locfile = string(loc.file)
+        for (f, m) in fm
+            endswith(locfile, f) && push!(meths, m)
+        end
+        length(meths) == 1 && return pop!(meths)
+        return loc
+    end
+    matchloc(sf::StackTraces.StackFrame) = matchloc(MethodLoc(sf))
+
+    ridata = Dict{Union{Method,MethodLoc},Tuple{Float64,Float64,Int}}()
+    # Insert the profiling data
+    for (sf, nself) in zip(lilist, nselfs)
         mi = sf.linfo
-        if isa(mi, MethodInstance)
-            ridata[mi] = (m/delay, get(ctlookup, mi, 0.0))
+        m = isa(mi, MethodInstance) ? mi.def : matchloc(sf)
+        if isa(m, Method) || isa(m, MethodLoc)
+            trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
+            ridata[m] = (trun + nself*delay, tinfer, nspecializations)
+        else
+            @show typeof(m) m
+            error("whoops")
         end
     end
+    @assert all(ttn -> ttn[2] == 0.0, values(ridata))
+    # Now add inference times & specialization counts. To get the counts we go back to tf rather than using tm.
     for (t, mi_info) in tf
-        mi = mi_info.mi
-        if !haskey(ridata, mi)
-            ridata[mi] = (0.0, t)
+        isROOT(mi_info) && continue
+        m = mi_info.mi.def
+        if isa(m, Method)
+            trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
+            ridata[m] = (trun, tinfer + t, nspecializations + 1)
         end
     end
-    return ridata
+    # Sort the outputs to try to prioritize opportunities for the developer. Because we have multiple objectives (fast runtime
+    # and fast compile time), there's no unique sorting order, nor can we predict the cost to runtime performance of reducing
+    # the method specialization. Here we use the following approximation: we naively estimate "what the inference time could be" if
+    # there were only one specialization of each method, and the answers are sorted by the estimated savings. This does not
+    # even attempt to account for any risk to the runtime. For any serious analysis, looking at the scatter plot with
+    # [`specialization_plot`](@ref) is recommended.
+    savings((trun, tinfer, nspec)::Tuple{Float64,Float64,Int}) = tinfer * (nspec - 1)
+    savings(pr::Pair) = savings(pr.second)
+    return sort(collect(ridata); by=savings)
 end
 
 """
@@ -315,10 +367,10 @@ function _build_flamegraph!(root, to::InclusiveTiming, start_ns, tmin_ns)
     return root
 end
 
-function frame_name(mi_info::Core.Compiler.Timings.InferenceFrameInfo)
-    frame_name(mi_info.mi::Core.Compiler.MethodInstance)
+function frame_name(mi_info::InferenceFrameInfo)
+    frame_name(mi_info.mi::MethodInstance)
 end
-function frame_name(mi::Core.Compiler.MethodInstance)
+function frame_name(mi::MethodInstance)
     m = mi.def
     isa(m, Module) && return "thunk"
     return frame_name(m.name, mi.specTypes)

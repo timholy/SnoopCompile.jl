@@ -1,8 +1,10 @@
 using SnoopCompile
 using SnoopCompile.SnoopCompileCore
 using Test
+using InteractiveUtils
 using Random
 using Profile
+using PyPlot: PyPlot, plt
 
 using AbstractTrees  # For FlameGraphs tests
 
@@ -133,7 +135,7 @@ include("testmodules/SnoopBench.jl")
     @test occursin(r"typeof\(mappushes!\),Base.Fix2\{typeof\(isequal\).*\},Vector\{Any\},Vector\{Any\}", str)
 
     td = joinpath(tempdir(), randstring(8))
-    SnoopCompile.write(td, prs; ioreport=io)
+    SnoopCompile.write(td, prs; tmin=0.0, ioreport=io)
     str = String(take!(io))
     @test occursin(r"Base: precompiled [\d\.]+ out of [\d\.]+", str)
     @test occursin(r"SnoopBench: precompiled [\d\.]+ out of [\d\.]+", str)
@@ -158,23 +160,27 @@ end
     @test length(tf_spec) >= length(Ts)
     @test !any(tmi -> occursin("spell_spec(::Any)", repr(tmi[2])), tf_unspec)
 
+    fig, axs = plt.subplots(1, 2)
+
     nruns = 10^3
     @profile for i = 1:nruns
         SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     end
     rit = runtime_inferencetime(tinf_spec)
-    nc = count(rit) do (mi, (tr, ti))
-        ti > tr
-    end
-    @test nc > 0.95 * length(rit)
+    m = @which SnoopBench.spell_spec(first(Ts))
+    tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test ti > tr
+    @test nspec >= length(Ts)
+    specialization_plot(axs[1], rit; interactive=false)
 
     Profile.clear()
     @profile for i = 1:nruns
         SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     end
     rit = runtime_inferencetime(tinf_unspec)
-    nc = count(rit) do (mi, (tr, ti))
-        ti > tr
-    end
-    @test nc < 0.3 * length(rit)
+    m = @which SnoopBench.spell_unspec(first(Ts))
+    tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test ti < tr
+    @test nspec == 1
+    specialization_plot(axs[2], rit; interactive=false)
 end
