@@ -105,6 +105,25 @@ function build_inclusive_times(t::Timing)
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
 
+function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
+    m = mi.def
+    if isa(m, Method)
+        mod = m.module
+        can_eval = excluded_modules === nothing || mod ∉ excluded_modules
+        if can_eval
+            params = Base.unwrap_unionall(mi.specTypes)::DataType
+            for p in params.parameters
+                if !known_type(mod, p)
+                    can_eval = false
+                    break
+                end
+            end
+        end
+        return can_eval
+    end
+    return false
+end
+
 struct Precompiles
     mi_info::InferenceFrameInfo
     total_time::UInt64
@@ -113,7 +132,8 @@ end
 Precompiles(it::InclusiveTiming) = Precompiles(it.mi_info, it.inclusive_time, Tuple{UInt64,MethodInstance}[])
 
 inclusive_time(t::Precompiles) = t.total_time
-precompilable_time(precompiles::Vector{Tuple{UInt64,MethodInstance}}) = sum(first, precompiles; init=zero(UInt64))
+precompilable_time(precompiles::Vector{Tuple{UInt64,MethodInstance}}) where T = sum(first, precompiles; init=zero(UInt64))
+precompilable_time(precompiles::Dict{MethodInstance,T}) where T = sum(values(precompiles); init=zero(T))
 precompilable_time(pc::Precompiles) = precompilable_time(pc.precompiles)
 
 function Base.show(io::IO, pc::Precompiles)
@@ -123,57 +143,53 @@ function Base.show(io::IO, pc::Precompiles)
               " ($(round(Int, 100*tpc/pc.total_time))%)")
 end
 
-precompilable_roots(t::Timing) = precompilable_roots(build_inclusive_times(t))
-function precompilable_roots(t::InclusiveTiming)
-    pcs = [precompilable_roots!(Precompiles(it), it) for it in t.children]
-    tpc = precompilable_time.(pcs)
-    p = sortperm(tpc)
-    return pcs[p]
-end
-
-function precompilable_roots!(pc, t::InclusiveTiming)
+function precompilable_roots!(pc, t::InclusiveTiming, tthresh; excluded_modules=Set([Main::Module]))
+    t.inclusive_time >= tthresh || return pc
     mi = t.mi_info.mi
-    m = mi.def
-    if isa(m, Method)
-        mod = m.module
-        params = Base.unwrap_unionall(mi.specTypes)::DataType
-        can_eval = true
-        for p in params.parameters
-            if !known_type(mod, p)
-                can_eval = false
-                break
-            end
-        end
-        if can_eval
-            push!(pc.precompiles, (t.inclusive_time, mi))
-            return pc
-        end
+    if isprecompilable(mi; excluded_modules)
+        push!(pc.precompiles, (t.inclusive_time, mi))
+        return pc
     end
     foreach(t.children) do c
-        precompilable_roots!(pc, c)
+        precompilable_roots!(pc, c, tthresh; excluded_modules=excluded_modules)
     end
     return pc
 end
 
-function parcel(pcs::Vector{Precompiles})
-    tosecs((t, mi)::Tuple{UInt64,MethodInstance}) = (t/10^9, mi)
-    pcdict = Dict{Module,Vector{Tuple{UInt64,MethodInstance}}}()
-    t_grand_total = sum(inclusive_time, pcs; init=zero(UInt64))
+precompilable_roots(t::Timing, tthresh; kwargs...) = precompilable_roots(build_inclusive_times(t), tthresh; kwargs...)
+function precompilable_roots(t::InclusiveTiming, tthresh; kwargs...)
+    pcs = [precompilable_roots!(Precompiles(it), it, tthresh; kwargs...) for it in t.children if t.inclusive_time >= tthresh]
+    t_grand_total = sum(inclusive_time, t.children)
+    tpc = precompilable_time.(pcs)
+    p = sortperm(tpc)
+    return (t_grand_total, pcs[p])
+end
+
+function parcel((t_grand_total,pcs)::Tuple{UInt64,Vector{Precompiles}})
+    tosecs(mit::Pair{MethodInstance,UInt64}) = (mit.second/10^9, mit.first)
+    # Because the same MethodInstance can be compiled multiple times for different Const values,
+    # we just keep the largest time observed per MethodInstance.
+    pcdict = Dict{Module,Dict{MethodInstance,UInt64}}()
     for pc in pcs
         for (t, mi) in pc.precompiles
             m = mi.def
             mod = isa(m, Method) ? m.module : m
-            list = get!(Vector{Tuple{UInt64,MethodInstance}}, pcdict, mod)
-            push!(list, (t, mi))
+            pcmdict = get!(Dict{MethodInstance,UInt64}, pcdict, mod)
+            pcmdict[mi] = max(t, get(pcmdict, mi, zero(UInt64)))
         end
     end
-    pclist = [mod => (precompilable_time(list)/10^9, sort!(tosecs.(list); by=first)) for (mod, list) in pcdict]
+    pclist = [mod => (precompilable_time(pcmdict)/10^9, sort!(tosecs.(collect(pcmdict)); by=first)) for (mod, pcmdict) in pcdict]
     sort!(pclist; by = pr -> pr.second[1])
     return t_grand_total/10^9, pclist
 end
 
-parcel(t::InclusiveTiming) = parcel(precompilable_roots(t))
-parcel(t::Timing) = parcel(build_inclusive_times(t))
+function parcel(t::InclusiveTiming; tmin=0.0, kwargs...)
+    tthresh = round(UInt64, tmin * 10^9)
+    parcel(precompilable_roots(t, tthresh; kwargs...))
+end
+parcel(t::Timing; kwargs...) = parcel(build_inclusive_times(t); kwargs...)
+
+###
 
 function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001)
     strs = OrderedSet{String}()

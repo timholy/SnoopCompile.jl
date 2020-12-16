@@ -192,22 +192,30 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
     end
 end
 
-function known_type(mod::Module, @nospecialize(T::Type))
-    # First check whether supplying module context allows evaluation
-    rplain = repr(T; context=:module=>mod)
-    try
-        ex = Meta.parse(rplain)
-        Core.eval(mod, ex)
-        return true
-    catch
-        # Add full module context
+let known_type_cache = IdDict{Tuple{Module,Type},Bool}()
+    global known_type
+    function known_type(mod::Module, @nospecialize(T::Type))
+        key = (mod, T)
+        kt = get(known_type_cache, key, nothing)
+        isa(kt, Bool) && return kt
+        kt = false
+        # First check whether supplying module context allows evaluation
+        rplain = repr(T; context=:module=>mod)
         try
-            Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
-            return true
+            ex = Meta.parse(rplain)
+            Core.eval(mod, ex)
+            kt = true
         catch
+            # Add full module context
+            try
+                Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
+                kt = true
+            catch
+            end
         end
+        known_type_cache[key] = kt
+        return kt
     end
-    return false
 end
 
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
@@ -315,7 +323,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
         @debug "Skipping $tt due to argument types having anonymous bindings"
         return false
     end
-    mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
+    mname, mmod = String(Base.unwrap_unionall(p).name.name), m.module   # m.name strips the kw identifier
     mkw = match(kwrex, mname)
     mkwbody = match(kwbodyrex, mname)
     isgen = match(genrex, mname) !== nothing
