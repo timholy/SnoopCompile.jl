@@ -679,7 +679,7 @@ end
 ## Flamegraph creation
 
 """
-    flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
+    flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0, excluded_modules=Set([Main]), mode=nothing)
     flamegraph(t::InclusiveTiming; tmin_secs=0.0)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
@@ -689,6 +689,14 @@ type inference.
 Frames that take less than `tmin_secs` seconds of _inclusive time_ will not be included
 in the resultant FlameGraph (meaning total time including it and all of its children).
 This can be helpful if you have a very big profile, to save on processing time.
+
+Non-precompilable frames are marked in reddish colors. `excluded_modules` can be used to mark methods
+defined in modules to which you cannot or do not wish to add precompiles.
+
+`mode` controls how frames are named in tools like ProfileView.
+`nothing` uses the default of just the qualified function name, whereas
+supplying `mode=Dict(method => count)` counting the number of specializations of
+each method will cause the number of specializations to be included in the frame name.
 
 # Examples
 ```julia
@@ -711,42 +719,42 @@ call this function multiple times (say with different values for `tmin_secs`), y
 some intermediate time by first calling [`InclusiveTiming(t)`](@ref), only once,
 and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
-function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0, kwargs...)
     it = InclusiveTiming(t)
-    flamegraph(it; tmin_secs=tmin_secs)
+    flamegraph(it; tmin_secs=tmin_secs, kwargs...)
 end
 
-function FlameGraphs.flamegraph(to::InclusiveTiming; tmin_secs = 0.0)
+function FlameGraphs.flamegraph(to::InclusiveTiming; tmin_secs = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
     tmin_ns = UInt64(round(tmin_secs * 1e9))
+    io = IOBuffer()
 
     # Compute a "root" frame for the top-level node, to cover the whole profile
-    node_data = _flamegraph_frame(to, to.start_time; toplevel=true)
+    node_data, _ = _flamegraph_frame(io, to, to.start_time, false, excluded_modules, mode; toplevel=true)
     root = Node(node_data)
-    return _build_flamegraph!(root, to, to.start_time, tmin_ns)
+    return _build_flamegraph!(root, io, to, to.start_time, tmin_ns, true, excluded_modules, mode)
 end
-function _build_flamegraph!(root, to::InclusiveTiming, start_ns, tmin_ns)
+function _build_flamegraph!(root, io::IO, to::InclusiveTiming, start_ns, tmin_ns, check_precompilable, excluded_modules, mode)
     for child in to.children
         if child.inclusive_time > tmin_ns
-            node_data = _flamegraph_frame(child, start_ns; toplevel=false)
+            node_data, child_check_precompilable = _flamegraph_frame(io, child, start_ns, check_precompilable, excluded_modules, mode; toplevel=false)
             node = addchild(root, node_data)
-            _build_flamegraph!(node, child, start_ns, tmin_ns)
+            _build_flamegraph!(node, io, child, start_ns, tmin_ns, child_check_precompilable, excluded_modules, mode)
         end
     end
     return root
 end
 
-function frame_name(mi_info::InferenceFrameInfo)
-    frame_name(mi_info.mi::MethodInstance)
+function frame_name(io::IO, mi_info::InferenceFrameInfo)
+    frame_name(io, mi_info.mi::MethodInstance)
 end
-function frame_name(mi::MethodInstance)
+function frame_name(io::IO, mi::MethodInstance)
     m = mi.def
     isa(m, Module) && return "thunk"
-    return frame_name(m.name, mi.specTypes)
+    return frame_name(io, m.name, mi.specTypes)
 end
 # Special printing for Type Tuples so they're less ugly in the FlameGraph
-function frame_name(name, @nospecialize(tt::Type{<:Tuple}))
+function frame_name(io::IO, name, @nospecialize(tt::Type{<:Tuple}))
     try
-        io = IOBuffer()
         Base.show_tuple_as_call(io, name, tt)
         v = String(take!(io))
         return v
@@ -772,13 +780,47 @@ function max_end_time(t::InclusiveTiming)
 end
 
 # Make a flat frame for this Timing
-function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
+function _flamegraph_frame(io::IO, to::InclusiveTiming, start_ns, check_precompilable::Bool, excluded_modules, mode; toplevel)
+    function func_name(mi::MethodInstance, ::Nothing)
+        m = mi.def
+        return isa(m, Method) ? string(m.module, '.', m.name) : string(m, '.', "thunk")
+    end
+    function func_name(mi::MethodInstance, methcounts::AbstractDict{Method})
+        str = func_name(mi, nothing)
+        m = mi.def
+        if isa(m, Method)
+            n = get(methcounts, m, nothing)
+            if n !== nothing
+                str = string(str, " (", n, ')')
+            end
+        end
+        return str
+    end
+    function func_name(io::IO, mi_info::InferenceFrameInfo, mode)
+        if mode === :slots
+            show(io, mi_info)
+            str = String(take!(io))
+            startswith(str, "InferenceFrameInfo for ") && (str = str[length("InferenceFrameInfo for ")+1:end])
+            return str
+        elseif mode == :spec
+            return frame_name(io, mi_info)
+        else
+            return func_name(MethodInstance(mi_info), mode)
+        end
+    end
+
+    mistr = Symbol(func_name(io, to.mi_info, mode))
     mi = MethodInstance(to)
-    tt = Symbol(frame_name(to.mi_info))
     m = mi.def
-    sf = isa(m, Method) ? StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
-                          StackFrame(tt, :unknown, 0, mi, false, false, UInt64(0x0))
-    status = 0x0  # "default" status -- See FlameGraphs.jl
+    sf = isa(m, Method) ? StackFrame(mistr, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
+                          StackFrame(mistr, :unknown, 0, mi, false, false, UInt64(0x0))
+    if check_precompilable
+        mod = isa(m, Method) ? m.module : m
+        ispc = isprecompilable(mi; excluded_modules)
+        status, check_precompilable = UInt8(!ispc), !ispc
+    else
+        status = 0x0  # "default" status -- see FlameGraphs.jl
+    end
     start = to.start_time - start_ns
     if toplevel
         # Compute a range over the whole profile for the top node.
@@ -786,5 +828,5 @@ function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
     else
         range = Int(start) : Int(start + to.inclusive_time)
     end
-    return FlameGraphs.NodeData(sf, status, range)
+    return FlameGraphs.NodeData(sf, status, range), check_precompilable
 end
