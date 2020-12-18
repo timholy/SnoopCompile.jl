@@ -110,13 +110,13 @@ uncompiled(x) = x + 1
     FK = pc[:FuncKinds]
     @test any(str->occursin("precompile(Tuple{typeof(gen),Float32})", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(gen2),$Int,Float64})", str), FK)
-    @test any(str->occursin("typeof(which(FuncKinds.gen2,($Int,Any,)).generator.gen)", str), FK)
+    @test any(str->occursin("typeof(which(gen2,($Int,Any,)).generator.gen)", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(genkw2)})", str), FK)
-    @test any(str->occursin("Tuple{Core.kwftype(typeof(FuncKinds.genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(genkw2)}", str), FK)
+    @test any(str->occursin("Tuple{Core.kwftype(typeof(genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(genkw2)}", str), FK)
     if VERSION >=  v"1.4.0-DEV.215"
-        @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw1, ()))", str), FK)
-        @test any(str->occursin("__lookup_kwbody__(which(FuncKinds.genkw2, ()))", str), FK)
+        @test any(str->occursin("__lookup_kwbody__(which(genkw1, ()))", str), FK)
+        @test any(str->occursin("__lookup_kwbody__(which(genkw2, ()))", str), FK)
     else
         @test any(str->occursin("isdefined", str), FK)
     end
@@ -177,19 +177,19 @@ end
     @test any(str->occursin("typeof(f4),$Int,$Int", str), FK)
     @test any(str->occursin("typeof(f4),$UInt,String", str), FK)
     @test any(str->occursin("typeof(f4),$(Matrix{Float64})", str), FK)
-    @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Int8", str), FK)
+    @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Int8", str), FK)
     @test any(str->occursin("typeof(f5),Int16", str), FK)
     @test any(str->occursin("typeof(f5),Int32", str), FK)
     if "$(Matrix{Float64})" == "Matrix{Float64}"
-        @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Matrix\{Float64\}", str), FK)
+        @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Matrix\{Float64\}", str), FK)
     else
-        @test any(str->occursin(r"kwftype\(typeof\(FuncKinds.f5.*:y.*Array\{Float64,2\}", str), FK)
+        @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Array\{Float64,2\}", str), FK)
     end
-    # @test any(str->occursin("typeof(FuncKinds.f6),(1, "hi"; z=8) == 1
-    # @test any(str->occursin("typeof(FuncKinds.f7),(1, (1, :hi)) == 1
-    # @test any(str->occursin("typeof(FuncKinds.f8),(0) == 1
-    # @test any(str->occursin("typeof(FuncKinds.f9),(3) == 9
-    # @test any(str->occursin("typeof(FuncKinds.f9),(3.0) == 3.0
+    # @test any(str->occursin("typeof(f6),(1, "hi"; z=8) == 1
+    # @test any(str->occursin("typeof(f7),(1, (1, :hi)) == 1
+    # @test any(str->occursin("typeof(f8),(0) == 1
+    # @test any(str->occursin("typeof(f9),(3) == 9
+    # @test any(str->occursin("typeof(f9),(3.0) == 3.0
 
 end
 
