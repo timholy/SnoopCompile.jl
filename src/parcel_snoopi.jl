@@ -192,22 +192,30 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
     end
 end
 
-function known_type(mod::Module, @nospecialize(T::Type))
-    # First check whether supplying module context allows evaluation
-    rplain = repr(T; context=:module=>mod)
-    try
-        ex = Meta.parse(rplain)
-        Core.eval(mod, ex)
-        return true
-    catch
-        # Add full module context
+let known_type_cache = IdDict{Tuple{Module,Type},Bool}()
+    global known_type
+    function known_type(mod::Module, @nospecialize(T::Type))
+        key = (mod, T)
+        kt = get(known_type_cache, key, nothing)
+        isa(kt, Bool) && return kt
+        kt = false
+        # First check whether supplying module context allows evaluation
+        rplain = repr(T; context=:module=>mod)
         try
-            Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
-            return true
+            ex = Meta.parse(rplain)
+            Core.eval(mod, ex)
+            kt = true
         catch
+            # Add full module context
+            try
+                Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
+                kt = true
+            catch
+            end
         end
+        known_type_cache[key] = kt
+        return kt
     end
-    return false
 end
 
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
@@ -217,7 +225,7 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; c
     end
     fparent = getfield(m.module, nameparent)
     pttstr = tuplestring(paramrepr[m.nkw+2:end])
-    whichstr = "which($(repr(fparent)), $pttstr)"
+    whichstr = "which($nameparent, $pttstr)"
     can1, exc1 = can_eval(topmod, whichstr, check_eval)
     if can1
         ttstr = tuplestring(paramrepr)
@@ -315,7 +323,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
         @debug "Skipping $tt due to argument types having anonymous bindings"
         return false
     end
-    mname, mmod = String(p.name.name), m.module   # m.name strips the kw identifier
+    mname, mmod = String(Base.unwrap_unionall(p).name.name), m.module   # m.name strips the kw identifier
     mkw = match(kwrex, mname)
     mkwbody = match(kwbodyrex, mname)
     isgen = match(genrex, mname) !== nothing
@@ -328,7 +336,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
     if mkw !== nothing
         # Keyword function
         fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
-        fkw = "Core.kwftype(typeof($mmod.$fname))"
+        fkw = "Core.kwftype(typeof($fname))"
         return add_if_evals!(list, topmod, fkw, paramrepr, tt; check_eval=check_eval, time=time)
     elseif mkwbody !== nothing
         ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
@@ -352,11 +360,11 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
                 csigstr = tuplestring(cparamrepr)
                 mkwc = match(kwbodyrex, cname)
                 if mkwc === nothing
-                    getgen = "typeof(which($cmod.$(caller.name),$csigstr).generator.gen)"
+                    getgen = "typeof(which($(caller.name),$csigstr).generator.gen)"
                     return add_if_evals!(list, topmod, getgen, paramrepr, tt; check_eval=check_eval, time=time)
                 else
                     if VERSION >= v"1.4.0-DEV.215"
-                        getgen = "which(Core.kwfunc($cmod.$(mkwc.captures[1])),$csigstr).generator.gen"
+                        getgen = "which(Core.kwfunc($(mkwc.captures[1])),$csigstr).generator.gen"
                         ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
                         if ret !== nothing
                             push!(list, append_time(ret, time))

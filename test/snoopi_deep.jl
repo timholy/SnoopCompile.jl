@@ -102,6 +102,9 @@ include("testmodules/SnoopBench.jl")
     t, mi = only(tmis)
     @test ttot == tmod == t  # since there is only one
     @test mi.def.name === :f1
+    ttot2, prs = SnoopCompile.parcel(tinf; tmin=10.0)
+    @test isempty(prs)
+    @test ttot2 == ttot
 
     A = [a]
     tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
