@@ -11,85 +11,6 @@ isROOT(mi_info::InferenceFrameInfo) = isROOT(mi_info.mi)
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
-"""
-    flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
-
-Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of
-tuples, containing the exclusive time and inclusive time for each invocation of type
-inference, skipping any frames that took less than `tmin_secs` seconds. Results are
-sorted by exclusive time.
-
-`ROOT` is a dummy element whose time corresponds to the sum of time spent outside inference. It's
-the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
-to get the total inference time, and `sum(first.(result))` to get the total time overall.
-
-# Example:
-```julia
-julia> flatten_times(t)
-
-```
-"""
-function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
-    flatten_times(build_inclusive_times(timing))
-end
-function flatten_times(timing::InclusiveTiming; tmin_secs = 0.0)
-    out = Tuple{Float64,Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
-    frontier = [timing]
-    while !isempty(frontier)
-        t = popfirst!(frontier)
-        exclusive_secs = (t.exclusive_time / 1e9)
-        inclusive_secs = (t.inclusive_time / 1e9)
-        if exclusive_secs >= tmin_secs
-            push!(out, (exclusive_secs, inclusive_secs, t.mi_info))
-        end
-        append!(frontier, t.children)
-    end
-    return sort(out; by=first)
-end
-
-"""
-    accumulate_by_source(pairs; tmin_secs = 0.0)
-
-Add the inference timings for all `MethodInstance`s of a single `Method` together.
-`pairs` is the output of [`flatten_times`](@ref).
-Returns a list of `t => method` pairs.
-
-When the accumulated time for a `Method` is large, but each instance is small, it indicates
-that it is being inferred for many specializations (which might include specializations with different constants).
-
-# Example
-
-```julia
-julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
-
-julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
-6-element Vector{Pair{Float64, Method}}:
- 0.000590579 => _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307
- 0.000616788 => partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578
- 0.000634394 => sort!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, ::Base.Sort.InsertionSortAlg, o::Base.Order.Ordering) in Base.Sort at sort.jl:527
- 0.000720815 => Vector{T}(::UndefInitializer, m::Int64) where T in Core at boot.jl:448
- 0.001157551 => getindex(::Type{T}, x, y, z) where T in Base at array.jl:394
- 0.046509861 => ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75
-```
-
-`ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
-"""
-function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFrameInfo}}; tmin_secs = 0.0) where M<:Union{Method,MethodInstance}
-    tmp = Dict{Union{M,MethodInstance},Float64}()
-    for (t, info) in pairs
-        mi = info.mi
-        if M === Method && isa(mi.def, Method)
-            m = mi.def::Method
-            tmp[m] = get(tmp, m, 0.0) + t
-        else
-            tmp[mi] = t    # module-level thunks are stored verbatim
-        end
-    end
-    return sort([t=>m for (m, t) in tmp if t >= tmin_secs]; by=first)
-end
-
-accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
-
 struct InclusiveTiming
     mi_info::InferenceFrameInfo
     inclusive_time::UInt64
@@ -116,6 +37,98 @@ function build_inclusive_times(t::Timing)
     incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.time, t.start_time, child_times)
 end
+
+
+"""
+    flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
+
+Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of
+tuples, containing the exclusive time and inclusive time for each invocation of type
+inference, skipping any frames that took less than `tmin_secs` seconds. Results are
+sorted by exclusive time.
+
+`ROOT` is a dummy element whose time corresponds to the sum of time spent outside inference. It's
+the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
+to get the total inference time, and `sum(first.(result))` to get the total time overall.
+
+# Example
+
+```julia
+julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
+
+julia> flatten_times(tinf)
+67-element Vector{Tuple{Float64, Float64, Core.Compiler.Timings.InferenceFrameInfo}}:
+ (2.8529e-5, 2.8529e-5, InferenceFrameInfo for Core.unsafe_convert(::Type{Int64}, 3::Int64))
+ (3.0213e-5, 3.0213e-5, InferenceFrameInfo for Base.Sort.defalg(::Vector{Float16}))
+ (3.1666e-5, 3.1666e-5, InferenceFrameInfo for convert(::Type{Float16}, ::Float16))
+ ⋮
+ (0.000951976, 0.001283239, InferenceFrameInfo for sort!(::Vector{Float16}, ::Int64, ::Int64, Base.Sort.InsertionSortAlg()::Base.Sort.InsertionSortAlg, Base.Order.ForwardOrdering()::Base.Order.ForwardOrdering))
+ (0.000973713, 0.005115541, InferenceFrameInfo for Base._copyto_impl!(::Vector{Float16}, ::Int64, ::Vector{Float16}, ::Int64, ::Int64))
+ (0.05322916, 0.066831576, InferenceFrameInfo for Core.Compiler.Timings.ROOT())
+```
+"""
+function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
+    flatten_times(build_inclusive_times(timing))
+end
+function flatten_times(timing::InclusiveTiming; tmin_secs = 0.0)
+    out = Tuple{Float64,Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
+    frontier = [timing]
+    while !isempty(frontier)
+        t = popfirst!(frontier)
+        exclusive_secs = (t.exclusive_time / 1e9)
+        inclusive_secs = (t.inclusive_time / 1e9)
+        if exclusive_secs >= tmin_secs
+            push!(out, (exclusive_secs, inclusive_secs, t.mi_info))
+        end
+        append!(frontier, t.children)
+    end
+    return sort(out; by=first)
+end
+
+"""
+    accumulate_by_source(flattened; tmin_secs = 0.0)
+
+Add the inference timings for all `MethodInstance`s of a single `Method` together.
+`flattened` is the output of [`flatten_times`](@ref).
+Returns a list of `exclusive, inclusive, method` tuples.
+
+When the accumulated time for a `Method` is large, but each instance is small, it indicates
+that it is being inferred for many specializations (which might include specializations with different constants).
+
+# Example
+
+```julia
+julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
+
+julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
+6-element Vector{Tuple{Float64, Float64, Method}}:
+ (0.002064292, 0.012609327, unsafe_copyto!(dest::Array{T, N} where N, doffs, src::Array{T, N} where N, soffs, n) where T in Base at array.jl:262)
+ (0.002136526, 0.003560635, partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578)
+ (0.002760218, 0.006008776, _memory_offset(x::DenseArray, I::Vararg{Any, N}) where N in Base at abstractarray.jl:1117)
+ (0.003308186, 0.004310034, sort!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, ::Base.Sort.InsertionSortAlg, o::Base.Order.Ordering) in Base.Sort at sort.jl:527)
+ (0.004571742, 0.017181069, _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307)
+ (0.076306024, 0.118489978, ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75)
+```
+
+`ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
+"""
+function accumulate_by_source(::Type{M},
+        flattened::Vector{Tuple{Float64,Float64,InferenceFrameInfo}}; tmin_secs = 0.0) where M<:Union{Method,MethodInstance}
+    tmp = Dict{Union{M,MethodInstance},Tuple{Float64,Float64}}()
+    for (excl, incl, info) in flattened
+        mi = info.mi
+        if M === Method && isa(mi.def, Method)
+            m = mi.def::Method
+            (e,i) = get(tmp, m, (0.0, 0.0))
+            tmp[m] = (e + excl, i + incl)
+        else
+            tmp[mi] = (excl,incl)    # module-level thunks are stored verbatim
+        end
+    end
+    return sort([(e,i,m) for (m, (e,i)) in tmp if e >= tmin_secs]; by=first)
+end
+
+accumulate_by_source(flattened::Vector{Tuple{Float64,Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, flattened; kwargs...)
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
     m = mi.def
