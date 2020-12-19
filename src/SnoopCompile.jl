@@ -3,13 +3,6 @@ module SnoopCompile
 using SnoopCompileCore
 export @snoopc
 # More exports are defined below in the conditional loading sections
-isdefined(SnoopCompileCore, Symbol("@snoopi")) &&
-if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
-
-end
-if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-
-end
 
 using Core: MethodInstance, CodeInfo
 using Serialization, OrderedCollections
@@ -34,6 +27,7 @@ end
 if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
     include("parcel_snoopi_deep.jl")
     export @snoopi_deep, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
+    export inference_triggers, callerinstance, callingframe
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopl"))

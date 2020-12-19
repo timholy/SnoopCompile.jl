@@ -11,6 +11,19 @@ isROOT(mi_info::InferenceFrameInfo) = isROOT(mi_info.mi)
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
+Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
+Core.MethodInstance(t::Timing) = MethodInstance(t.mi_info)
+
+# Record instruction pointers we've already looked up (performance optimization)
+const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+
+struct InclusiveTiming
+    mi_info::InferenceFrameInfo
+    inclusive_time::UInt64
+    start_time::UInt64
+    children::Vector{InclusiveTiming}
+end
+
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
@@ -22,19 +35,22 @@ took less than `tmin_secs` seconds. Results are sorted by time.
 the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
 to get the total inference time, and `sum(first.(result))` to get the total time overall.
 """
-function flatten_times(timing::Timing; tmin_secs = 0.0)
+function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0)
     out = Pair{Float64,InferenceFrameInfo}[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
-        exclusive_time = (t.time / 1e9)
-        if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.mi_info)
+        time = floattime(t)
+        if time >= tmin_secs
+            push!(out, time => t.mi_info)
         end
         append!(frontier, t.children)
     end
     return sort(out; by=first)
 end
+
+floattime(t::Timing) = t.time / 1e9
+floattime(it::InclusiveTiming) = it.inclusive_time / 1e9
 
 """
     accumulate_by_source(pairs; tmin_secs = 0.0)
@@ -79,14 +95,9 @@ end
 
 accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
 
-struct InclusiveTiming
-    mi_info::InferenceFrameInfo
-    inclusive_time::UInt64
-    start_time::UInt64
-    children::Vector{InclusiveTiming}
-end
+Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
 
-Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", t.mi_info.mi, " with ", length(t.children), " direct children")
+Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
@@ -104,6 +115,8 @@ function build_inclusive_times(t::Timing)
     incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
+
+## parcel and supporting infrastructure
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
     m = mi.def
@@ -131,21 +144,22 @@ struct Precompiles
 end
 Precompiles(it::InclusiveTiming) = Precompiles(it.mi_info, it.inclusive_time, Tuple{UInt64,MethodInstance}[])
 
-inclusive_time(t::Precompiles) = t.total_time
+Core.MethodInstance(pc::Precompiles) = MethodInstance(pc.mi_info)
+inclusive_time(pc::Precompiles) = pc.total_time
 precompilable_time(precompiles::Vector{Tuple{UInt64,MethodInstance}}) where T = sum(first, precompiles; init=zero(UInt64))
 precompilable_time(precompiles::Dict{MethodInstance,T}) where T = sum(values(precompiles); init=zero(T))
 precompilable_time(pc::Precompiles) = precompilable_time(pc.precompiles)
 
 function Base.show(io::IO, pc::Precompiles)
     tpc = precompilable_time(pc)
-    print(io, "Precompiles: ", pc.total_time/10^9, " for ", pc.mi_info.mi,
+    print(io, "Precompiles: ", pc.total_time/10^9, " for ", MethodInstance(pc),
               " had ", length(pc.precompiles), " precompilable roots reclaiming ", tpc/10^9,
               " ($(round(Int, 100*tpc/pc.total_time))%)")
 end
 
 function precompilable_roots!(pc, t::InclusiveTiming, tthresh; excluded_modules=Set([Main::Module]))
     t.inclusive_time >= tthresh || return pc
-    mi = t.mi_info.mi
+    mi = MethodInstance(t)
     if isprecompilable(mi; excluded_modules)
         push!(pc.precompiles, (t.inclusive_time, mi))
         return pc
@@ -189,7 +203,7 @@ function parcel(t::InclusiveTiming; tmin=0.0, kwargs...)
 end
 parcel(t::Timing; kwargs...) = parcel(build_inclusive_times(t); kwargs...)
 
-###
+### write
 
 function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001)
     strs = OrderedSet{String}()
@@ -245,6 +259,11 @@ function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vect
         println(ioreport, "$mod: precompiled $twritten out of $tmod")
     end
 end
+
+## Profile-guided optimization
+
+# These tools can help balance the need for specialization (to achieve good runtime performance)
+# against the desire to reduce specialization to reduce latency.
 
 struct MethodLoc
     func::Symbol
@@ -332,6 +351,293 @@ function runtime_inferencetime(tinf::Timing, pdata; lidict, consts::Bool=true, d
     savings((trun, tinfer, nspec)::Tuple{Float64,Float64,Int}) = tinfer * (nspec - 1)
     savings(pr::Pair) = savings(pr.second)
     return sort(collect(ridata); by=savings)
+end
+
+## Analysis of inference triggers
+
+"""
+    InferenceTrigger(callee::MethodInstance, callerframes::Vector{StackFrame}, btidx::Int, bt)
+
+Organize information about the "triggers" of inference. `callee` is the `MethodInstance` requiring inference,
+`callerframes`, `btidx` and `bt` contain information about the caller.
+`callerframes` are the frame(s) of call site that triggered inference; it's a `Vector{StackFrame}`, rather than a
+single `StackFrame`, due to the possibility that the caller was inlined into something else, in which case the first entry
+is the direct caller and the last entry corresponds to the MethodInstance into which it was ultimately inlined.
+`btidx` is the index in `bt`, the backtrace collected upon entry into inference, corresponding to `callerframes`.
+"""
+struct InferenceTrigger
+    callee::MethodInstance
+    callerframes::Vector{StackTraces.StackFrame}
+    btidx::Int   # callerframes = StackTraces.lookup(bt[btidx])
+    bt::Vector{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}}
+end
+
+function Base.show(io::IO, itrig::InferenceTrigger)
+    sf = first(itrig.callerframes)
+    print(io, "Inference triggered to call ")
+    printstyled(io, itrig.callee; color=:yellow)
+    print(io, " from ")
+    printstyled(io, sf.func; color=:red, bold=true)
+    print(io, " (",  sf.file, ':', sf.line, ')')
+    caller = itrig.callerframes[end].linfo
+    if isa(caller, MethodInstance)
+        length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
+        printstyled(io, caller; color=:blue)
+    elseif isa(caller, Core.CodeInfo)
+        print(io, " called from toplevel code ", caller)
+    end
+end
+
+callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
+
+# Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
+function next_julia_frame(bt, idx)
+    while idx < length(bt)
+        ip = bt[idx+=1]
+        sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
+        sf = sfs[end]
+        sf.from_c && continue
+        mi = sf.linfo
+        isa(mi, Core.MethodInstance) || continue
+        m = mi.def
+        isa(m, Method) || continue
+        m.module === Core.Compiler && continue
+        return sfs, idx
+    end
+    return nothing
+end
+
+"""
+    itrigs = inference_triggers(t::Timing, [tinc::InclusiveTiming=build_inclusive_times(t)]; exclude_toplevel=true)
+
+Collect the "triggers" of inference, each a fresh entry into inference via a call dispatched at runtime.
+All the entries in `itrigs` are previously uninferred, or are freshly-inferred for specific constant inputs.
+
+`exclude_toplevel` determines whether calls made from the REPL, `include`, or test suites are excluded.
+
+# Example
+
+In a fresh Julia session, `sqrt(::Int)` has not been inferred:
+
+```julia
+julia> using SnoopCompile, MethodAnalysis
+
+julia> methodinstance(sqrt, (Int,))
+
+```
+
+However, if we do the following,
+
+```julia
+julia> c = (1, 2)
+(1, 2)
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> itrigs = inference_triggers(tinf)
+SnoopCompile.InferenceTrigger[]
+```
+
+we get no output. Let's see them all:
+
+```julia
+julia> itrigs = inference_triggers(tinf; exclude_toplevel=false)
+1-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.000706839s: dispatch MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64}) from eval at ./boot.jl:360
+```
+
+This output indicates that `map(::typeof(sqrt), ::Tuple{Int64, Int64})` was runtime-dispatched as a call from `eval`, and that the cost
+of inferring it and all of its callees was about 0.7ms. `sqrt(::Int)` does not appear because it was inferred from `map`:
+
+```julia
+julia> mi = methodinstance(sqrt, (Int,))    # now this is an inferred MethodInstance
+MethodInstance for sqrt(::Int64)
+
+julia> terminal_backedges(mi)
+1-element Vector{Core.MethodInstance}:
+ MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64})
+```
+
+If we change `c` to a `Vector{Int}`, we get more examples of runtime dispatch:
+
+```julia
+julia> c = [1, 2];
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> itrigs = inference_triggers(tinf)
+2-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.000656328s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Int64}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.0196351s: dispatch MethodInstance for collect_similar(::Vector{Int64}, ::Base.Generator{Vector{Int64}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
+```
+
+These are not inferrable from `map` because `map(f, ::AbstractArray)` does not specialize on `f`, whereas it does for tuples.
+"""
+function inference_triggers(t::Timing; exclude_toplevel::Bool=true)
+    function first_julia_frame(bt)
+        ret = next_julia_frame(bt, 1)
+        if ret === nothing
+            return StackTraces.StackFrame[], 0
+        end
+        return ret
+    end
+
+    itrigs = map(t.children) do tc
+        InferenceTrigger(MethodInstance(tc), first_julia_frame(tc.bt)..., tc.bt)
+    end
+    if exclude_toplevel
+        filter!(maybe_internal, itrigs)
+    end
+    return itrigs
+end
+
+const rextest = r"stdlib.*Test.jl$"
+function maybe_internal(itrig::InferenceTrigger)
+    for sf in itrig.callerframes
+        linfo = sf.linfo
+        if isa(linfo, MethodInstance)
+            m = linfo.def
+            if isa(m, Method)
+                m.module === Base && m.name === :include_string && return false
+                m.name === :eval && return false
+            end
+        end
+        match(rextest, string(sf.file)) !== nothing && return false
+    end
+    return true
+end
+
+"""
+    itrigcaller = callingframe(itrig::InferenceTrigger)
+
+"Step out" one layer, returning data on the caller triggering `itrig`.
+
+# Example
+
+```julia
+julia> mymap(f, container) = map(f, container)
+mymap (generic function with 1 method)
+
+julia> container = [1 2 3]
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> mymap(identity, container)
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> tinf = @snoopi_deep mymap(x->x^2, container);
+
+# The inference triggers (here because this function wasn't called previously) are attributed to `map`
+julia> itrigs = inference_triggers(tinf)
+2-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from map at ./abstractarray.jl:2282
+
+# But we can see that `map` was called by `mymap`:
+julia> callingframe.(itrigs)
+2-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from mymap at ./REPL[2]:1
+ Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from mymap at ./REPL[2]:1
+```
+"""
+function callingframe(itrig::InferenceTrigger)
+    idx = itrig.btidx
+    if idx < length(itrig.bt)
+        ret = next_julia_frame(itrig.bt, idx)
+        if ret !== nothing
+            return InferenceTrigger(itrig.callee, ret..., itrig.bt)
+        end
+    end
+    return itrig
+end
+
+struct Location  # essentially a LineNumberNode + function name
+    func::Symbol
+    file::Symbol
+    line::Int
+end
+function Location(itrig::InferenceTrigger)
+    isempty(itrig.callerframes) && return Location(:from_c, :from_c, 0)
+    sf = itrig.callerframes[1]
+    return Location(sf.func, sf.file, sf.line)
+end
+
+Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
+
+struct LocationTriggers
+    loc::Location
+    itrigs::Vector{InferenceTrigger}
+end
+
+function Base.show(io::IO, loctrigs::LocationTriggers)
+    # Analyze caller => callee argument type diversity
+    callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
+    for itrig in loctrigs.itrigs
+        push!(callees, itrig.callee)
+        caller = itrig.callerframes[end].linfo
+        if isa(caller, MethodInstance)
+            push!(callers, caller)
+        else
+            ncextra += 1
+        end
+    end
+    ncallees, ncallers = length(callees), length(callers) + ncextra
+    print(io, loctrigs.loc, " (", ncallees, " callees from ", ncallers, " callers)")
+end
+
+"""
+    loctrigs = accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
+
+Aggregate inference triggers by location (function, file, and line number) of the caller.
+
+# Example
+
+```julia
+julia> c = Any[1, 1.0, 0x01, Float16(1)];
+
+julia> tinf = @snoopi_deep map(sqrt, c);
+
+julia> itrigs = inference_triggers(tinf)
+9-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.000243905s: dispatch MethodInstance for sqrt(::Int64) from iterate at ./generator.jl:47
+ Inference break costing 0.000259601s: dispatch MethodInstance for sqrt(::UInt8) from iterate at ./generator.jl:47
+ Inference break costing 0.000353063s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Any}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.000411542s: dispatch MethodInstance for _similar_for(::Vector{Any}, ::Type{Float64}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Base.HasShape{1}) from _collect at ./array.jl:682
+ Inference break costing 0.000568054s: dispatch MethodInstance for sqrt(::Float16) from iterate at ./generator.jl:47
+ Inference break costing 0.002503302s: dispatch MethodInstance for collect_to_with_first!(::Vector{Float64}, ::Float64, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64) from _collect at ./array.jl:682
+ Inference break costing 0.002741125s: dispatch MethodInstance for collect_to!(::Vector{AbstractFloat}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64, ::Int64) from collect_to! at ./array.jl:718
+ Inference break costing 0.003836296s: dispatch MethodInstance for collect_similar(::Vector{Any}, ::Base.Generator{Vector{Any}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
+ Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
+
+julia> loctrigs = accumulate_by_source(itrigs)
+5-element Vector{Pair{Float64, SnoopCompile.LocationTriggers}}:
+            0.00107156 => iterate at ./generator.jl:47 (3 instances)
+           0.002741125 => collect_to! at ./array.jl:718 (1 instances)
+ 0.0029148439999999998 => _collect at ./array.jl:682 (2 instances)
+           0.004189359 => map at ./abstractarray.jl:2282 (2 instances)
+           0.010411171 => collect_to! at ./array.jl:717 (1 instances)
+```
+
+`iterate` accounted for 3 inference triggers, yet the aggregate cost of these was still dwarfed by one made from `collect_to!`.
+Let's see what this call was:
+
+```julia
+julia> loctrigs[end][2].itrigs
+1-element Vector{SnoopCompile.InferenceTrigger}:
+ Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
+```
+
+So inferring `setindex_widen_up_to` was much more expensive than inferring 3 calls of `sqrt`.
+"""
+function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
+    cs = Dict{Location,Vector{InferenceTrigger}}()
+    for itrig in itrigs
+        loc = Location(itrig)
+        itrigs_loc = get!(Vector{InferenceTrigger}, cs, loc)
+        push!(itrigs_loc, itrig)
+    end
+    return sort([LocationTriggers(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
 
 """
@@ -429,7 +735,7 @@ end
 
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
-    mi = to.mi_info.mi
+    mi = MethodInstance(to)
     tt = Symbol(frame_name(to.mi_info))
     m = mi.def
     sf = isa(m, Method) ? StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
