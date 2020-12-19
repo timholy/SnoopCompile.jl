@@ -5,6 +5,7 @@ export @snoopc
 # More exports are defined below in the conditional loading sections
 
 using Core: MethodInstance, CodeInfo
+using InteractiveUtils
 using Serialization, OrderedCollections
 import YAML  # For @snoopl
 using Requires
