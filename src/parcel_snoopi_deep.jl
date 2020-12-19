@@ -14,22 +14,33 @@ isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
 
-Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
-with the exclusive time for each invocation of type inference, skipping any frames that
-took less than `tmin_secs` seconds. Results are sorted by time.
+Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of
+tuples, containing the exclusive time and inclusive time for each invocation of type
+inference, skipping any frames that took less than `tmin_secs` seconds. Results are
+sorted by exclusive time.
 
 `ROOT` is a dummy element whose time corresponds to the sum of time spent outside inference. It's
 the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
 to get the total inference time, and `sum(first.(result))` to get the total time overall.
+
+# Example:
+```julia
+julia> flatten_times(t)
+
+```
 """
-function flatten_times(timing::Timing; tmin_secs = 0.0)
-    out = Pair{Float64,InferenceFrameInfo}[]
+function flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
+    flatten_times(build_inclusive_times(timing))
+end
+function flatten_times(timing::InclusiveTiming; tmin_secs = 0.0)
+    out = Tuple{Float64,Float64,Core.Compiler.Timings.InferenceFrameInfo}[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
-        exclusive_time = (t.time / 1e9)
-        if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.mi_info)
+        exclusive_secs = (t.exclusive_time / 1e9)
+        inclusive_secs = (t.inclusive_time / 1e9)
+        if exclusive_secs >= tmin_secs
+            push!(out, (exclusive_secs, inclusive_secs, t.mi_info))
         end
         append!(frontier, t.children)
     end
@@ -82,6 +93,7 @@ accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...)
 struct InclusiveTiming
     mi_info::InferenceFrameInfo
     inclusive_time::UInt64
+    exclusive_time::UInt64
     start_time::UInt64
     children::Vector{InclusiveTiming}
 end
@@ -102,7 +114,7 @@ function build_inclusive_times(t::Timing)
         for child in t.children
     ]
     incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
-    return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
+    return InclusiveTiming(t.mi_info, incl_time, t.time, t.start_time, child_times)
 end
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
