@@ -11,8 +11,18 @@ isROOT(mi_info::InferenceFrameInfo) = isROOT(mi_info.mi)
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
+Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
+Core.MethodInstance(t::Timing) = MethodInstance(t.mi_info)
+
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+
+struct InclusiveTiming
+    mi_info::InferenceFrameInfo
+    inclusive_time::UInt64
+    start_time::UInt64
+    children::Vector{InclusiveTiming}
+end
 
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
@@ -25,19 +35,22 @@ took less than `tmin_secs` seconds. Results are sorted by time.
 the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
 to get the total inference time, and `sum(first.(result))` to get the total time overall.
 """
-function flatten_times(timing::Timing; tmin_secs = 0.0)
+function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0)
     out = Pair{Float64,InferenceFrameInfo}[]
     frontier = [timing]
     while !isempty(frontier)
         t = popfirst!(frontier)
-        exclusive_time = (t.time / 1e9)
-        if exclusive_time >= tmin_secs
-            push!(out, exclusive_time => t.mi_info)
+        time = floattime(t)
+        if time >= tmin_secs
+            push!(out, time => t.mi_info)
         end
         append!(frontier, t.children)
     end
     return sort(out; by=first)
 end
+
+floattime(t::Timing) = t.time / 1e9
+floattime(it::InclusiveTiming) = it.inclusive_time / 1e9
 
 """
     accumulate_by_source(pairs; tmin_secs = 0.0)
@@ -82,14 +95,9 @@ end
 
 accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
 
-struct InclusiveTiming
-    mi_info::InferenceFrameInfo
-    inclusive_time::UInt64
-    start_time::UInt64
-    children::Vector{InclusiveTiming}
-end
+Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
 
-Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", t.mi_info.mi, " with ", length(t.children), " direct children")
+Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
@@ -107,6 +115,8 @@ function build_inclusive_times(t::Timing)
     incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
     return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
 end
+
+## parcel and supporting infrastructure
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
     m = mi.def
@@ -134,21 +144,22 @@ struct Precompiles
 end
 Precompiles(it::InclusiveTiming) = Precompiles(it.mi_info, it.inclusive_time, Tuple{UInt64,MethodInstance}[])
 
-inclusive_time(t::Precompiles) = t.total_time
+Core.MethodInstance(pc::Precompiles) = MethodInstance(pc.mi_info)
+inclusive_time(pc::Precompiles) = pc.total_time
 precompilable_time(precompiles::Vector{Tuple{UInt64,MethodInstance}}) where T = sum(first, precompiles; init=zero(UInt64))
 precompilable_time(precompiles::Dict{MethodInstance,T}) where T = sum(values(precompiles); init=zero(T))
 precompilable_time(pc::Precompiles) = precompilable_time(pc.precompiles)
 
 function Base.show(io::IO, pc::Precompiles)
     tpc = precompilable_time(pc)
-    print(io, "Precompiles: ", pc.total_time/10^9, " for ", pc.mi_info.mi,
+    print(io, "Precompiles: ", pc.total_time/10^9, " for ", MethodInstance(pc),
               " had ", length(pc.precompiles), " precompilable roots reclaiming ", tpc/10^9,
               " ($(round(Int, 100*tpc/pc.total_time))%)")
 end
 
 function precompilable_roots!(pc, t::InclusiveTiming, tthresh; excluded_modules=Set([Main::Module]))
     t.inclusive_time >= tthresh || return pc
-    mi = t.mi_info.mi
+    mi = MethodInstance(t)
     if isprecompilable(mi; excluded_modules)
         push!(pc.precompiles, (t.inclusive_time, mi))
         return pc
@@ -192,7 +203,7 @@ function parcel(t::InclusiveTiming; tmin=0.0, kwargs...)
 end
 parcel(t::Timing; kwargs...) = parcel(build_inclusive_times(t); kwargs...)
 
-###
+### write
 
 function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001)
     strs = OrderedSet{String}()
@@ -248,6 +259,11 @@ function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vect
         println(ioreport, "$mod: precompiled $twritten out of $tmod")
     end
 end
+
+## Profile-guided optimization
+
+# These tools can help balance the need for specialization (to achieve good runtime performance)
+# against the desire to reduce specialization to reduce latency.
 
 struct MethodLoc
     func::Symbol
@@ -337,33 +353,42 @@ function runtime_inferencetime(tinf::Timing, pdata; lidict, consts::Bool=true, d
     return sort(collect(ridata); by=savings)
 end
 
-"""
-    InferenceBreak(it::InclusiveTiming, st::Vector{StackFrame}, stidx::Int, bt)
+## Analysis of inference triggers
 
-Store data about a "break" in inference, a fresh entry into inference via a call dispatched at runtime.
-`it` measures the inclusive inference time, `st` is conceptually the stackframe of the call that was made by runtime dispatch;
-it's a `Vector{StackFrame}` due to the possibility that the caller was inlined into something else, in which case the first entry
-is the inlined caller and the last entry is the method into which it was ultimately inlined. `stidx` is the index in `bt`, the
-backtrace collected upon entry into inference, corresponding to `st`.
 """
-struct InferenceBreak
-    it::InclusiveTiming
-    st::Vector{StackTraces.StackFrame}
-    stidx::Int   # st = StackTraces.lookup(bt[stidx])
+    InferenceTrigger(callee::MethodInstance, callerframes::Vector{StackFrame}, btidx::Int, bt)
+
+Organize information about the "triggers" of inference. `callee` is the `MethodInstance` requiring inference,
+`callerframes`, `btidx` and `bt` contain information about the caller.
+`callerframes` are the frame(s) of call site that triggered inference; it's a `Vector{StackFrame}`, rather than a
+single `StackFrame`, due to the possibility that the caller was inlined into something else, in which case the first entry
+is the direct caller and the last entry corresponds to the MethodInstance into which it was ultimately inlined.
+`btidx` is the index in `bt`, the backtrace collected upon entry into inference, corresponding to `callerframes`.
+"""
+struct InferenceTrigger
+    callee::MethodInstance
+    callerframes::Vector{StackTraces.StackFrame}
+    btidx::Int   # callerframes = StackTraces.lookup(bt[btidx])
     bt::Vector{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}}
 end
 
-function Base.show(io::IO, ib::InferenceBreak)
-    sf = first(ib.st)
-    print(io, "Inference break costing ")
-    printstyled(io, ib.it.inclusive_time/10^9; color=:yellow)
-    print(io, "s: dispatch ", ib.it.mi_info.mi, " from ")
-    printstyled(io, sf.func; bold=true)
-    print(io, " at ")
-    printstyled(io, sf.file, ':', sf.line; color=:blue)
+function Base.show(io::IO, itrig::InferenceTrigger)
+    sf = first(itrig.callerframes)
+    print(io, "Inference triggered to call ")
+    printstyled(io, itrig.callee; color=:yellow)
+    print(io, " from ")
+    printstyled(io, sf.func; color=:red, bold=true)
+    print(io, " (",  sf.file, ':', sf.line, ')')
+    caller = itrig.callerframes[end].linfo
+    if isa(caller, MethodInstance)
+        length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
+        printstyled(io, caller; color=:blue)
+    elseif isa(caller, Core.CodeInfo)
+        print(io, " called from toplevel code ", caller)
+    end
 end
 
-inclusive_time(ib::InferenceBreak) = inclusive_time(ib.it)
+callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx)
@@ -383,12 +408,10 @@ function next_julia_frame(bt, idx)
 end
 
 """
-    ibs = inference_breaks(t::Timing, [tinc::InclusiveTiming=build_inclusive_times(t)]; exclude_toplevel=true)
+    itrigs = inference_triggers(t::Timing, [tinc::InclusiveTiming=build_inclusive_times(t)]; exclude_toplevel=true)
 
-Collect the "breaks" in inference, each a fresh entry into inference via a call dispatched at runtime.
-All the entries in `ibs` are previously uninferred, or are freshly-inferred for specific constant inputs.
-The cost of each break is quoted as the *inclusive* time, meaning the time for this entire entrance to inference
-(the direct callee and all of its inferrable calls).
+Collect the "triggers" of inference, each a fresh entry into inference via a call dispatched at runtime.
+All the entries in `itrigs` are previously uninferred, or are freshly-inferred for specific constant inputs.
 
 `exclude_toplevel` determines whether calls made from the REPL, `include`, or test suites are excluded.
 
@@ -411,15 +434,15 @@ julia> c = (1, 2)
 
 julia> tinf = @snoopi_deep map(sqrt, c);
 
-julia> ibs = inference_breaks(tinf)
-SnoopCompile.InferenceBreak[]
+julia> itrigs = inference_triggers(tinf)
+SnoopCompile.InferenceTrigger[]
 ```
 
 we get no output. Let's see them all:
 
 ```julia
-julia> ibs = inference_breaks(tinf; exclude_toplevel=false)
-1-element Vector{SnoopCompile.InferenceBreak}:
+julia> itrigs = inference_triggers(tinf; exclude_toplevel=false)
+1-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.000706839s: dispatch MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64}) from eval at ./boot.jl:360
 ```
 
@@ -442,38 +465,37 @@ julia> c = [1, 2];
 
 julia> tinf = @snoopi_deep map(sqrt, c);
 
-julia> ibs = inference_breaks(tinf)
-2-element Vector{SnoopCompile.InferenceBreak}:
+julia> itrigs = inference_triggers(tinf)
+2-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.000656328s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Int64}) from map at ./abstractarray.jl:2282
  Inference break costing 0.0196351s: dispatch MethodInstance for collect_similar(::Vector{Int64}, ::Base.Generator{Vector{Int64}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
 ```
 
 These are not inferrable from `map` because `map(f, ::AbstractArray)` does not specialize on `f`, whereas it does for tuples.
 """
-function inference_breaks(t::Timing, tinc::InclusiveTiming=build_inclusive_times(t); exclude_toplevel::Bool=true)
+function inference_triggers(t::Timing; exclude_toplevel::Bool=true)
     function first_julia_frame(bt)
         ret = next_julia_frame(bt, 1)
         if ret === nothing
-            display(stacktrace(bt))
-            error("failed to find a Julia frame")
+            return StackTraces.StackFrame[], 0
         end
         return ret
     end
 
-    breaks = map(t.children, tinc.children) do tc, tic
-        InferenceBreak(tic, first_julia_frame(tc.bt)..., tc.bt)
+    itrigs = map(t.children) do tc
+        InferenceTrigger(MethodInstance(tc), first_julia_frame(tc.bt)..., tc.bt)
     end
     if exclude_toplevel
-        breaks = filter(maybe_internal, breaks)
+        filter!(maybe_internal, itrigs)
     end
-    return sort(breaks; by = inclusive_time)
+    return itrigs
 end
 
 const rextest = r"stdlib.*Test.jl$"
-function maybe_internal(ib::InferenceBreak)
-    for sf in ib.st
+function maybe_internal(itrig::InferenceTrigger)
+    for sf in itrig.callerframes
         linfo = sf.linfo
-        if isa(linfo, Core.MethodInstance)
+        if isa(linfo, MethodInstance)
             m = linfo.def
             if isa(m, Method)
                 m.module === Base && m.name === :include_string && return false
@@ -486,9 +508,9 @@ function maybe_internal(ib::InferenceBreak)
 end
 
 """
-    ibcaller = callingframe(ib::InferenceBreak)
+    itrigcaller = callingframe(itrig::InferenceTrigger)
 
-"Step out" one layer, returning data on the caller triggering `ib`.
+"Step out" one layer, returning data on the caller triggering `itrig`.
 
 # Example
 
@@ -506,51 +528,68 @@ julia> mymap(identity, container)
 
 julia> tinf = @snoopi_deep mymap(x->x^2, container);
 
-# The breaks in inference (here because this function wasn't called previously) are attributed to `map`
-julia> ibs = inference_breaks(tinf)
-2-element Vector{SnoopCompile.InferenceBreak}:
+# The inference triggers (here because this function wasn't called previously) are attributed to `map`
+julia> itrigs = inference_triggers(tinf)
+2-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from map at ./abstractarray.jl:2282
  Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from map at ./abstractarray.jl:2282
 
 # But we can see that `map` was called by `mymap`:
-julia> callingframe.(ibs)
-2-element Vector{SnoopCompile.InferenceBreak}:
+julia> callingframe.(itrigs)
+2-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from mymap at ./REPL[2]:1
  Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from mymap at ./REPL[2]:1
 ```
 """
-function callingframe(ib::InferenceBreak)
-    idx = ib.stidx
-    if idx < length(ib.bt)
-        ret = next_julia_frame(ib.bt, idx)
+function callingframe(itrig::InferenceTrigger)
+    idx = itrig.btidx
+    if idx < length(itrig.bt)
+        ret = next_julia_frame(itrig.bt, idx)
         if ret !== nothing
-            return InferenceBreak(ib.it, ret..., ib.bt)
+            return InferenceTrigger(itrig.callee, ret..., itrig.bt)
         end
     end
-    return ib
+    return itrig
 end
 
-struct Location  # a portion of a StackFrame, plus total time
+struct Location  # essentially a LineNumberNode + function name
     func::Symbol
     file::Symbol
     line::Int
 end
-Location(ib::InferenceBreak) = (sf = ib.st[1]; Location(sf.func, sf.file, sf.line))
+function Location(itrig::InferenceTrigger)
+    isempty(itrig.callerframes) && return Location(:from_c, :from_c, 0)
+    sf = itrig.callerframes[1]
+    return Location(sf.func, sf.file, sf.line)
+end
 
 Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
 
-struct LocationBreaks
+struct LocationTriggers
     loc::Location
-    ibs::Vector{InferenceBreak}
+    itrigs::Vector{InferenceTrigger}
 end
 
-Base.show(io::IO, locbs::LocationBreaks) = print(io, locbs.loc, " (", length(locbs.ibs), " instances)")
+function Base.show(io::IO, loctrigs::LocationTriggers)
+    # Analyze caller => callee argument type diversity
+    callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
+    for itrig in loctrigs.itrigs
+        push!(callees, itrig.callee)
+        caller = itrig.callerframes[end].linfo
+        if isa(caller, MethodInstance)
+            push!(callers, caller)
+        else
+            ncextra += 1
+        end
+    end
+    ncallees, ncallers = length(callees), length(callers) + ncextra
+    print(io, loctrigs.loc, " (", ncallees, " callees from ", ncallers, " callers)")
+end
 
 """
-    libs = accumulate_by_source(ibs::AbstractVector{InferenceBreak})
+    loctrigs = accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
 
-Aggregate inference breaks by location (function, file, and line number) of the caller.
-The reported time is the time of all instances.
+Aggregate inference triggers by location (function, file, and line number) of the caller.
 
 # Example
 
@@ -559,8 +598,8 @@ julia> c = Any[1, 1.0, 0x01, Float16(1)];
 
 julia> tinf = @snoopi_deep map(sqrt, c);
 
-julia> ibs = inference_breaks(tinf)
-9-element Vector{SnoopCompile.InferenceBreak}:
+julia> itrigs = inference_triggers(tinf)
+9-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.000243905s: dispatch MethodInstance for sqrt(::Int64) from iterate at ./generator.jl:47
  Inference break costing 0.000259601s: dispatch MethodInstance for sqrt(::UInt8) from iterate at ./generator.jl:47
  Inference break costing 0.000353063s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Any}) from map at ./abstractarray.jl:2282
@@ -571,8 +610,8 @@ julia> ibs = inference_breaks(tinf)
  Inference break costing 0.003836296s: dispatch MethodInstance for collect_similar(::Vector{Any}, ::Base.Generator{Vector{Any}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
  Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
 
-julia> libs = accumulate_by_source(ibs)
-5-element Vector{Pair{Float64, SnoopCompile.LocationBreaks}}:
+julia> loctrigs = accumulate_by_source(itrigs)
+5-element Vector{Pair{Float64, SnoopCompile.LocationTriggers}}:
             0.00107156 => iterate at ./generator.jl:47 (3 instances)
            0.002741125 => collect_to! at ./array.jl:718 (1 instances)
  0.0029148439999999998 => _collect at ./array.jl:682 (2 instances)
@@ -580,90 +619,25 @@ julia> libs = accumulate_by_source(ibs)
            0.010411171 => collect_to! at ./array.jl:717 (1 instances)
 ```
 
-`iterate` accounted for 3 inference breaks, yet the aggregate cost of these was still dwarfed by one made from `collect_to!`.
+`iterate` accounted for 3 inference triggers, yet the aggregate cost of these was still dwarfed by one made from `collect_to!`.
 Let's see what this call was:
 
 ```julia
-julia> libs[end][2].ibs
-1-element Vector{SnoopCompile.InferenceBreak}:
+julia> loctrigs[end][2].itrigs
+1-element Vector{SnoopCompile.InferenceTrigger}:
  Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
 ```
 
 So inferring `setindex_widen_up_to` was much more expensive than inferring 3 calls of `sqrt`.
 """
-function accumulate_by_source(ibs::AbstractVector{InferenceBreak})
-    cs = Dict{Location,Pair{Float64,Vector{InferenceBreak}}}()
-    for ib in ibs
-        loc = Location(ib)
-        val = get(cs, loc, nothing)
-        if val !== nothing
-            t, libs = val
-            push!(libs, ib)
-        else
-            t, libs = 0.0, [ib]
-        end
-        cs[loc] = t + inclusive_time(ib)/10^9 => libs
+function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
+    cs = Dict{Location,Vector{InferenceTrigger}}()
+    for itrig in itrigs
+        loc = Location(itrig)
+        itrigs_loc = get!(Vector{InferenceTrigger}, cs, loc)
+        push!(itrigs_loc, itrig)
     end
-    return sort([t => LocationBreaks(loc, libs) for (loc, (t, libs)) in cs]; by=first)
-end
-
-"""
-    mis = collect_callerinstances(loc, tinf::Timing)
-
-Collect `MethodInstance`s corresponding to a caller method at location `loc`.
-These can be used to inspect the calling method for inference problems.
-
-### Example
-
-```julia
-julia> function f(x)
-           x < 0.25 ? 1 :
-           x < 0.5  ? 1.0 :
-           x < 0.75 ? 0x01 : Float16(1)
-       end
-f (generic function with 1 method)
-
-julia> g(c) = f(c[1]) + f(c[2])
-g (generic function with 1 method)
-
-julia> tinf = @snoopi_deep g([0.7, 0.8]);
-
-julia> ibs = inference_breaks(tinf)
-1-element Vector{SnoopCompile.InferenceBreak}:
- Inference break costing 0.001455366s: dispatch MethodInstance for +(::UInt8, ::Float16) from g at ./REPL[3]:1
-
- julia> mis = collect_callerinstances(ibs[1], tinf)
- 1-element Vector{Core.MethodInstance}:
-  MethodInstance for g(::Vector{Float64})
- ```
-
-The entries of `mis` may be inspected (for example with Cthulhu) for inference problems.
-"""
-function collect_callerinstances(loc::Location, t::Timing)
-    mis = collect(collect_callerinstances!(Set{MethodInstance}(), loc, t))
-    # collect_callerinstances! gets any method of that name that occurs earlier in the file; to be sure we've got the right method,
-    # make sure the body of the method includes the specific line number.
-    ms = unique(mi.def for mi in mis)
-    length(ms) < 2 && return mis
-    sort!(ms; by=m->m.line)
-    m = ms[end] # the last one should be the one that includes the given line
-    return filter(mi -> mi.def == m, mis)
-end
-
-collect_callerinstances(lib::LocationBreaks, t::Timing) = collect_callerinstances(lib.loc, t)
-collect_callerinstances(ib::InferenceBreak, t::Timing) = collect_callerinstances(Location(ib), t)
-
-function collect_callerinstances!(mis, loc, t::Timing)
-    m = t.mi_info.mi.def
-    if isa(m, Method)
-        if m.name === loc.func && endswith(string(loc.file), string(m.file)) && m.line <= loc.line
-            push!(mis, t.mi_info.mi)
-        end
-    end
-    foreach(t.children) do child
-        collect_callerinstances!(mis, loc, child)
-    end
-    return mis
+    return sort([LocationTriggers(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
 
 """
@@ -761,7 +735,7 @@ end
 
 # Make a flat frame for this Timing
 function _flamegraph_frame(to::InclusiveTiming, start_ns; toplevel)
-    mi = to.mi_info.mi
+    mi = MethodInstance(to)
     tt = Symbol(frame_name(to.mi_info))
     m = mi.def
     sf = isa(m, Method) ? StackFrame(tt, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :

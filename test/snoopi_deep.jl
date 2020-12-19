@@ -63,7 +63,7 @@ using AbstractTrees  # For FlameGraphs tests
     @test length(timesmod) == 1
 end
 
-@testset "inference_breaks" begin
+@testset "inference_triggers" begin
     myplus(x, y) = x + y    # freshly redefined even if tests are re-run
     function f(x)
         x < 0.25 ? 1 :
@@ -72,26 +72,26 @@ end
     end
     g(c) = myplus(f(c[1]), f(c[2]))
     tinf = @snoopi_deep g([0.7, 0.8])
-    @test length(inference_breaks(tinf; exclude_toplevel=false)) == 2
-    ibs = inference_breaks(tinf)
-    ib = only(ibs)
+    @test length(inference_triggers(tinf; exclude_toplevel=false)) == 2
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
     io = IOBuffer()
-    show(io, ib)
+    show(io, itrig)
     str = String(take!(io))
-    @test occursin(r"costing [0-9\.]+s", str)
-    @test occursin(r"MethodInstance for .*myplus.*(::UInt8, ::Float16)", str)
-    @test occursin("from g at", str)
-    mis = collect_callerinstances(ib, tinf)
+    @test occursin(r"MethodInstance for .*myplus.*\(::UInt8, ::Float16\)", str)
+    @test occursin("from g", str)
+    @test occursin(r"with specialization .*::Vector\{Float64\}", str)
+    mis = callerinstance.(itrigs)
     @test only(mis).def == which(g, (Any,))
-    @test callingframe(ib).st[1].func === :eval
+    @test callingframe(itrig).callerframes[1].func === :eval
 
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
     tinf = @snoopi_deep map(mysqrt, c)
-    ibs = inference_breaks(tinf)
-    libs = accumulate_by_source(ibs)
-    show(io, libs)
-    @test any(str->occursin("4 instances", str), split(String(take!(io)), '\n'))
+    itrigs = inference_triggers(tinf)
+    loctrigs = accumulate_by_source(itrigs)
+    show(io, loctrigs)
+    @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
 end
 
 @testset "flamegraph_export" begin
