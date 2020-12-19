@@ -390,6 +390,8 @@ end
 
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
+InteractiveUtils.edit(itrig::InferenceTrigger) = edit(callerinstance(itrig))
+
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx)
     while idx < length(bt)
@@ -565,12 +567,12 @@ end
 
 Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
 
-struct LocationTriggers
+struct LocationTrigger
     loc::Location
     itrigs::Vector{InferenceTrigger}
 end
 
-function Base.show(io::IO, loctrigs::LocationTriggers)
+function Base.show(io::IO, loctrigs::LocationTrigger)
     # Analyze caller => callee argument type diversity
     callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
     for itrig in loctrigs.itrigs
@@ -585,6 +587,8 @@ function Base.show(io::IO, loctrigs::LocationTriggers)
     ncallees, ncallers = length(callees), length(callers) + ncextra
     print(io, loctrigs.loc, " (", ncallees, " callees from ", ncallers, " callers)")
 end
+
+InteractiveUtils.edit(loctrig::LocationTrigger) = edit(string(loctrig.loc.file), loctrig.loc.line)
 
 """
     loctrigs = accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
@@ -611,7 +615,7 @@ julia> itrigs = inference_triggers(tinf)
  Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
 
 julia> loctrigs = accumulate_by_source(itrigs)
-5-element Vector{Pair{Float64, SnoopCompile.LocationTriggers}}:
+5-element Vector{Pair{Float64, SnoopCompile.LocationTrigger}}:
             0.00107156 => iterate at ./generator.jl:47 (3 instances)
            0.002741125 => collect_to! at ./array.jl:718 (1 instances)
  0.0029148439999999998 => _collect at ./array.jl:682 (2 instances)
@@ -637,7 +641,7 @@ function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
         itrigs_loc = get!(Vector{InferenceTrigger}, cs, loc)
         push!(itrigs_loc, itrig)
     end
-    return sort([LocationTriggers(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
+    return sort([LocationTrigger(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
 
 """
