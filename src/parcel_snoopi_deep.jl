@@ -14,6 +14,8 @@ isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
 Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
 Core.MethodInstance(t::Timing) = MethodInstance(t.mi_info)
+Base.Method(mi_info::InferenceFrameInfo) = MethodInstance(mi_info).def
+Base.Method(t::Timing) = MethodInstance(t).def
 
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
@@ -24,6 +26,9 @@ struct InclusiveTiming
     start_time::UInt64
     children::Vector{InclusiveTiming}
 end
+
+Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
+Base.Method(it::InclusiveTiming) = Method(it.mi_info)
 
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
@@ -95,8 +100,6 @@ function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFra
 end
 
 accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
-
-Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
 
 Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
 

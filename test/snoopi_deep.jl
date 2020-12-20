@@ -29,7 +29,12 @@ using AbstractTrees  # For FlameGraphs tests
         M.g(2)
         M.g(true)
     end
+    @test SnoopCompile.isROOT(Core.MethodInstance(timing))
+    @test SnoopCompile.isROOT(Method(timing))
     times = flatten_times(timing)
+    ifi = times[end].second
+    @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
+    @test SnoopCompile.isROOT(Method(ifi))
     @test length(times) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
     names = [mi_info.mi.def.name for (time, mi_info) in times]
     @test sort(names) == [:ROOT, :g, :g, :h, :i, :i, :i]
@@ -43,6 +48,13 @@ using AbstractTrees  # For FlameGraphs tests
     @test sort(names) == [:ROOT, :g, :h, :i]
     longest_method_time = timesm[end][1]
     @test length(accumulate_by_source(times; tmin_secs=longest_method_time)) == 1
+
+    itiming = SnoopCompile.build_inclusive_times(timing)
+    @test SnoopCompile.isROOT(Core.MethodInstance(itiming))
+    @test SnoopCompile.isROOT(Method(itiming))
+    itimes = flatten_times(itiming)
+    ifi = itimes[end-1].second
+    @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
 
     # Also check module-level thunks
     @eval module M  # Example with some functions that include type instability
