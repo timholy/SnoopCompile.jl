@@ -49,7 +49,7 @@ using AbstractTrees  # For FlameGraphs tests
     longest_method_time = timesm[end][1]
     @test length(accumulate_by_source(times; tmin_secs=longest_method_time)) == 1
 
-    itiming = SnoopCompile.build_inclusive_times(timing)
+    itiming = InclusiveTiming(timing)
     @test SnoopCompile.isROOT(Core.MethodInstance(itiming))
     @test SnoopCompile.isROOT(Method(itiming))
     itimes = flatten_times(itiming)

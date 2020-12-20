@@ -27,7 +27,7 @@ end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
     include("parcel_snoopi_deep.jl")
-    export @snoopi_deep, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
+    export @snoopi_deep, InclusiveTiming, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
     export inference_triggers, callerinstance, callingframe
 end
 
