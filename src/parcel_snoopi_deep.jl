@@ -4,6 +4,7 @@ using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
 using Core.Compiler.Timings: Timing, InferenceFrameInfo
 using Profile
+using Cthulhu
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
 
@@ -391,6 +392,7 @@ end
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
 InteractiveUtils.edit(itrig::InferenceTrigger) = edit(callerinstance(itrig))
+Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx)
