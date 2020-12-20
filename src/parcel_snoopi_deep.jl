@@ -53,30 +53,32 @@ floattime(it::InclusiveTiming) = it.inclusive_time / 1e9
 Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
 
 """
-    flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
+    flatten_times(timing; tmin_secs = 0.0, sorted::Bool=true)
 
-Flatten the execution graph of Timings returned from `@snoopi_deep` into a Vector of pairs,
-with the exclusive time for each invocation of type inference, skipping any frames that
-took less than `tmin_secs` seconds. Results are sorted by time.
+Flatten the execution graph of `Timing`s returned from `@snoopi_deep`--or of its [InclusiveTiming`](@ref)
+variant--into a Vector of pairs, with the time for each invocation of type inference, skipping any frames that
+took less than `tmin_secs` seconds. By default, results are sorted by time, although you can set `sorted=false`
+to obtain them in depth-first order.
 
 `ROOT` is a dummy element whose time corresponds to the sum of time spent outside inference. It's
-the total time of the operation minus the total time for inference. You can run `sum(first.(result[1:end-1]))`
-to get the total inference time, and `sum(first.(result))` to get the total time overall.
+the total time of the operation minus the total time for inference.
 """
-function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0)
+function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0, sorted::Bool=true)
     out = Pair{Float64,InferenceFrameInfo}[]
-    frontier = [timing]
-    while !isempty(frontier)
-        t = popfirst!(frontier)
-        time = floattime(t)
-        if time >= tmin_secs
-            push!(out, time => t.mi_info)
-        end
-        append!(frontier, t.children)
-    end
-    return sort(out; by=first)
+    flatten_times!(out, timing, tmin_secs)
+    return sorted ? sort(out; by=first) : out
 end
 
+function flatten_times!(out, timing, tmin_secs)
+    time = floattime(timing)
+    if time >= tmin_secs
+        push!(out, time => timing.mi_info)
+    end
+    for child in timing.children
+        flatten_times!(out, child, tmin_secs)
+    end
+    return out
+end
 
 """
     accumulate_by_source(pairs; tmin_secs = 0.0)
