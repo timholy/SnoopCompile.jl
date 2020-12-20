@@ -42,6 +42,12 @@ using AbstractTrees  # For FlameGraphs tests
     longest_frame_time = times[end][1]
     @test length(flatten_times(timing, tmin_secs=longest_frame_time)) == 1
 
+    times_unsorted = flatten_times(timing; sorted=false)
+    names = [mi_info.mi.def.name for (time, mi_info) in times_unsorted]
+    argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in times_unsorted[2:end]]
+    @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
+    @test argtypes == [    Int, Vector{Any}, Integer, Int, Bool, Bool]
+
     timesm = accumulate_by_source(times)
     @test length(timesm) == 4
     names = [m.name for (time, m) in timesm]
@@ -55,6 +61,14 @@ using AbstractTrees  # For FlameGraphs tests
     itimes = flatten_times(itiming)
     ifi = itimes[end-1].second
     @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
+
+    itimes_unsorted = flatten_times(itiming; sorted=false)
+    t = map(first, itimes_unsorted)
+    @test t[2] >= t[3] >= t[4]
+    names = [mi_info.mi.def.name for (time, mi_info) in itimes_unsorted]
+    argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in itimes_unsorted[2:end]]
+    @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
+    @test argtypes == [    Int, Vector{Any}, Integer, Int, Bool, Bool]
 
     # Also check module-level thunks
     @eval module M  # Example with some functions that include type instability
