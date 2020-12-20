@@ -27,8 +27,30 @@ struct InclusiveTiming
     children::Vector{InclusiveTiming}
 end
 
+"""
+    tinc = InclusiveTiming(t::Core.Compiler.Timings.Timing)
+
+Calculate times for inference for a node and all its children. `tinc.inclusive_time` records this time for
+node `tinc`; `tinc.children` gives you access to the children of this node.
+"""
+function InclusiveTiming(t::Timing)
+    child_times = InclusiveTiming[
+        InclusiveTiming(child)
+        for child in t.children
+    ]
+    incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
+    return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
+end
+
 Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
 Base.Method(it::InclusiveTiming) = Method(it.mi_info)
+
+inclusive_time(t::InclusiveTiming) = t.inclusive_time
+
+floattime(t::Timing) = t.time / 1e9
+floattime(it::InclusiveTiming) = it.inclusive_time / 1e9
+
+Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
 
 """
     flatten_times(timing::Core.Compiler.Timings.Timing; tmin_secs = 0.0)
@@ -55,8 +77,6 @@ function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0)
     return sort(out; by=first)
 end
 
-floattime(t::Timing) = t.time / 1e9
-floattime(it::InclusiveTiming) = it.inclusive_time / 1e9
 
 """
     accumulate_by_source(pairs; tmin_secs = 0.0)
@@ -100,25 +120,6 @@ function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFra
 end
 
 accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
-
-Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusive_time/10^9, " for ", MethodInstance(t), " with ", length(t.children), " direct children")
-
-inclusive_time(t::InclusiveTiming) = t.inclusive_time
-
-"""
-    tinc = SnoopCompile.build_inclusive_times(t::Core.Compiler.Timings.Timing)
-
-Calculate times for inference for a node and all its children. `tinc.inclusive_time` records this time for
-node `tinc`; `tinc.children` gives you access to the children of this node.
-"""
-function build_inclusive_times(t::Timing)
-    child_times = InclusiveTiming[
-        build_inclusive_times(child)
-        for child in t.children
-    ]
-    incl_time = t.time + sum(inclusive_time, child_times; init=UInt64(0))
-    return InclusiveTiming(t.mi_info, incl_time, t.start_time, child_times)
-end
 
 ## parcel and supporting infrastructure
 
@@ -174,7 +175,7 @@ function precompilable_roots!(pc, t::InclusiveTiming, tthresh; excluded_modules=
     return pc
 end
 
-precompilable_roots(t::Timing, tthresh; kwargs...) = precompilable_roots(build_inclusive_times(t), tthresh; kwargs...)
+precompilable_roots(t::Timing, tthresh; kwargs...) = precompilable_roots(InclusiveTiming(t), tthresh; kwargs...)
 function precompilable_roots(t::InclusiveTiming, tthresh; kwargs...)
     pcs = [precompilable_roots!(Precompiles(it), it, tthresh; kwargs...) for it in t.children if t.inclusive_time >= tthresh]
     t_grand_total = sum(inclusive_time, t.children)
@@ -205,7 +206,7 @@ function parcel(t::InclusiveTiming; tmin=0.0, kwargs...)
     tthresh = round(UInt64, tmin * 10^9)
     parcel(precompilable_roots(t, tthresh; kwargs...))
 end
-parcel(t::Timing; kwargs...) = parcel(build_inclusive_times(t); kwargs...)
+parcel(t::Timing; kwargs...) = parcel(InclusiveTiming(t); kwargs...)
 
 ### write
 
@@ -415,7 +416,7 @@ function next_julia_frame(bt, idx)
 end
 
 """
-    itrigs = inference_triggers(t::Timing, [tinc::InclusiveTiming=build_inclusive_times(t)]; exclude_toplevel=true)
+    itrigs = inference_triggers(t::Timing, [tinc::InclusiveTiming=InclusiveTiming(t)]; exclude_toplevel=true)
 
 Collect the "triggers" of inference, each a fresh entry into inference via a call dispatched at runtime.
 All the entries in `itrigs` are previously uninferred, or are freshly-inferred for specific constant inputs.
@@ -651,7 +652,7 @@ end
 
 """
     flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
-    flamegraph(t::SnoopCompile.InclusiveTiming; tmin_secs=0.0)
+    flamegraph(t::InclusiveTiming; tmin_secs=0.0)
 
 Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
@@ -679,11 +680,11 @@ Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 NOTE: This function must touch every frame in the provided `Timing` to build inclusive
 timing information (`InclusiveTiming`). If you have a very large profile, and you plan to
 call this function multiple times (say with different values for `tmin_secs`), you can save
-some intermediate time by first calling [`SnoopCompile.build_inclusive_times(t)`](@ref), only once,
+some intermediate time by first calling [`InclusiveTiming(t)`](@ref), only once,
 and then passing in the `InclusiveTiming` object for all subsequent calls.
 """
 function FlameGraphs.flamegraph(t::Timing; tmin_secs = 0.0)
-    it = build_inclusive_times(t)
+    it = InclusiveTiming(t)
     flamegraph(it; tmin_secs=tmin_secs)
 end
 
