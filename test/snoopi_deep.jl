@@ -33,8 +33,6 @@ using AbstractTrees  # For FlameGraphs tests
     @test SnoopCompile.isROOT(Method(timing))
     times = flatten_times(timing)
     ifi = times[end].second
-    @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
-    @test SnoopCompile.isROOT(Method(ifi))
     @test length(times) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
     names = [mi_info.mi.def.name for (time, mi_info) in times]
     @test sort(names) == [:ROOT, :g, :g, :h, :i, :i, :i]
@@ -43,6 +41,9 @@ using AbstractTrees  # For FlameGraphs tests
     @test length(flatten_times(timing, tmin_secs=longest_frame_time)) == 1
 
     times_unsorted = flatten_times(timing; sorted=false)
+    ifi = times_unsorted[1].second
+    @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
+    @test SnoopCompile.isROOT(Method(ifi))
     names = [mi_info.mi.def.name for (time, mi_info) in times_unsorted]
     argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in times_unsorted[2:end]]
     @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
@@ -59,12 +60,13 @@ using AbstractTrees  # For FlameGraphs tests
     @test SnoopCompile.isROOT(Core.MethodInstance(itiming))
     @test SnoopCompile.isROOT(Method(itiming))
     itimes = flatten_times(itiming)
-    ifi = itimes[end-1].second
-    @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
+    @test itimes[end].first >= itimes[end-1].first
 
     itimes_unsorted = flatten_times(itiming; sorted=false)
     t = map(first, itimes_unsorted)
     @test t[2] >= t[3] >= t[4]
+    ifi = itimes_unsorted[2].second
+    @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
     names = [mi_info.mi.def.name for (time, mi_info) in itimes_unsorted]
     argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in itimes_unsorted[2:end]]
     @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
