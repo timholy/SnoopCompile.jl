@@ -567,6 +567,71 @@ function callingframe(itrig::InferenceTrigger)
     return itrig
 end
 
+"""
+    itrignew = skiphigherorder(itrig; exact::Bool=false)
+
+Attempt to skip over frames of higher-order functions that take the callee as an argument.
+
+# Example
+
+```julia
+julia> itrig
+Inference triggered to call MethodInstance for fdouble(::Float64) from mymap! (./REPL[8]:3) with specialization MethodInstance for mymap!(::typeof(fdouble), ::Vector{Any}, ::Vector{Any})
+
+julia> callingframe(itrig)
+Inference triggered to call MethodInstance for fdouble(::Float64) from mymap (./REPL[9]:1) with specialization MethodInstance for mymap(::typeof(fdouble), ::Vector{Any})
+
+julia> skiphigherorder(itrig)
+Inference triggered to call MethodInstance for fdouble(::Float64) from callmymap (./REPL[10]:1) with specialization MethodInstance for callmymap(::Vector{Any})
+```
+
+Because `fdouble` was passed as an argument to both `mymap!` and `mymap`, `skiphigherorder` advanced all the way to `callmymap` which evidently
+does not take a function as an argument. But
+
+```julia
+julia> skiphigherorder(skiphigherorder(itrig))
+Inference triggered to call MethodInstance for fdouble(::Float64) from callmymap (./REPL[10]:1) with specialization MethodInstance for callmymap(::Vector{Any})
+```
+
+does not advance the stacktrace any further since `callmymap` is already non-higher order.
+
+!!! warn
+    By default `skiphigherorder` is conservative, and insists on being sure that it's the callee being passed to the higher-order function.
+    Higher-order functions that do not get specialized (e.g., with `::Function` argument types) will not be skipped over.
+    You can pass `exact=false` to allow `::Function` to also be passed over, but keep in mind that this may falsely skip some frames.
+"""
+function skiphigherorder(itrig::InferenceTrigger; exact::Bool=true)
+    ft = Base.unwrap_unionall(Base.unwrap_unionall(itrig.callee.specTypes).parameters[1])
+    sfs, idx = itrig.callerframes, itrig.btidx
+    while idx < length(itrig.bt)
+        callermi = sfs[end].linfo
+        if !hasparameter(callermi.specTypes, ft, exact)
+            return InferenceTrigger(itrig.callee, sfs, idx, itrig.bt)
+        end
+        ret = next_julia_frame(itrig.bt, idx)
+        ret === nothing && return InferenceTrigger(itrig.callee, sfs, idx, itrig.bt)
+        sfs, idx = ret
+    end
+    return itrig
+end
+
+function hasparameter(@nospecialize(typ), @nospecialize(ft), exact::Bool)
+    isa(typ, Type) || return false
+    typ = Base.unwrap_unionall(typ)
+    typ === ft && return true
+    exact || (typ === Function && return true)
+    typ === Union{} && return false
+    if isa(typ, Union)
+        hasparameter(typ.a, ft, exact) && return true
+        hasparameter(typ.b, ft, exact) && return true
+        return false
+    end
+    for p in typ.parameters
+        hasparameter(p, ft, exact) && return true
+    end
+    return false
+end
+
 struct Location  # essentially a LineNumberNode + function name
     func::Symbol
     file::Symbol
