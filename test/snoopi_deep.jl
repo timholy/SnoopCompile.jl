@@ -89,6 +89,10 @@ using AbstractTrees  # For FlameGraphs tests
     @test length(timesmod) == 1
 end
 
+# For the higher-order function attribution test, we need to prevent `f2`
+# from being passed via closure, so we define these globally.
+fdouble(x) = 2x
+
 @testset "inference_triggers" begin
     myplus(x, y) = x + y    # freshly redefined even if tests are re-run
     function f(x)
@@ -134,6 +138,32 @@ end
     loctrigs = accumulate_by_source(itrigs)
     show(io, loctrigs)
     @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
+
+    # Higher order function attribution
+    @noinline function mymap!(f, dst, src)
+        for i in eachindex(dst, src)
+            dst[i] = f(src[i])
+        end
+        return dst
+    end
+    @noinline mymap(f::F, src) where F = mymap!(f, Vector{Any}(undef, length(src)), src)
+    callmymap(x) = mymap(fdouble, x)
+    callmymap(Any[1, 2])  # compile all for one set of types
+    x = Any[1.0, 2.0]   # fdouble not yet inferred for Float64
+    tinf = @snoopi_deep callmymap(x)
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
+    @test occursin(r"with specialization MethodInstance for .*mymap!.*\(::.*fdouble.*, ::Vector{Any}, ::Vector{Any}\)", string(itrig))
+    @test occursin(r"with specialization MethodInstance for .*mymap.*\(::.*fdouble.*, ::Vector{Any}\)", string(callingframe(itrig)))
+    @test occursin(r"with specialization MethodInstance for .*callmymap.*\(::Vector{Any}\)", string(skiphigherorder(itrig)))
+    # Ensure we don't skip non-higher order calls
+    callfdouble(c) = fdouble(c[1])
+    callfdouble(Any[1])
+    c = Any[Float16(1)]
+    tinf = @snoopi_deep callfdouble(c)
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
+    @test skiphigherorder(itrig) == itrig
 end
 
 @testset "flamegraph_export" begin
