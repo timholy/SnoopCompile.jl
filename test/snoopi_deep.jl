@@ -110,6 +110,7 @@ end
     mis = callerinstance.(itrigs)
     @test only(mis).def == which(g, (Any,))
     @test callingframe(itrig).callerframes[1].func === :eval
+    @test_throws ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference") inference_triggers(tinf.children[1])
 
     # Where the caller is inlined into something else
     callee(x) = 2x
