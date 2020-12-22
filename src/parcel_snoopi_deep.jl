@@ -14,8 +14,8 @@ isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 
 Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
 Core.MethodInstance(t::Timing) = MethodInstance(t.mi_info)
-Base.Method(mi_info::InferenceFrameInfo) = MethodInstance(mi_info).def
-Base.Method(t::Timing) = MethodInstance(t).def
+Core.Method(mi_info::InferenceFrameInfo) = MethodInstance(mi_info).def
+Core.Method(t::Timing) = MethodInstance(t).def
 
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
@@ -43,7 +43,7 @@ function InclusiveTiming(t::Timing)
 end
 
 Core.MethodInstance(it::InclusiveTiming) = MethodInstance(it.mi_info)
-Base.Method(it::InclusiveTiming) = Method(it.mi_info)
+Core.Method(it::InclusiveTiming) = Method(it.mi_info)
 
 inclusive_time(t::InclusiveTiming) = t.inclusive_time
 
@@ -390,6 +390,10 @@ function Base.show(io::IO, itrig::InferenceTrigger)
     if isa(caller, MethodInstance)
         length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
         printstyled(io, caller; color=:blue)
+        if length(itrig.callerframes) > 1
+            sf = itrig.callerframes[end]
+            print(io, " (",  sf.file, ':', sf.line, ')')
+        end
     elseif isa(caller, Core.CodeInfo)
         print(io, " called from toplevel code ", caller)
     end
@@ -397,7 +401,7 @@ end
 
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
-InteractiveUtils.edit(itrig::InferenceTrigger) = edit(callerinstance(itrig))
+InteractiveUtils.edit(itrig::InferenceTrigger) = edit(Location(itrig.callerframes[end]))
 Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
@@ -567,20 +571,26 @@ struct Location  # essentially a LineNumberNode + function name
     file::Symbol
     line::Int
 end
+Location(sf::StackTraces.StackFrame) = Location(sf.func, sf.file, sf.line)
 function Location(itrig::InferenceTrigger)
     isempty(itrig.callerframes) && return Location(:from_c, :from_c, 0)
-    sf = itrig.callerframes[1]
-    return Location(sf.func, sf.file, sf.line)
+    return Location(itrig.callerframes[1])
 end
 
 Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
+InteractiveUtils.edit(loc::Location) = edit(string(loc.file), loc.line)
 
 struct LocationTrigger
     loc::Location
     itrigs::Vector{InferenceTrigger}
 end
 
-function Base.show(io::IO, loctrigs::LocationTrigger)
+"""
+    ncallees, ncallers = diversity(loctrigs::LocationTriggers)
+
+Count the number of distinct MethodInstances among the callees and callers, respectively, at a particular code location.
+"""
+function diversity(loctrigs::LocationTrigger)
     # Analyze caller => callee argument type diversity
     callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
     for itrig in loctrigs.itrigs
@@ -592,11 +602,15 @@ function Base.show(io::IO, loctrigs::LocationTrigger)
             ncextra += 1
         end
     end
-    ncallees, ncallers = length(callees), length(callers) + ncextra
+    return length(callees), length(callers) + ncextra
+end
+
+function Base.show(io::IO, loctrigs::LocationTrigger)
+    ncallees, ncallers = diversity(loctrigs)
     print(io, loctrigs.loc, " (", ncallees, " callees from ", ncallers, " callers)")
 end
 
-InteractiveUtils.edit(loctrig::LocationTrigger) = edit(string(loctrig.loc.file), loctrig.loc.line)
+InteractiveUtils.edit(loctrig::LocationTrigger) = edit(loctrig.loc)
 
 """
     loctrigs = accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
