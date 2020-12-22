@@ -497,6 +497,7 @@ function inference_triggers(t::Timing; exclude_toplevel::Bool=true)
     end
 
     itrigs = map(t.children) do tc
+        tc.bt === nothing && throw(ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference"))
         InferenceTrigger(MethodInstance(tc), first_julia_frame(tc.bt)..., tc.bt)
     end
     if exclude_toplevel
