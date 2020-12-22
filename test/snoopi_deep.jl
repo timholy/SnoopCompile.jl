@@ -111,6 +111,21 @@ end
     @test only(mis).def == which(g, (Any,))
     @test callingframe(itrig).callerframes[1].func === :eval
 
+    # Where the caller is inlined into something else
+    callee(x) = 2x
+    @inline caller(c) = callee(c[1])
+    callercaller(cc) = caller(cc[1])
+    callercaller([Any[1]])
+    cc = [Any[0x01]]
+    tinf = @snoopi_deep callercaller(cc)
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
+    show(io, itrig)
+    str = String(take!(io))
+    @test occursin(r"to call MethodInstance for .*callee.*\(::UInt8\)", str)
+    @test occursin("from caller", str)
+    @test occursin(r"inlined into MethodInstance for .*callercaller.*\(::Vector{Vector{Any}}\)", str)
+
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
     tinf = @snoopi_deep map(mysqrt, c)
