@@ -93,6 +93,7 @@ julia> trees = invalidation_trees(invalidations)
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
    backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
               2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
+   1 mt_cache
 ```
 
 The output, `trees`, is a vector of `MethodInvalidations`, a data type defined in `SnoopCompile`; each of these is the set of invalidations triggered by a particular method definition.
