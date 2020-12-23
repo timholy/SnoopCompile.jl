@@ -1,3 +1,48 @@
+"""
+SnoopCompile allows you to collect and analyze data on actions of Julia's compiler.
+
+The capabilities depend on your version of Julia; in general, the capabilities that
+require more recent Julia versions are also the most powerful and useful. When possible,
+you should prefer them above the more limited tools available on earlier versions.
+
+## All Julia versions
+
+- `@snoopc`: record Julia's code generation
+- `SnoopCompile.read`: parse data collected from `@snoopc`
+- `SnoopCompile.parcel`: split precompile statements into modules/packages
+- `SnoopCompile.write`: write module-specific precompile files (")
+
+## At least Julia 1.2
+
+- `@snoopi`: record entrances to Julia's type-inference (`parcel` and `write` work on these data, too)
+
+## At least Julia 1.6
+
+### Invalidations
+
+- `@snoopr`: record invalidations
+- `uinvalidated`: collect unique method invalidations from `@snoopr`
+- `invalidation_trees`: organize invalidation data into trees
+- `filtermod`: select trees that invalidate methods in particular modules
+- `findcaller`: find a path through invalidation trees reaching a particular method
+- `ascend`: interactive analysis of an invalidation tree
+
+### LLVM
+
+- `@snoopl`: record data about the actions of LLVM, the library used to generate native code
+- `read_snoopl`: parse data collected by `@snoopl`
+
+### "Deep" data on inference
+
+- `@snoopi_deep`: record more extensive data about type-inference (`parcel` and `write` work on these data, too)
+- `flamegraph`: prepare a visualization from `@snoopi_deep`
+- `flatten_times`: reduce the tree format recorded by `@snoopi_deep` to list format
+- `accumulate_by_source`: aggregate list items by their source
+- `inference_triggers`: extract data on the triggers of inference
+- `callerinstance`, `callingframe`, `skiphigherorder`, and `InferenceTrigger`: manipulate stack frames from `inference_triggers`
+- `ascend`: interactive analysis of an inference-triggering call chain
+- `runtime_inferencetime`: profile-guided deoptimization
+"""
 module SnoopCompile
 
 using SnoopCompileCore
@@ -27,8 +72,9 @@ end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
     include("parcel_snoopi_deep.jl")
+    include("deep_demos.jl")
     export @snoopi_deep, InclusiveTiming, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
-    export inference_triggers, callerinstance, callingframe, skiphigherorder
+    export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopl"))

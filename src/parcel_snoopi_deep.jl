@@ -267,7 +267,7 @@ function write(prefix::AbstractString, pc::Vector{Pair{Module,Tuple{Float64,Vect
     end
 end
 
-## Profile-guided optimization
+## Profile-guided de-optimization
 
 # These tools can help balance the need for specialization (to achieve good runtime performance)
 # against the desire to reduce specialization to reduce latency.
@@ -371,6 +371,8 @@ Organize information about the "triggers" of inference. `callee` is the `MethodI
 single `StackFrame`, due to the possibility that the caller was inlined into something else, in which case the first entry
 is the direct caller and the last entry corresponds to the MethodInstance into which it was ultimately inlined.
 `btidx` is the index in `bt`, the backtrace collected upon entry into inference, corresponding to `callerframes`.
+
+See also: [`callerinstance`](@ref) and [`callingframe`](@ref).
 """
 struct InferenceTrigger
     callee::MethodInstance
@@ -380,29 +382,35 @@ struct InferenceTrigger
 end
 
 function Base.show(io::IO, itrig::InferenceTrigger)
-    sf = first(itrig.callerframes)
     print(io, "Inference triggered to call ")
     printstyled(io, itrig.callee; color=:yellow)
-    print(io, " from ")
-    printstyled(io, sf.func; color=:red, bold=true)
-    print(io, " (",  sf.file, ':', sf.line, ')')
-    caller = itrig.callerframes[end].linfo
-    if isa(caller, MethodInstance)
-        length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
-        printstyled(io, caller; color=:blue)
-        if length(itrig.callerframes) > 1
-            sf = itrig.callerframes[end]
-            print(io, " (",  sf.file, ':', sf.line, ')')
+    if !isempty(itrig.callerframes)
+        sf = first(itrig.callerframes)
+        print(io, " from ")
+        printstyled(io, sf.func; color=:red, bold=true)
+        print(io, " (",  sf.file, ':', sf.line, ')')
+        caller = itrig.callerframes[end].linfo
+        if isa(caller, MethodInstance)
+            length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
+            printstyled(io, caller; color=:blue)
+            if length(itrig.callerframes) > 1
+                sf = itrig.callerframes[end]
+                print(io, " (",  sf.file, ':', sf.line, ')')
+            end
+        elseif isa(caller, Core.CodeInfo)
+            print(io, " called from toplevel code ", caller)
         end
-    elseif isa(caller, Core.CodeInfo)
-        print(io, " called from toplevel code ", caller)
+    else
+        print(io, " called from toplevel")
     end
 end
 
-callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
+"""
+    mi = callerinstance(itrig::InferenceTrigger)
 
-InteractiveUtils.edit(itrig::InferenceTrigger) = edit(Location(itrig.callerframes[end]))
-Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
+Return the MethodInstance `mi` of the caller in the selected stackframe in `itrig`.
+"""
+callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx)
@@ -422,7 +430,7 @@ function next_julia_frame(bt, idx)
 end
 
 """
-    itrigs = inference_triggers(t::Timing, [tinc::InclusiveTiming=InclusiveTiming(t)]; exclude_toplevel=true)
+    itrigs = inference_triggers(t::Timing; exclude_toplevel=true)
 
 Collect the "triggers" of inference, each a fresh entry into inference via a call dispatched at runtime.
 All the entries in `itrigs` are previously uninferred, or are freshly-inferred for specific constant inputs.
@@ -431,61 +439,17 @@ All the entries in `itrigs` are previously uninferred, or are freshly-inferred f
 
 # Example
 
-In a fresh Julia session, `sqrt(::Int)` has not been inferred:
+We collect data using the [`SnoopCompile.itrigs_demo`](@ref):
 
 ```julia
-julia> using SnoopCompile, MethodAnalysis
-
-julia> methodinstance(sqrt, (Int,))
-
-```
-
-However, if we do the following,
-
-```julia
-julia> c = (1, 2)
-(1, 2)
-
-julia> tinf = @snoopi_deep map(sqrt, c);
+julia> tinf = SnoopCompile.itrigs_demo()
+Core.Compiler.Timings.Timing(InferenceFrameInfo for Core.Compiler.Timings.ROOT()) with 2 children
 
 julia> itrigs = inference_triggers(tinf)
-SnoopCompile.InferenceTrigger[]
+2-element Vector{InferenceTrigger}:
+ Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
+ Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
 ```
-
-we get no output. Let's see them all:
-
-```julia
-julia> itrigs = inference_triggers(tinf; exclude_toplevel=false)
-1-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.000706839s: dispatch MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64}) from eval at ./boot.jl:360
-```
-
-This output indicates that `map(::typeof(sqrt), ::Tuple{Int64, Int64})` was runtime-dispatched as a call from `eval`, and that the cost
-of inferring it and all of its callees was about 0.7ms. `sqrt(::Int)` does not appear because it was inferred from `map`:
-
-```julia
-julia> mi = methodinstance(sqrt, (Int,))    # now this is an inferred MethodInstance
-MethodInstance for sqrt(::Int64)
-
-julia> terminal_backedges(mi)
-1-element Vector{Core.MethodInstance}:
- MethodInstance for map(::typeof(sqrt), ::Tuple{Int64, Int64})
-```
-
-If we change `c` to a `Vector{Int}`, we get more examples of runtime dispatch:
-
-```julia
-julia> c = [1, 2];
-
-julia> tinf = @snoopi_deep map(sqrt, c);
-
-julia> itrigs = inference_triggers(tinf)
-2-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.000656328s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Int64}) from map at ./abstractarray.jl:2282
- Inference break costing 0.0196351s: dispatch MethodInstance for collect_similar(::Vector{Int64}, ::Base.Generator{Vector{Int64}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
-```
-
-These are not inferrable from `map` because `map(f, ::AbstractArray)` does not specialize on `f`, whereas it does for tuples.
 """
 function inference_triggers(t::Timing; exclude_toplevel::Bool=true)
     function first_julia_frame(bt)
@@ -525,35 +489,20 @@ end
 """
     itrigcaller = callingframe(itrig::InferenceTrigger)
 
-"Step out" one layer, returning data on the caller triggering `itrig`.
+"Step out" one layer of the stacktrace, referencing the caller of the current frame of `itrig`.
+
+You can retrieve the proximal trigger of inference with `InferenceTrigger(itrigcaller)`.
 
 # Example
 
+We collect data using the [`SnoopCompile.itrigs_demo`](@ref):
+
 ```julia
-julia> mymap(f, container) = map(f, container)
-mymap (generic function with 1 method)
+julia> itrig = inference_triggers(SnoopCompile.itrigs_demo())[1]
+Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
 
-julia> container = [1 2 3]
-1×3 Matrix{Int64}:
- 1  2  3
-
-julia> mymap(identity, container)
-1×3 Matrix{Int64}:
- 1  2  3
-
-julia> tinf = @snoopi_deep mymap(x->x^2, container);
-
-# The inference triggers (here because this function wasn't called previously) are attributed to `map`
-julia> itrigs = inference_triggers(tinf)
-2-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from map at ./abstractarray.jl:2282
- Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from map at ./abstractarray.jl:2282
-
-# But we can see that `map` was called by `mymap`:
-julia> callingframe.(itrigs)
-2-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.000351368s: dispatch MethodInstance for Base.Generator(::var"#5#6", ::Matrix{Int64}) from mymap at ./REPL[2]:1
- Inference break costing 0.004153674s: dispatch MethodInstance for collect_similar(::Matrix{Int64}, ::Base.Generator{Matrix{Int64}, var"#5#6"}) from mymap at ./REPL[2]:1
+julia> itrigcaller = callingframe(itrig)
+Inference triggered to call MethodInstance for double(::UInt8) from calleach (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:764) with specialization MethodInstance for calleach(::Vector{Vector{Vector{Any}}})
 ```
 """
 function callingframe(itrig::InferenceTrigger)
@@ -564,36 +513,39 @@ function callingframe(itrig::InferenceTrigger)
             return InferenceTrigger(itrig.callee, ret..., itrig.bt)
         end
     end
-    return itrig
+    return InferenceTrigger(itrig.callee, StackTraces.StackFrame[], length(itrig.bt)+1, itrig.bt)
 end
+
+"""
+    itrig0 = InferenceTrigger(itrig::InferenceTrigger)
+
+Reset an inference trigger to point to the stackframe that triggered inference.
+This can be useful to undo the actions of [`callingframe`](@ref) and [`skiphigherorder`](@ref).
+"""
+InferenceTrigger(itrig::InferenceTrigger) = InferenceTrigger(itrig.callee, next_julia_frame(itrig.bt, 1)..., itrig.bt)
+
 
 """
     itrignew = skiphigherorder(itrig; exact::Bool=false)
 
-Attempt to skip over frames of higher-order functions that take the callee as an argument.
+Attempt to skip over frames of higher-order functions that take the callee as a function-argument.
+This can be useful if you're analyzing inference triggers for an entire package and would prefer to assign
+triggers to package-code rather than Base functions like `map!`, `broadcast`, etc.
 
 # Example
 
-```julia
-julia> itrig
-Inference triggered to call MethodInstance for fdouble(::Float64) from mymap! (./REPL[8]:3) with specialization MethodInstance for mymap!(::typeof(fdouble), ::Vector{Any}, ::Vector{Any})
-
-julia> callingframe(itrig)
-Inference triggered to call MethodInstance for fdouble(::Float64) from mymap (./REPL[9]:1) with specialization MethodInstance for mymap(::typeof(fdouble), ::Vector{Any})
-
-julia> skiphigherorder(itrig)
-Inference triggered to call MethodInstance for fdouble(::Float64) from callmymap (./REPL[10]:1) with specialization MethodInstance for callmymap(::Vector{Any})
-```
-
-Because `fdouble` was passed as an argument to both `mymap!` and `mymap`, `skiphigherorder` advanced all the way to `callmymap` which evidently
-does not take a function as an argument. But
+We collect data using the [`SnoopCompile.itrigs_higherorder_demo`](@ref):
 
 ```julia
-julia> skiphigherorder(skiphigherorder(itrig))
-Inference triggered to call MethodInstance for fdouble(::Float64) from callmymap (./REPL[10]:1) with specialization MethodInstance for callmymap(::Vector{Any})
-```
+julia> itrig = inference_triggers(SnoopCompile.itrigs_higherorder_demo())[1]
+Inference triggered to call MethodInstance for double(::Float64) from mymap! (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:706) with specialization MethodInstance for mymap!(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any}, ::Vector{Any})
 
-does not advance the stacktrace any further since `callmymap` is already non-higher order.
+julia> callingframe(itrig)      # step out one (non-inlined) frame
+Inference triggered to call MethodInstance for double(::Float64) from mymap (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:710) with specialization MethodInstance for mymap(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any})
+
+julia> skiphigherorder(itrig)   # step out to frame that doesn't have `double` as a function-argument
+Inference triggered to call MethodInstance for double(::Float64) from callmymap (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:711) with specialization MethodInstance for callmymap(::Vector{Any})
+```
 
 !!! warn
     By default `skiphigherorder` is conservative, and insists on being sure that it's the callee being passed to the higher-order function.
@@ -631,6 +583,15 @@ function hasparameter(@nospecialize(typ), @nospecialize(ft), exact::Bool)
     end
     return false
 end
+
+# Integrations
+InteractiveUtils.edit(itrig::InferenceTrigger) = edit(Location(itrig.callerframes[end]))
+Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
+Cthulhu.instance(itrig::InferenceTrigger) = itrig.callee
+Cthulhu.method(itrig::InferenceTrigger) = itrig.callee.def
+Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(itrig.callee)
+Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
+Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
 struct Location  # essentially a LineNumberNode + function name
     func::Symbol
@@ -685,42 +646,18 @@ Aggregate inference triggers by location (function, file, and line number) of th
 
 # Example
 
-```julia
-julia> c = Any[1, 1.0, 0x01, Float16(1)];
-
-julia> tinf = @snoopi_deep map(sqrt, c);
-
-julia> itrigs = inference_triggers(tinf)
-9-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.000243905s: dispatch MethodInstance for sqrt(::Int64) from iterate at ./generator.jl:47
- Inference break costing 0.000259601s: dispatch MethodInstance for sqrt(::UInt8) from iterate at ./generator.jl:47
- Inference break costing 0.000353063s: dispatch MethodInstance for Base.Generator(::typeof(sqrt), ::Vector{Any}) from map at ./abstractarray.jl:2282
- Inference break costing 0.000411542s: dispatch MethodInstance for _similar_for(::Vector{Any}, ::Type{Float64}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Base.HasShape{1}) from _collect at ./array.jl:682
- Inference break costing 0.000568054s: dispatch MethodInstance for sqrt(::Float16) from iterate at ./generator.jl:47
- Inference break costing 0.002503302s: dispatch MethodInstance for collect_to_with_first!(::Vector{Float64}, ::Float64, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64) from _collect at ./array.jl:682
- Inference break costing 0.002741125s: dispatch MethodInstance for collect_to!(::Vector{AbstractFloat}, ::Base.Generator{Vector{Any}, typeof(sqrt)}, ::Int64, ::Int64) from collect_to! at ./array.jl:718
- Inference break costing 0.003836296s: dispatch MethodInstance for collect_similar(::Vector{Any}, ::Base.Generator{Vector{Any}, typeof(sqrt)}) from map at ./abstractarray.jl:2282
- Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
-
-julia> loctrigs = accumulate_by_source(itrigs)
-5-element Vector{Pair{Float64, SnoopCompile.LocationTrigger}}:
-            0.00107156 => iterate at ./generator.jl:47 (3 instances)
-           0.002741125 => collect_to! at ./array.jl:718 (1 instances)
- 0.0029148439999999998 => _collect at ./array.jl:682 (2 instances)
-           0.004189359 => map at ./abstractarray.jl:2282 (2 instances)
-           0.010411171 => collect_to! at ./array.jl:717 (1 instances)
-```
-
-`iterate` accounted for 3 inference triggers, yet the aggregate cost of these was still dwarfed by one made from `collect_to!`.
-Let's see what this call was:
+We collect data using the [`SnoopCompile.itrigs_demo`](@ref):
 
 ```julia
-julia> loctrigs[end][2].itrigs
-1-element Vector{SnoopCompile.InferenceTrigger}:
- Inference break costing 0.010411171s: dispatch MethodInstance for setindex_widen_up_to(::Vector{Float64}, ::Float16, ::Int64) from collect_to! at ./array.jl:717
-```
+julia> itrigs = inference_triggers(SnoopCompile.itrigs_demo())
+2-element Vector{InferenceTrigger}:
+ Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
+ Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
 
-So inferring `setindex_widen_up_to` was much more expensive than inferring 3 calls of `sqrt`.
+julia> accumulate_by_source(itrigs)
+1-element Vector{SnoopCompile.LocationTrigger}:
+    calldouble1 at /pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762 (2 callees from 1 callers)
+```
 """
 function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
     cs = Dict{Location,Vector{InferenceTrigger}}()
@@ -731,6 +668,8 @@ function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
     end
     return sort([LocationTrigger(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
+
+## Flamegraph creation
 
 """
     flamegraph(t::Core.Compiler.Timings.Timing; tmin_secs=0.0)
