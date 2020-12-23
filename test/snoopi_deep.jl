@@ -117,6 +117,18 @@ fdouble(x) = 2x
     @test only(mis).def == which(g, (Any,))
     @test callingframe(itrig).callerframes[1].func === :eval
     @test_throws ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference") inference_triggers(tinf.children[1])
+    itrig0 = itrig
+    counter = 0
+    while !isempty(itrig.callerframes) && counter < 1000  # defensively prevent infinite loop
+        itrig = callingframe(itrig)
+        counter += 1
+    end
+    @test counter < 1000
+    show(io, itrig)
+    str = String(take!(io))
+    @test occursin("called from toplevel", str)
+    @test itrig != itrig0
+    @test InferenceTrigger(itrig) == itrig0
 
     # Where the caller is inlined into something else
     callee(x) = 2x
@@ -195,6 +207,12 @@ end
         fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
+end
+
+@testset "demos" begin
+    # Just ensure they run
+    @test SnoopCompile.itrigs_demo() isa Core.Compiler.Timings.Timing
+    @test SnoopCompile.itrigs_higherorder_demo() isa Core.Compiler.Timings.Timing
 end
 
 include("testmodules/SnoopBench.jl")
