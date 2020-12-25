@@ -56,7 +56,7 @@ Base.show(io::IO, t::InclusiveTiming) = print(io, "InclusiveTiming: ", t.inclusi
     flatten_times(timing; tmin_secs = 0.0, sorted::Bool=true)
 
 Flatten the execution graph of `Timing`s returned from `@snoopi_deep`--or of its [InclusiveTiming`](@ref)
-variant--into a Vector of pairs, with the time for each invocation of type inference, skipping any frames that
+variant--into a Vector of `(time, info)` tuples, with the time for each invocation of type inference, skipping any frames that
 took less than `tmin_secs` seconds. By default, results are sorted by time, although you can set `sorted=false`
 to obtain them in depth-first order.
 
@@ -64,7 +64,7 @@ to obtain them in depth-first order.
 the total time of the operation minus the total time for inference.
 """
 function flatten_times(timing::Union{Timing,InclusiveTiming}; tmin_secs = 0.0, sorted::Bool=true)
-    out = Pair{Float64,InferenceFrameInfo}[]
+    out = Tuple{Float64,InferenceFrameInfo}[]
     flatten_times!(out, timing, tmin_secs)
     return sorted ? sort(out; by=first) : out
 end
@@ -72,7 +72,7 @@ end
 function flatten_times!(out, timing, tmin_secs)
     time = floattime(timing)
     if time >= tmin_secs
-        push!(out, time => timing.mi_info)
+        push!(out, (time, timing.mi_info))
     end
     for child in timing.children
         flatten_times!(out, child, tmin_secs)
@@ -81,11 +81,11 @@ function flatten_times!(out, timing, tmin_secs)
 end
 
 """
-    accumulate_by_source(pairs; tmin_secs = 0.0)
+    accumulate_by_source(flattened; tmin_secs = 0.0)
 
 Add the inference timings for all `MethodInstance`s of a single `Method` together.
-`pairs` is the output of [`flatten_times`](@ref).
-Returns a list of `t => method` pairs.
+`flattened` is the output of [`flatten_times`](@ref).
+Returns a list of `(t, method)` tuples.
 
 When the accumulated time for a `Method` is large, but each instance is small, it indicates
 that it is being inferred for many specializations (which might include specializations with different constants).
@@ -96,20 +96,20 @@ that it is being inferred for many specializations (which might include speciali
 julia> tinf = @snoopi_deep sort(Float16[1, 2, 3]);
 
 julia> tm = accumulate_by_source(flatten_times(tinf); tmin_secs=0.0005)
-6-element Vector{Pair{Float64, Method}}:
- 0.000590579 => _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307
- 0.000616788 => partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578
- 0.000634394 => sort!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, ::Base.Sort.InsertionSortAlg, o::Base.Order.Ordering) in Base.Sort at sort.jl:527
- 0.000720815 => Vector{T}(::UndefInitializer, m::Int64) where T in Core at boot.jl:448
- 0.001157551 => getindex(::Type{T}, x, y, z) where T in Base at array.jl:394
- 0.046509861 => ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75
+6-element Vector{Tuple{Float64, Method}}:
+ (0.000590579, _copyto_impl!(dest::Array, doffs::Integer, src::Array, soffs::Integer, n::Integer) in Base at array.jl:307)
+ (0.000616788, partition!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, o::Base.Order.Ordering) in Base.Sort at sort.jl:578)
+ (0.000634394, sort!(v::AbstractVector{T} where T, lo::Integer, hi::Integer, ::Base.Sort.InsertionSortAlg, o::Base.Order.Ordering) in Base.Sort at sort.jl:527)
+ (0.000720815, Vector{T}(::UndefInitializer, m::Int64) where T in Core at boot.jl:448)
+ (0.001157551, getindex(::Type{T}, x, y, z) where T in Base at array.jl:394)
+ (0.046509861, ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75)
 ```
 
 `ROOT` is a dummy element whose time corresponds to the sum of time spent on everything *except* inference.
 """
-function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFrameInfo}}; tmin_secs = 0.0) where M<:Union{Method,MethodInstance}
+function accumulate_by_source(::Type{M}, flattened::Vector{Tuple{Float64,InferenceFrameInfo}}; tmin_secs = 0.0) where M<:Union{Method,MethodInstance}
     tmp = Dict{Union{M,MethodInstance},Float64}()
-    for (t, info) in pairs
+    for (t, info) in flattened
         mi = info.mi
         if M === Method && isa(mi.def, Method)
             m = mi.def::Method
@@ -118,10 +118,10 @@ function accumulate_by_source(::Type{M}, pairs::Vector{Pair{Float64,InferenceFra
             tmp[mi] = t    # module-level thunks are stored verbatim
         end
     end
-    return sort([t=>m for (m, t) in tmp if t >= tmin_secs]; by=first)
+    return sort([(t, m) for (m, t) in tmp if t >= tmin_secs]; by=first)
 end
 
-accumulate_by_source(pairs::Vector{Pair{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, pairs; kwargs...)
+accumulate_by_source(flattened::Vector{Tuple{Float64,InferenceFrameInfo}}; kwargs...) = accumulate_by_source(Method, flattened; kwargs...)
 
 ## parcel and supporting infrastructure
 
