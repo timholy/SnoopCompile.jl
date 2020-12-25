@@ -40,6 +40,37 @@ end
     @test occursin("f2#", String(nameof(f)))
 end
 
+@testset "known_type" begin
+    @eval module OtherModule
+        p() = 1
+        q() = 1
+    end
+    @eval module KnownType
+        f() = 1
+        module SubModule
+            g() = 1
+            h() = 1
+        end
+        module Exports
+            export i
+            i() = 1
+            j() = 1
+        end
+        using .SubModule: g
+        using .Exports
+        using Main.OtherModule: p
+    end
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.f, ()).sig)
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.g, ()).sig)
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.SubModule.g, ()).sig)
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.SubModule.h, ()).sig)  # it's reachable if appropriately qualified
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.i, ()).sig)
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.Exports.i, ()).sig)
+    @test  SnoopCompile.known_type(KnownType, which(KnownType.Exports.j, ()).sig)    # it's reachable if appropriately qualified
+    @test  SnoopCompile.known_type(KnownType, which(OtherModule.p, ()).sig)
+    @test !SnoopCompile.known_type(KnownType, which(OtherModule.q, ()).sig)
+end
+
 uncompiled(x) = x + 1
 
 @testset "snoopi" begin
