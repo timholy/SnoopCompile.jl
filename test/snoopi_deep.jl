@@ -4,6 +4,7 @@ using Test
 using InteractiveUtils
 using Random
 using Profile
+using MethodAnalysis
 # using PyPlot: PyPlot, plt    # uncomment to test visualizations
 
 using AbstractTrees  # For FlameGraphs tests
@@ -207,6 +208,32 @@ end
         fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
+
+    # Printing
+    @eval module M
+        i(x) = x+5
+        h(a::Array) = i(a[1]::Integer) + 2
+        g(y::Integer) = h(Any[y])
+    end
+    timing = @snoopi_deep begin
+        M.g(2)
+        M.g(true)
+    end
+    fg = SnoopCompile.flamegraph(timing)
+    @test endswith(string(fg.child.data.sf.func), "M.g")
+    counter = Dict{Method,Int}()
+    visit(getfield(@__MODULE__, :M)) do item
+        if isa(item, Core.MethodInstance)
+            m = item.def
+            if isa(m, Method)
+                counter[m] = get(counter, m, 0) + 1
+            end
+            return false
+        end
+        return true
+    end
+    fg = SnoopCompile.flamegraph(timing; mode=counter)
+    @test endswith(string(fg.child.data.sf.func), "M.g (2)")
 end
 
 @testset "demos" begin
