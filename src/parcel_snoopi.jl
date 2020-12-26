@@ -192,29 +192,49 @@ function reprcontext(mod::Module, @nospecialize(T::Type))
     end
 end
 
-let known_type_cache = IdDict{Tuple{Module,Type},Bool}()
+let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
     global known_type
     function known_type(mod::Module, @nospecialize(T::Type))
-        key = (mod, T)
-        kt = get(known_type_cache, key, nothing)
-        isa(kt, Bool) && return kt
-        kt = false
-        # First check whether supplying module context allows evaluation
-        rplain = repr(T; context=:module=>mod)
-        try
-            ex = Meta.parse(rplain)
-            Core.eval(mod, ex)
-            kt = true
-        catch
-            # Add full module context
-            try
-                Core.eval(mod, Meta.parse(repr(T; context=:module=>nothing)))
-                kt = true
-            catch
+        function startswith(@nospecialize(a::Tuple{Vararg{Symbol}}), @nospecialize(b::Tuple{Vararg{Symbol}}))
+            length(b) >= length(a) || return false
+            for i = 1:length(a)
+                a[i] == b[i] || return false
             end
+            return true
         end
-        known_type_cache[key] = kt
-        return kt
+        function firstname(@nospecialize(tpath::Tuple{Vararg{Symbol}}))
+            i = 1
+            while i <= length(tpath)
+                sym = tpath[i]
+                sym === :Main || return sym
+                i += 1
+            end
+            return :ISNOTAMODULENAME
+        end
+        strippedname(tn::Core.TypeName) = Symbol(string(tn.name)[2:end])
+
+        T === Union{} && return true
+        if isa(T, Union)
+            return known_type(mod, T.a) & known_type(mod, T.b)
+        end
+        T = Base.unwrap_unionall(T)::DataType
+        tn = T.name
+        tpath = fullname(tn.module)
+        key = (mod, tpath, tn.name)
+        kt = get(known_type_cache, key, nothing)
+        if kt === nothing
+            kt = startswith(fullname(mod), tpath) ||
+                 ccall(:jl_get_module_of_binding, Ptr{Cvoid}, (Any, Any), mod, firstname(tpath)) != C_NULL ||
+                 (isdefined(mod, tn.name) && (T2 = getfield(mod, tn.name); isa(T2, Type) && Base.unwrap_unionall(T2) === T)) ||
+                 (T <: Function && isdefined(mod, strippedname(tn)) && (f = getfield(mod, strippedname(tn)); typeof(f) === T))
+            known_type_cache[key] = kt
+        end
+        kt === false && return false
+        for p in T.parameters
+            isa(p, Type) || continue
+            known_type(mod, p) || return false
+        end
+        return true
     end
 end
 

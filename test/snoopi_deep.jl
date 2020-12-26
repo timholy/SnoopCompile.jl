@@ -248,12 +248,13 @@ include("testmodules/SnoopBench.jl")
     @test length(prs) == 2
     _, (tmodBase, tmis) = prs[findfirst(pr->pr.first === Base, prs)]
     tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
-    @test 0.0 <= tw <= tmodBase && 0 <= nw <= length(tmis)-1
+    @test 0.0 <= tw <= tmodBase && 0 <= nw <= length(tmis)
     str = String(take!(io))
     @test !occursin(r"Base.Fix2\{typeof\(isequal\).*SnoopBench.A\}", str)
     @test length(split(chomp(str), '\n')) == nw
     _, (tmodBench, tmis) = prs[findfirst(pr->pr.first === SnoopBench, prs)]
-    @test tmodBench + tmodBase ≈ ttot
+    tinc = InclusiveTiming(tinf)
+    @test sum(SnoopCompile.floattime, tinc.children[1:end-1]) <= tmodBench + tmodBase # last child is not precompilable
     tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
     @test nw == 2
     str = String(take!(io))
