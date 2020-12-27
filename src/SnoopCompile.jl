@@ -34,9 +34,9 @@ you should prefer them above the more limited tools available on earlier version
 
 ### "Deep" data on inference
 
-- `@snoopi_deep`: record more extensive data about type-inference (`parcel` and `write` work on these data, too)
-- `flamegraph`: prepare a visualization from `@snoopi_deep`
-- `flatten_times`: reduce the tree format recorded by `@snoopi_deep` to list format
+- `@snoopi_tree`: record more extensive data about type-inference (`parcel` and `write` work on these data, too)
+- `flamegraph`: prepare a visualization from `@snoopi_tree`
+- `flatten_times`: reduce the tree format recorded by `@snoopi_tree` to list format
 - `accumulate_by_source`: aggregate list items by their source
 - `inference_triggers`: extract data on the triggers of inference
 - `callerinstance`, `callingframe`, `skiphigherorder`, and `InferenceTrigger`: manipulate stack frames from `inference_triggers`
@@ -70,11 +70,13 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi"))
     export @snoopi
 end
 
-if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
-    include("parcel_snoopi_deep.jl")
-    include("deep_demos.jl")
-    export @snoopi_deep, InclusiveTiming, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
+if isdefined(SnoopCompileCore, Symbol("@snoopi_tree"))
+    include("parcel_snoopi_tree.jl")
+    include("snoopi_tree_demos.jl")
+    export @snoopi_tree, InclusiveTiming, flamegraph, flatten_times, accumulate_by_source, runtime_inferencetime
     export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder
+    # deprecated
+    export @snoopi_deep
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopl"))

@@ -12,7 +12,7 @@ if VERSION >= v"1.2.0-DEV.573"
 end
 
 if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
-    include("snoopi_deep.jl")
+    include("snoopi_tree.jl")
 end
 
 if VERSION >= v"1.6.0-DEV.154"

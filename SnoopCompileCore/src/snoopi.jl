@@ -1,4 +1,4 @@
-export @snoopi, @snoopi_deep
+export @snoopi, @snoopi_tree
 
 const __inf_timing__ = Tuple{Float64,MethodInstance}[]
 

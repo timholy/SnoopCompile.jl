@@ -7,11 +7,11 @@ function stop_deep_timing()
     Core.Compiler.Timings.close_current_timer()
 end
 
-function finish_snoopi_deep()
+function finish_snoopi_tree()
     return Core.Compiler.Timings._timings[1]
 end
 
-function _snoopi_deep(cmd::Expr)
+function _snoopi_tree(cmd::Expr)
     return quote
         start_deep_timing()
         try
@@ -19,12 +19,12 @@ function _snoopi_deep(cmd::Expr)
         finally
             stop_deep_timing()
         end
-        finish_snoopi_deep()
+        finish_snoopi_tree()
     end
 end
 
 """
-    timing_tree = @snoopi_deep commands
+    timing_tree = @snoopi_tree commands
 
 Produce a profile of julia's type inference, containing the amount of time spent inferring
 every `MethodInstance` processed while executing `commands`.
@@ -38,7 +38,7 @@ To make use of these results, see the processing functions in SnoopCompile:
 
 # Examples
 ```julia
-julia> timing = @snoopi_deep begin
+julia> timing = @snoopi_tree begin
            @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
        end;
 
@@ -60,8 +60,8 @@ julia> fg = flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
 """
-macro snoopi_deep(cmd)
-    return _snoopi_deep(cmd)
+macro snoopi_tree(cmd)
+    return _snoopi_tree(cmd)
 end
 
 # These are okay to come at the top-level because we're only measuring inference, and
@@ -69,4 +69,10 @@ end
 @assert precompile(Core.Compiler.Timings.reset_timings, ())
 @assert precompile(start_deep_timing, ())
 @assert precompile(stop_deep_timing, ())
-@assert precompile(finish_snoopi_deep, ())
+@assert precompile(finish_snoopi_tree, ())
+
+macro snoopi_deep(cmd)
+    @warn "`@snoopi_deep` is deprecated, use `@snoopi_tree` instead."
+    return _snoopi_tree(cmd)
+end
+export @snoopi_deep

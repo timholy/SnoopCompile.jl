@@ -9,7 +9,7 @@ using MethodAnalysis
 
 using AbstractTrees  # For FlameGraphs tests
 
-@testset "@snoopi_deep" begin
+@testset "@snoopi_tree" begin
     # WARMUP (to compile all the small, reachable methods)
     @eval module M  # Example with some functions that include type instability
         i(x) = x+5
@@ -26,7 +26,7 @@ using AbstractTrees  # For FlameGraphs tests
         g(y::Integer) = h(Any[y])
     end
 
-    timing = @snoopi_deep begin
+    timing = @snoopi_tree begin
         M.g(2)
         M.g(true)
     end
@@ -79,7 +79,7 @@ using AbstractTrees  # For FlameGraphs tests
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    timingmod = @snoopi_deep begin
+    timingmod = @snoopi_tree begin
         @eval @testset "Outer" begin
             @testset "Inner" begin
                 for i = 1:2 M.g(2) end
@@ -104,7 +104,7 @@ fdouble(x) = 2x
         x < 0.75 ? 0x01 : Float16(1)
     end
     g(c) = myplus(f(c[1]), f(c[2]))
-    tinf = @snoopi_deep g([0.7, 0.8])
+    tinf = @snoopi_tree g([0.7, 0.8])
     @test length(inference_triggers(tinf; exclude_toplevel=false)) == 2
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -137,7 +137,7 @@ fdouble(x) = 2x
     callercaller(cc) = caller(cc[1])
     callercaller([Any[1]])
     cc = [Any[0x01]]
-    tinf = @snoopi_deep callercaller(cc)
+    tinf = @snoopi_tree callercaller(cc)
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     show(io, itrig)
@@ -148,7 +148,7 @@ fdouble(x) = 2x
 
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
-    tinf = @snoopi_deep map(mysqrt, c)
+    tinf = @snoopi_tree map(mysqrt, c)
     itrigs = inference_triggers(tinf)
     loctrigs = accumulate_by_source(itrigs)
     show(io, loctrigs)
@@ -165,7 +165,7 @@ fdouble(x) = 2x
     callmymap(x) = mymap(fdouble, x)
     callmymap(Any[1, 2])  # compile all for one set of types
     x = Any[1.0, 2.0]   # fdouble not yet inferred for Float64
-    tinf = @snoopi_deep callmymap(x)
+    tinf = @snoopi_tree callmymap(x)
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test occursin(r"with specialization MethodInstance for .*mymap!.*\(::.*fdouble.*, ::Vector{Any}, ::Vector{Any}\)", string(itrig))
@@ -175,7 +175,7 @@ fdouble(x) = 2x
     callfdouble(c) = fdouble(c[1])
     callfdouble(Any[1])
     c = Any[Float16(1)]
-    tinf = @snoopi_deep callfdouble(c)
+    tinf = @snoopi_tree callfdouble(c)
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test skiphigherorder(itrig) == itrig
@@ -188,7 +188,7 @@ end
         g(y::Integer) = h(Any[y])
     end
 
-    timing = @snoopi_deep begin
+    timing = @snoopi_tree begin
         M.g(2)
     end
     times = flatten_times(timing)
@@ -215,7 +215,7 @@ end
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    timing = @snoopi_deep begin
+    timing = @snoopi_tree begin
         M.g(2)
         M.g(true)
     end
@@ -245,7 +245,7 @@ end
 include("testmodules/SnoopBench.jl")
 @testset "parcel" begin
     a = SnoopBench.A()
-    tinf = @snoopi_deep SnoopBench.f1(a)
+    tinf = @snoopi_tree SnoopBench.f1(a)
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
     @test mod === SnoopBench
@@ -257,7 +257,7 @@ include("testmodules/SnoopBench.jl")
     @test ttot2 == ttot
 
     A = [a]
-    tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
+    tinf = @snoopi_tree SnoopBench.mappushes(identity, A)
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
     @test mod === SnoopBench
@@ -270,7 +270,7 @@ include("testmodules/SnoopBench.jl")
     @test occursin(r"typeof\(mappushes!\),typeof\(identity\),Vector\{Any\},Vector\{A\}", str)
 
     list = Any[1, 1.0, Float16(1.0), a]
-    tinf = @snoopi_deep SnoopBench.mappushes(isequal(Int8(1)), list)
+    tinf = @snoopi_tree SnoopBench.mappushes(isequal(Int8(1)), list)
     ttot, prs = SnoopCompile.parcel(tinf)
     @test length(prs) == 2
     _, (tmodBase, tmis) = prs[findfirst(pr->pr.first === Base, prs)]
@@ -305,8 +305,8 @@ end
 
 @testset "Specialization" begin
     Ts = subtypes(Any)
-    tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
-    tinf_spec =   @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
+    tinf_unspec = @snoopi_tree SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
+    tinf_spec =   @snoopi_tree SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     tf_unspec = flatten_times(tinf_unspec)
     tf_spec   = flatten_times(tinf_spec)
     @test length(tf_unspec) < 10

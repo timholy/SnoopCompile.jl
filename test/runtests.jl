@@ -5,8 +5,8 @@ if VERSION >= v"1.2.0-DEV.573"
 end
 
 if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
-    @testset "snoopi_deep" begin
-        include("snoopi_deep.jl")
+    @testset "snoopi_tree" begin
+        include("snoopi_tree.jl")
     end
 end
 
