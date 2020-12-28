@@ -1,17 +1,52 @@
 # Reference
 
-## Interactive features
+## Data collection
 
 ```@docs
+@snoopr
+@snoopi_deep
 @snoopi
 @snoopc
-@snoopr
-SnoopCompile.parcel
-SnoopCompile.write
-SnoopCompile.read
-SnoopCompile.format_userimg
+```
+
+## Analysis of invalidations
+
+```@docs
 uinvalidated
 invalidation_trees
 filtermod
 findcaller
+```
+
+## Analysis of `@snoopi_deep`
+
+```@docs
+SnoopCompile.flamegraph
+flatten
+exclusive
+inclusive
+accumulate_by_source
+inference_triggers
+callerinstance
+callingframe
+skiphigherorder
+InferenceTrigger
+runtime_inferencetime
+SnoopCompile.parcel
+SnoopCompile.write
+```
+
+## Other utilities
+
+```@docs
+SnoopCompile.read
+SnoopCompile.format_userimg
+```
+
+## Demos
+
+```@docs
+SnoopCompile.flatten_demo
+SnoopCompile.itrigs_demo
+SnoopCompile.itrigs_higherorder_demo
 ```

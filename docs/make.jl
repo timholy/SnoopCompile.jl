@@ -7,7 +7,12 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
-    pages = ["index.md", "snoopi.md", "snoopc.md", "userimg.md", "snoopr.md", "reference.md"]
+    pages = ["index.md",
+             "tutorial.md",
+             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md"],
+             "Older tools" => ["snoopi.md", "snoopc.md"],
+             "userimg.md",
+             "reference.md"]
 )
 
 deploydocs(
