@@ -5,9 +5,10 @@ using InteractiveUtils
 using Random
 using Profile
 using MethodAnalysis
+using Core: MethodInstance
 # using PyPlot: PyPlot, plt    # uncomment to test visualizations
 
-using AbstractTrees  # For FlameGraphs tests
+using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
 
 @testset "@snoopi_deep" begin
     # WARMUP (to compile all the small, reachable methods)
@@ -26,50 +27,48 @@ using AbstractTrees  # For FlameGraphs tests
         g(y::Integer) = h(Any[y])
     end
 
-    timing = @snoopi_deep begin
+    tinf = @snoopi_deep begin
         M.g(2)
         M.g(true)
     end
-    @test SnoopCompile.isROOT(Core.MethodInstance(timing))
-    @test SnoopCompile.isROOT(Method(timing))
-    times = flatten_times(timing)
-    ifi = times[end][2]
-    @test length(times) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
-    names = [mi_info.mi.def.name for (time, mi_info) in times]
+    @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
+    @test SnoopCompile.isROOT(Method(tinf))
+    frames = flatten(tinf)
+    @test length(frames) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
+    @test issorted(frames; by=exclusive)
+    names = [Method(frame).name for frame in frames]
     @test sort(names) == [:ROOT, :g, :g, :h, :i, :i, :i]
 
-    longest_frame_time = times[end][1]
-    @test length(flatten_times(timing, tmin_secs=longest_frame_time)) == 1
+    longest_frame_time = exclusive(frames[end])
+    @test length(flatten(tinf, tmin=longest_frame_time)) == 1
 
-    times_unsorted = flatten_times(timing; sorted=false)
-    ifi = times_unsorted[1][2]
+    frames_unsorted = flatten(tinf; sortby=nothing)
+    ifi = frames_unsorted[1].mi_info
     @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
     @test SnoopCompile.isROOT(Method(ifi))
-    names = [mi_info.mi.def.name for (time, mi_info) in times_unsorted]
-    argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in times_unsorted[2:end]]
+    names = [Method(frame).name for frame in frames_unsorted]
+    argtypes = [MethodInstance(frame).specTypes.parameters[2] for frame in frames_unsorted[2:end]]
     @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
     @test argtypes == [    Int, Vector{Any}, Integer, Int, Bool, Bool]
 
-    timesm = accumulate_by_source(times)
+    timesm = accumulate_by_source(frames)
     @test length(timesm) == 4
     names = [m.name for (time, m) in timesm]
     @test sort(names) == [:ROOT, :g, :h, :i]
     longest_method_time = timesm[end][1]
-    @test length(accumulate_by_source(times; tmin_secs=longest_method_time)) == 1
+    @test length(accumulate_by_source(frames; tmin=longest_method_time)) == 1
 
-    itiming = InclusiveTiming(timing)
-    @test SnoopCompile.isROOT(Core.MethodInstance(itiming))
-    @test SnoopCompile.isROOT(Method(itiming))
-    itimes = flatten_times(itiming)
-    @test itimes[end][1] >= itimes[end-1][1]
+    @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
+    @test SnoopCompile.isROOT(Method(tinf))
+    iframes = flatten(tinf; sortby=inclusive)
+    @test issorted(iframes; by=inclusive)
 
-    itimes_unsorted = flatten_times(itiming; sorted=false)
-    t = map(first, itimes_unsorted)
+    t = map(inclusive, frames_unsorted)
     @test t[2] >= t[3] >= t[4]
-    ifi = itimes_unsorted[2][2]
+    ifi = frames_unsorted[2].mi_info
     @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
-    names = [mi_info.mi.def.name for (time, mi_info) in itimes_unsorted]
-    argtypes = [mi_info.mi.specTypes.parameters[2] for (time, mi_info) in itimes_unsorted[2:end]]
+    names = [Method(frame).name for frame in frames_unsorted]
+    argtypes = [MethodInstance(frame).specTypes.parameters[2] for frame in frames_unsorted[2:end]]
     @test names == [:ROOT, :g, :h,           :i,      :i,  :g,   :i]
     @test argtypes == [    Int, Vector{Any}, Integer, Int, Bool, Bool]
 
@@ -79,15 +78,15 @@ using AbstractTrees  # For FlameGraphs tests
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    timingmod = @snoopi_deep begin
+    tinfmod = @snoopi_deep begin
         @eval @testset "Outer" begin
             @testset "Inner" begin
                 for i = 1:2 M.g(2) end
             end
         end
     end
-    times = flatten_times(timingmod)
-    timesm = accumulate_by_source(times)
+    frames = flatten(tinfmod)
+    timesm = accumulate_by_source(frames)
     timesmod = filter(pr -> isa(pr[2], Core.MethodInstance), timesm)
     @test length(timesmod) == 1
 end
@@ -182,18 +181,18 @@ fdouble(x) = 2x
 end
 
 @testset "flamegraph_export" begin
-    @eval module M  # Take another timing
+    @eval module M  # Take another tinf
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
 
-    timing = @snoopi_deep begin
+    tinf = @snoopi_deep begin
         M.g(2)
     end
-    times = flatten_times(timing)
+    frames = flatten(tinf; sortby=inclusive)
 
-    fg = SnoopCompile.flamegraph(timing)
+    fg = SnoopCompile.flamegraph(tinf)
     @test length(collect(AbstractTrees.PreOrderDFS(fg))) == 5
     # Test that the span covers the whole tree.
     for leaf in AbstractTrees.PreOrderDFS(fg)
@@ -201,11 +200,12 @@ end
         @test leaf.data.span.stop in fg.data.span
     end
 
-    t1, t2 = times[1][1], times[2][1]
-    # Ensure there's a timing gap, and that cutting off the fastest-to-infer won't leave the tree headless
-    if t1 != t2 && times[1][2].mi.def.name !== :g
+    frame1, frame2 = frames[1], frames[2]
+    t1, t2 = inclusive(frame1), inclusive(frame2)
+    # Ensure there's a tinf gap, and that cutting off the fastest-to-infer won't leave the tree headless
+    if t1 != t2 && Method(frame1).name !== :g
         cutoff_bottom_frame = (t1 + t2) / 2
-        fg2 = SnoopCompile.flamegraph(timing, tmin_secs = cutoff_bottom_frame)
+        fg2 = SnoopCompile.flamegraph(tinf, tmin = cutoff_bottom_frame)
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
 
@@ -215,11 +215,11 @@ end
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    timing = @snoopi_deep begin
+    tinf = @snoopi_deep begin
         M.g(2)
         M.g(true)
     end
-    fg = SnoopCompile.flamegraph(timing)
+    fg = SnoopCompile.flamegraph(tinf)
     @test endswith(string(fg.child.data.sf.func), "M.g")
     counter = Dict{Method,Int}()
     visit(getfield(@__MODULE__, :M)) do item
@@ -232,14 +232,14 @@ end
         end
         return true
     end
-    fg = SnoopCompile.flamegraph(timing; mode=counter)
+    fg = SnoopCompile.flamegraph(tinf; mode=counter)
     @test endswith(string(fg.child.data.sf.func), "M.g (2)")
 end
 
 @testset "demos" begin
     # Just ensure they run
-    @test SnoopCompile.itrigs_demo() isa Core.Compiler.Timings.Timing
-    @test SnoopCompile.itrigs_higherorder_demo() isa Core.Compiler.Timings.Timing
+    @test SnoopCompile.itrigs_demo() isa SnoopCompile.InferenceTimingNode
+    @test SnoopCompile.itrigs_higherorder_demo() isa SnoopCompile.InferenceTimingNode
 end
 
 include("testmodules/SnoopBench.jl")
@@ -280,8 +280,7 @@ include("testmodules/SnoopBench.jl")
     @test !occursin(r"Base.Fix2\{typeof\(isequal\).*SnoopBench.A\}", str)
     @test length(split(chomp(str), '\n')) == nw
     _, (tmodBench, tmis) = prs[findfirst(pr->pr.first === SnoopBench, prs)]
-    tinc = InclusiveTiming(tinf)
-    @test sum(SnoopCompile.floattime, tinc.children[1:end-1]) <= tmodBench + tmodBase # last child is not precompilable
+    @test sum(inclusive, tinf.children[1:end-1]) <= tmodBench + tmodBase # last child is not precompilable
     tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
     @test nw == 2
     str = String(take!(io))
@@ -307,12 +306,12 @@ end
     Ts = subtypes(Any)
     tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     tinf_spec =   @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
-    tf_unspec = flatten_times(tinf_unspec)
-    tf_spec   = flatten_times(tinf_spec)
+    tf_unspec = flatten(tinf_unspec)
+    tf_spec   = flatten(tinf_spec)
     @test length(tf_unspec) < 10
-    @test any(tmi -> occursin("spell_unspec(::Any)", repr(tmi[2])), tf_unspec)
+    @test any(tmi -> occursin("spell_unspec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
     @test length(tf_spec) >= length(Ts)
-    @test !any(tmi -> occursin("spell_spec(::Any)", repr(tmi[2])), tf_unspec)
+    @test !any(tmi -> occursin("spell_spec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
 
     # fig, axs = plt.subplots(1, 2)
 

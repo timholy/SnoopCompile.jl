@@ -1,3 +1,28 @@
+struct InferenceTiming
+    mi_info::Core.Compiler.Timings.InferenceFrameInfo
+    inclusive_time::Float64
+    exclusive_time::Float64
+end
+inclusive(it::InferenceTiming) = it.inclusive_time
+exclusive(it::InferenceTiming) = it.exclusive_time
+
+struct InferenceTimingNode
+    mi_timing::InferenceTiming
+    start_time::Float64
+    children::Vector{InferenceTimingNode}
+    bt
+end
+inclusive(node::InferenceTimingNode) = inclusive(node.mi_timing)
+exclusive(node::InferenceTimingNode) = exclusive(node.mi_timing)
+InferenceTiming(node::InferenceTimingNode) = node.mi_timing
+
+function InferenceTimingNode(t::Core.Compiler.Timings.Timing)
+    children = [InferenceTimingNode(child) for child in t.children]
+    time, start_time = t.time/10^9, t.start_time/10^9
+    incl_time = time + sum(inclusive, children; init=0.0)
+    return InferenceTimingNode(InferenceTiming(t.mi_info, incl_time, time), start_time, children, t.bt)
+end
+
 function start_deep_timing()
     Core.Compiler.Timings.reset_timings()
     Core.Compiler.__set_measure_typeinf(true)
@@ -8,7 +33,7 @@ function stop_deep_timing()
 end
 
 function finish_snoopi_deep()
-    return Core.Compiler.Timings._timings[1]
+    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
 end
 
 function _snoopi_deep(cmd::Expr)
@@ -33,7 +58,7 @@ The top-level node in this profile tree is `ROOT`, which contains the time spent
 julia's type inference (codegen, llvm_opt, runtime, etc).
 
 To make use of these results, see the processing functions in SnoopCompile:
-    - [`SnoopCompile.flatten_times(timing_tree)`](@ref)
+    - [`SnoopCompile.flatten(timing_tree)`](@ref)
     - [`SnoopCompile.flamegraph(timing_tree)`](@ref)
 
 # Examples
@@ -44,7 +69,7 @@ julia> timing = @snoopi_deep begin
 
 julia> using SnoopCompile, ProfileView
 
-julia> times = flatten_times(timing, tmin_secs=0.001)
+julia> times = flatten(timing, tmin=0.001)
 4-element Vector{Any}:
  0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(...
  0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(...
@@ -56,7 +81,7 @@ Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 
-julia> fg = flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
+julia> fg = flamegraph(timing; tmin=0.0001)  # Skip very tiny frames
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
 ```
 """
