@@ -1,4 +1,55 @@
 """
+    tinf = SnoopCompile.flatten_demo()
+
+A simple demonstration of [`@snoopi_deep`](@ref). This demo defines a module
+
+```julia
+module FlattenDemo
+    struct MyType{T} x::T end
+    extract(y::MyType) = y.x
+    function packintype(x)
+        y = MyType{Int}(x)
+        return dostuff(y)
+    end
+    function domath(x)
+        y = x + x
+        return y*x + 2*x + 5
+    end
+    dostuff(y) = domath(extract(y))
+end
+```
+
+It then "warms up" (forces inference on) all of Julia's `Base` methods needed for `domath`,
+to ensure that these MethodInstances do not need to be inferred when we collect the data.
+It then returns the results of
+
+```julia
+@snoopi_deep FlattenDemo.packintypes(1)
+```
+
+See [`flatten`](@ref) for an example usage.
+"""
+function flatten_demo()
+    eval(:(
+        module FlattenDemo
+        struct MyType{T} x::T end
+        extract(y::MyType) = y.x
+        function packintype(x)
+            y = MyType{Int}(x)
+            return dostuff(y)
+        end
+        function domath(x)
+            y = x + x
+            return y*x + 2*x + 5
+        end
+        dostuff(y) = domath(extract(y))
+        end
+    ))
+    z = (1 + 1)*1 + 2*1 + 5
+    return @snoopi_deep Base.invokelatest(FlattenDemo.packintype, 1)
+end
+
+"""
     tinf = SnoopCompile.itrigs_demo()
 
 A simple demonstration of collecting inference triggers. This demo defines a module
