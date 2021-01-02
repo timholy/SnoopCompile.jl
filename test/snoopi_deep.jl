@@ -209,6 +209,10 @@ end
         fg2 = SnoopCompile.flamegraph(tinf, tmin = cutoff_bottom_frame)
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
+    fg1 = flamegraph(tinf.children[1])
+    @test endswith(string(fg.child.data.sf.func), "M.g") && endswith(string(fg1.child.data.sf.func), "M.h")
+    fg2 = flamegraph(tinf.children[2])
+    @test endswith(string(fg2.child.data.sf.func), "M.i")
 
     # Printing
     @eval module M
