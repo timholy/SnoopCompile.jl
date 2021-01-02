@@ -211,17 +211,17 @@ julia> using SnoopCompile
 
 julia> trees = invalidation_trees(invalidations)
 3-element Vector{SnoopCompile.MethodInvalidations}:
- inserting all(f::Function, x::FillArrays.AbstractFill) in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:556 invalidated:
+ inserting all(f::Function, x::FillArrays.AbstractFill) in FillArrays at /pathto/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:556 invalidated:
    backedges: 1: superseding all(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:880 with MethodInstance for all(::Base.var"#388#389"{_A} where _A, ::AbstractArray) (3 children)
               2: superseding all(f, itr) in Base at reduce.jl:918 with MethodInstance for all(::Base.var"#388#389"{_A} where _A, ::Any) (3 children)
 
- inserting any(f::Function, x::FillArrays.AbstractFill) in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:555 invalidated:
+ inserting any(f::Function, x::FillArrays.AbstractFill) in FillArrays at /pathto/.julia/packages/FillArrays/NjFh2/src/FillArrays.jl:555 invalidated:
    backedges: 1: superseding any(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:877 with MethodInstance for any(::typeof(ismissing), ::AbstractArray) (1 children)
               2: superseding any(f, itr) in Base at reduce.jl:871 with MethodInstance for any(::typeof(ismissing), ::Any) (1 children)
               3: superseding any(f, itr) in Base at reduce.jl:871 with MethodInstance for any(::LoweredCodeUtils.var"#11#12"{_A} where _A, ::Any) (2 children)
               4: superseding any(f::Function, a::AbstractArray; dims) in Base at reducedim.jl:877 with MethodInstance for any(::LoweredCodeUtils.var"#11#12"{_A} where _A, ::AbstractArray) (4 children)
 
- inserting broadcasted(::Base.Broadcast.DefaultArrayStyle{N}, op, r::FillArrays.AbstractFill{T,N,Axes} where Axes) where {T, N} in FillArrays at /home/tim/.julia/packages/FillArrays/NjFh2/src/fillbroadcast.jl:8 invalidated:
+ inserting broadcasted(::Base.Broadcast.DefaultArrayStyle{N}, op, r::FillArrays.AbstractFill{T,N,Axes} where Axes) where {T, N} in FillArrays at /pathto/.julia/packages/FillArrays/NjFh2/src/fillbroadcast.jl:8 invalidated:
    backedges: 1: superseding broadcasted(::S, f, args...) where S<:Base.Broadcast.BroadcastStyle in Base.Broadcast at broadcast.jl:1265 with MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(JuliaInterpreter._Typeof), ::Any) (1 children)
               2: superseding broadcasted(::S, f, args...) where S<:Base.Broadcast.BroadcastStyle in Base.Broadcast at broadcast.jl:1265 with MethodInstance for broadcasted(::Base.Broadcast.BroadcastStyle, ::typeof(string), ::AbstractArray) (177 children)
 ```

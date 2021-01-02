@@ -462,15 +462,14 @@ is the direct caller and the last entry corresponds to the MethodInstance into w
 See also: [`callerinstance`](@ref) and [`callingframe`](@ref).
 """
 struct InferenceTrigger
-    callee::MethodInstance
+    node::InferenceTimingNode
     callerframes::Vector{StackTraces.StackFrame}
     btidx::Int   # callerframes = StackTraces.lookup(bt[btidx])
-    bt::Vector{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}}
 end
 
 function Base.show(io::IO, itrig::InferenceTrigger)
     print(io, "Inference triggered to call ")
-    printstyled(io, itrig.callee; color=:yellow)
+    printstyled(io, MethodInstance(itrig.node); color=:yellow)
     if !isempty(itrig.callerframes)
         sf = first(itrig.callerframes)
         print(io, " from ")
@@ -515,6 +514,13 @@ function next_julia_frame(bt, idx)
     end
     return nothing
 end
+
+SnoopCompileCore.exclusive(itrig::InferenceTrigger) = exclusive(itrig.node)
+SnoopCompileCore.inclusive(itrig::InferenceTrigger) = inclusive(itrig.node)
+
+StackTraces.stacktrace(itrig::InferenceTrigger) = stacktrace(itrig.node.bt)
+
+isprecompilable(itrig::InferenceTrigger) = isprecompilable(MethodInstance(itrig.node))
 
 """
     itrigs = inference_triggers(tinf::InferenceTimingNode; exclude_toplevel=true)
@@ -562,7 +568,7 @@ function inference_triggers(tinf::InferenceTimingNode; exclude_toplevel::Bool=tr
     itrigs = map(tinf.children) do child
         bt = child.bt
         bt === nothing && throw(ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference"))
-        InferenceTrigger(MethodInstance(child), first_julia_frame(bt)..., bt)
+        InferenceTrigger(child, first_julia_frame(bt)...)
     end
     if exclude_toplevel
         filter!(maybe_internal, itrigs)
@@ -607,13 +613,13 @@ Inference triggered to call MethodInstance for double(::UInt8) from calleach (/p
 """
 function callingframe(itrig::InferenceTrigger)
     idx = itrig.btidx
-    if idx < length(itrig.bt)
-        ret = next_julia_frame(itrig.bt, idx)
+    if idx < length(itrig.node.bt)
+        ret = next_julia_frame(itrig.node.bt, idx)
         if ret !== nothing
-            return InferenceTrigger(itrig.callee, ret..., itrig.bt)
+            return InferenceTrigger(itrig.node, ret...)
         end
     end
-    return InferenceTrigger(itrig.callee, StackTraces.StackFrame[], length(itrig.bt)+1, itrig.bt)
+    return InferenceTrigger(itrig.node, StackTraces.StackFrame[], length(itrig.node.bt)+1)
 end
 
 """
@@ -622,7 +628,7 @@ end
 Reset an inference trigger to point to the stackframe that triggered inference.
 This can be useful to undo the actions of [`callingframe`](@ref) and [`skiphigherorder`](@ref).
 """
-InferenceTrigger(itrig::InferenceTrigger) = InferenceTrigger(itrig.callee, next_julia_frame(itrig.bt, 1)..., itrig.bt)
+InferenceTrigger(itrig::InferenceTrigger) = InferenceTrigger(itrig.node, next_julia_frame(itrig.node.bt, 1)...)
 
 
 """
@@ -653,15 +659,15 @@ Inference triggered to call MethodInstance for double(::Float64) from callmymap 
     You can pass `exact=false` to allow `::Function` to also be passed over, but keep in mind that this may falsely skip some frames.
 """
 function skiphigherorder(itrig::InferenceTrigger; exact::Bool=true)
-    ft = Base.unwrap_unionall(Base.unwrap_unionall(itrig.callee.specTypes).parameters[1])
+    ft = Base.unwrap_unionall(Base.unwrap_unionall(MethodInstance(itrig.node).specTypes).parameters[1])
     sfs, idx = itrig.callerframes, itrig.btidx
-    while idx < length(itrig.bt)
+    while idx < length(itrig.node.bt)
         callermi = sfs[end].linfo
         if !hasparameter(callermi.specTypes, ft, exact)
-            return InferenceTrigger(itrig.callee, sfs, idx, itrig.bt)
+            return InferenceTrigger(itrig.node, sfs, idx)
         end
-        ret = next_julia_frame(itrig.bt, idx)
-        ret === nothing && return InferenceTrigger(itrig.callee, sfs, idx, itrig.bt)
+        ret = next_julia_frame(itrig.node.bt, idx)
+        ret === nothing && return InferenceTrigger(itrig.node, sfs, idx)
         sfs, idx = ret
     end
     return itrig
@@ -689,9 +695,9 @@ AbstractTrees.children(tinf::InferenceTimingNode) = tinf.children
 
 InteractiveUtils.edit(itrig::InferenceTrigger) = edit(Location(itrig.callerframes[end]))
 Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
-Cthulhu.instance(itrig::InferenceTrigger) = itrig.callee
-Cthulhu.method(itrig::InferenceTrigger) = itrig.callee.def
-Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(itrig.callee)
+Cthulhu.instance(itrig::InferenceTrigger) = MethodInstance(itrig.node)
+Cthulhu.method(itrig::InferenceTrigger) = Method(itrig.node)
+Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(Cthulhu.instance(itrig))
 Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
 Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
@@ -723,7 +729,7 @@ function diversity(loctrigs::LocationTrigger)
     # Analyze caller => callee argument type diversity
     callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
     for itrig in loctrigs.itrigs
-        push!(callees, itrig.callee)
+        push!(callees, MethodInstance(itrig.node))
         caller = itrig.callerframes[end].linfo
         if isa(caller, MethodInstance)
             push!(callers, caller)
