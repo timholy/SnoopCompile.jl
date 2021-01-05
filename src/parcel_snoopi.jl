@@ -334,7 +334,7 @@ end
 function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing)
     # Create the string representation of the signature
     # Use special care with keyword functions, anonymous functions
-    tt = mi.specTypes
+    tt = Base.unwrap_unionall(mi.specTypes)
     m = mi.def
     p = tt.parameters[1]   # the portion of the signature related to the function itself
     paramrepr = map(T->reprcontext(topmod, T), Iterators.drop(tt.parameters, 1))  # all the rest of the args
