@@ -1,6 +1,6 @@
 # [Snooping on and fixing invalidations: `@snoopr`](@id invalidations)
 
-!!! note
+!!! compat
     `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
@@ -196,6 +196,9 @@ also got called by some other method, and that method had also been executed (fo
 then `callf` would have multiple children.
 This is often seen with more complex, real-world tests.
 As a medium-complexity example, try the following:
+
+!!! info
+    Any demonstration involving real-world packages might be altered from what is shown here by new releases of the relevant packages.
 
 ```julia
 julia> using Revise
@@ -477,9 +480,9 @@ In our first example, note that the call `call2f(c32)` did not get invalidated: 
 knew all the specific types, and new methods did not affect any of those types.
 The main tips for writing invalidation-resistant code are:
 
-- use [concrete types](https://docs.julialang.org/en/latest/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
+- use [concrete types](https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
 - write inferrable code (be especially aware of [julia issue 15276](https://github.com/JuliaLang/julia/issues/15276))
-- don't engage in [type-piracy](https://docs.julialang.org/en/latest/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
+- don't engage in [type-piracy](https://docs.julialang.org/en/v1/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
 
 Since these tips also improve performance and allow programs to behave more predictably,
 these guidelines are not intrusive.
@@ -489,7 +492,7 @@ Indeed, searching for and eliminating invalidations can help you improve the qua
 
 In cases where invalidations occur, but you can't use concrete types (there are indeed many valid uses of `Vector{Any}`),
 you can often prevent the invalidation using some additional knowledge.
-One common example is extracting information from an [IOContext](https://docs.julialang.org/en/latest/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
+One common example is extracting information from an [IOContext](https://docs.julialang.org/en/v1/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
 
 ```julia
 struct IOContext{IO_t <: IO} <: AbstractPipe

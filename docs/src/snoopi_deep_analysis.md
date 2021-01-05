@@ -76,7 +76,7 @@ This indicates that a whopping 75 calls were (1) made by runtime dispatch and (2
 (There was a 76th call that had to be inferred, the original call to `main()`, but by default [`inference_triggers`](@ref) excludes calls made directly from top-level. You can change that through keyword arguments.)
 In some cases, this might indicate that you'll need to fix 75 separate callers; fortunately, in many cases fixing the origin of inference problems can fix a number of later callees.
 
-!!! note
+!!! tip
     In the REPL, SnoopCompile displays `InferenceTrigger`s with yellow coloration for the callee, red for the caller method, and blue for the caller specialization. This makes it easier to quickly identify the most important information.
 
 Let's start with the first of these and see how it was called:
@@ -115,7 +115,7 @@ Each `itrig` stores a backtrace captured at the entrance to inference, and that 
 You can see that this trigger came from `copy at broadcast.jl:905 [inlined]`, a method in Julia's own broadcasting machinery.
 `edit(itrig)` will open the first non-inlined frame in this stacktrace in your editor, which in this case takes you straight to the culprit, `contain_list`.
 
-Before analyzing this in detail, it's worth noting that `main` called a very similar function,  `contain_concrete`, before calling `contain_list`.  Why isn't `contain_concrete` the source of the first inference trigger? The reason is that Julia can successfully infer all the calls in `contain_concrete`, so there are no calls made by runtime dispatch and therefore triggering a fresh run of type-inference.
+Before analyzing this in detail, it's worth noting that `main` called a very similar function,  `contain_concrete`, before calling `contain_list`.  Why isn't `contain_concrete` the source of the first inference trigger? The reason is that Julia can successfully infer all the calls in `contain_concrete`, so there are no calls that required runtime dispatch.
 
 Now, to analyze this trigger in detail, it helps to use `ascend`:
 
@@ -194,7 +194,7 @@ which will attempt to convert `list[1]` to a `Float64`, and therefore handle a w
 Believe it or not, both the `convert()` and the `::Float64` type-assertion are necessary:
 since `list[1]` is of type `Any`, Julia will not be able to deduce which `convert` method will be used to perform the conversion, and it's always possible that someone has written a sloppy `convert` that doesn't return a value of the requested type.
 Without that final `::Float64`, inference cannot simply assume that the result is a `Float64`.
-The type-assert `::Float64` enforces the fact that you're expecting that `convert` call to actually return a `Float64`--it will error if it fails to do so.
+The type-assert `::Float64` enforces the fact that you're expecting that `convert` call to actually return a `Float64`--it will error if it fails to do so, and it's this error that allows inference to be certain that for the purposes of any later code it must be a `Float64`.
 
 Of course, this just trades one form of inference failure for another--the call to `convert` will be made by runtime dispatch--but this can nevertheless be a big win for three reasons:
 
@@ -224,7 +224,7 @@ julia> typeof(list)
 Vector{Any} (alias for Array{Any, 1})
 ```
 
-Since it creates a `Vector{Any}`, perhaps we should just tell Julia to create such an object directly: we modify this to `Any[1, 0x01, ...]`.
+Since it creates a `Vector{Any}`, perhaps we should just tell Julia to create such an object directly: we modify `[1, 0x01, ...]` to `Any[1, 0x01, ...]`, so that Julia doesn't have to deduce the container type on its own.
 
 Making this simple 3-character fix gets us down to 64 triggers (a savings of 6 inference triggers).
 
@@ -246,7 +246,7 @@ comes from the fact that we're again broadcasting over a `Vector{Any}`.
 This time, however, the type diversity is so high that it's impractical to limit the types via type-asserting: this sure looks like a case where we basically need to be able to handle anything at all.
 
 In such circumstances, sometimes there is nothing you can do.
-But when the operations that follow are not a major runtime cost (see [`runtime_inferencetime`](@ref), one thing you can do is deliberately reduce specialization, and therefore limit the number of times inference needs to run.
+But when the operations that follow are not a major runtime cost (see [`runtime_inferencetime`](@ref)), one thing you can do is deliberately reduce specialization, and therefore limit the number of times inference needs to run.
 A detailed examination of `itrigs` reveals that the next 19 inference triggers are due to this one line, including a set of five like
 
 ```
@@ -282,7 +282,13 @@ end
 
 `@nospecialize` hints to Julia that it should avoid creating many specializations for different argument types.
 
-### "Soft" piracy
+!!! tip
+    Julia's specialization, when used appropriately, can be fantastic for runtime performance, but its cost has to be weighed against the time needed to compile the specializations.
+    Limiting specialization is often the change that yields the greatest latency savings.
+    Sometimes, it can even *help* runtime performance, if specialization requires that more calls be made via runtime dispatch.
+    Having tools to analyze both runtime and compile-time performance can help you strike the right balance.
+
+### Creating "warmpup" methods
 
 Our next case is particularly interesting:
 
@@ -292,9 +298,10 @@ Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIM
 
 In this case we see that the method is `#38`.  This is a `gensym`, or generated symbol, indicating that the method was generated during Julia's lowering pass, and might indicate a macro, a `do` block or other anonymous function, the generator for a `@generated` function, etc.
 
-!!! warn
-    It's particularly worth your while to improve inferrability for gensym-methods. The number assiged to a gensymmed-method is not necessarily reproducible and may change as you modify the package, and so the longevity of any `precompile` directives is questionable.
-    Note that methods ending in `##kw` or that look like `##name#39` are *keyword* and *body* methods, respectively, for methods that accept keywords.  These are robustly precompilable because they can be obtained from the main method.
+!!! warning
+    It's particularly worth your while to improve inferrability for gensym-methods. The number assiged to a gensymmed-method may change as you modify the package (possibly due to changes at very difference source-code locations), and so any explicit `precompile` directives involving gensyms may not have a long useful life.
+
+    But not all methods with `#` in their name are problematic: methods ending in `##kw` or that look like `##funcname#39` are *keyword* and *body* methods, respectively, for methods that accept keywords.  They can be obtained from the main method, and so `precompile` directives for such methods will not be outdated by incidental changes to the package.
 
 `edit(itrig)` takes us to
 
@@ -321,41 +328,40 @@ Unfortunately, from the standpoint of precompilation we have something of a conu
 It turns out that this trigger corresponds to the first of the big red flames in the flame graph.
 `show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Container{Any}})` is not precompilable because `Base` owns the `show` method for `Vector`;
 we might own the element type, but we're leveraging the generic machinery in Base and consequently it owns the method.
-If these were all packages, you might request its developers to add a `precompile` directive, but if the package that owns the method doesn't know about `OptimizeMe.Container{Any}`, you're stuck.
+If these were all packages, you might request its developers to add a `precompile` directive, but that will work only if the package that owns the method knows about the relevant type.
+In this situation, Julia's `Base` module doesn't know about `OptimizeMe.Container{Any}`, so we're stuck.
 
 There are a couple of ways one might go about improving matters.
 First, one option is that this should be changed in Julia itself: since the caller, `display`, has gone to some lengths to reduce specialization, perhaps so too should `show(io::IO, ::MIME"text/plain", X::AbstractArray)`, which is what gets called by that `show` call in `display`.
-Here, we'll pursue a "cheat," one that allows us to circumvent the non-precompilability of this method.
-In principle, all we need to do is "own" the `show` method, which we can do by overloading it within the `OptimizeMe`.
-However, we don't want to change the behavior: we still want to leverage Base's machinery.
-We can do that by using `invoke`:
+Here, we'll pursue a simple "cheat," one that allows us to directly precompile this method.
+The trick is to link it, via a chain of backedges, to a method that our package owns:
 
 ```julia
-# "Soft" piracy for precompilability
-function Base.show(io::IO, mime::MIME"text/plain", X::Vector{Container{T}}) where T
-    invoke(show, Tuple{IO, MIME"text/plain", AbstractArray}, io, mime, X)
+# "Stub" callers for precompilability (we don't use this function for any real work)
+function warmup()
+    mime = MIME("text/plain")
+    io = Base.stdout::Base.TTY
+    # Container{Any}
+    v = [Container{Any}(0)]
+    show(io, mime, v)
+    show(IOContext(io), mime, v)
+    # Object
+    v = [Object(0)]
+    show(io, mime, v)
+    show(IOContext(io), mime, v)
+    return nothing
 end
+
+precompile(warmup, ())
 ```
 
-A similar method could be created for `Vector{Object}`, since we call `display` on the output of `makeobjects` later in the body of `main`.
+We handled not just `Vector{Container{Any}}` but also `Vector{Object}`, since that turns out to correspond to the other wide block of red bars.
+If you make this change, start a fresh session, and recreate the flame graph, you'll see that the wide red flames are gone.
 
-This essentially "steals the call":
-even though it doesn't reduce the number of inference triggers (yet), it gives us ownership over the method.
-Moreover, because we force specialization on `T`, this will allow us to precompile the callees for any specific `T` or list of `T`s.
-If you make this change, start a fresh session, and recreate the flame graph, you'll see those bars are no longer red.
+!!! info
+    It's worth noting that this `warmpup` method needed to be carefully written to succeed in its mission. `stdout` is not inferrable (it's a global that can be replaced by `redirect_stdout`), so we needed to annotate its type. We also might have been tempted to use a loop, `for io in (stdout, IOContext(stdout)) ... end`, but inference needs a dedicated call-site where it knows all the types. ([Union-splitting](https://julialang.org/blog/2018/08/union-splitting/) can sometimes come to the rescue, but not if the list is long or elements non-inferrable.) The safest option is to make each call from a separate site in the code.
 
-Is this a win? It likely depends on how many `T`s there might be.
-If we can enumerate and precompile them all, then this might indeed be beneficial; we'd still have to pay the price of code-generation for all of the specializations, but we're doing that already now, and hopefully in the future Julia might cache the results of code-generation, too.
-However, if the list of `T`s is essentially infinite, then we'd be far better off by reducing specialization within Julia itself.
-
-We haven't reduced the number of inference triggers (we've actually added one, so now we are at 20), but one of the big, expensive triggers has gone from being non-precompilable to precompilable.
-
-"Soft" piracy shouldn't be overused, because it risks introducing method ambiguities.  When you're tempted to use this trick, you might first look for alternatives and consider filing an issue in Julia or whatever package is forcing you to make these difficult choices.
-
-!!! note
-    For reasons that are not clear, it also turns out that, at least in this case, "soft" piracy doesn't actually work to eliminate the inference for these methods when used in the context of a precompiled package.
-
-The next trigger, a call to `sprint` from inside `Base.alignment(io::IO, x::Any)`, could also be handled by "soft" piracy, but the flamegraph says this isn't an expensive method to infer.  In such cases it's probably best not to intervene at all.
+The next trigger, a call to `sprint` from inside `Base.alignment(io::IO, x::Any)`, could also be handled using this `warmup` trick, but the flamegraph says this isn't an expensive method to infer.  In such cases, it's fine to choose to leave it be.
 
 ### Defining `show` methods for custom types
 
@@ -364,12 +370,20 @@ This is the fallback `show` method.
 Most custom types should probably have `show` methods defined for them, but it's quite easy to forget to add them.
 Even though the inference time is fairly short, this can be a good reminder that you should get around to writing nice `show` methods that help your users work with your data types.
 In this case, `Container` is so simple there's little advantage in having a dedicated method, so you could just use the fallback and allow this inference trigger to continue to exist.
+Just to illustrate the concept, though, let's add
+
+```julia
+Base.show(io::IO, o::Object) = print(io, "Object x: ", o.x)
+```
+
+to the module definition.
 
 When you do define a custom `show` method, you own it, so of course it will be precompilable.
 
 ### Implementing or requesting `precompile` directives in upstream packages
 
 Jumping a bit ahead, we get to
+
 ```
 Inference triggered to call MethodInstance for show(::IOContext{IOBuffer}, ::Float32) from _show_default (./show.jl:412) with specialization MethodInstance for _show_default(::IOContext{IOBuffer}, ::Any)
 ```
@@ -379,43 +393,42 @@ You can check that by listing the children of `ROOT` in order of `inclusive` tim
 
 ```julia
 julia> nodes = sort(tinf.children; by=inclusive)
-19-element Vector{SnoopCompileCore.InferenceTimingNode}:
- InferenceTimingNode: 3.8639e-5/3.8639e-5 on InferenceFrameInfo for ==(::Type, nothing::Nothing) with 0 direct children
- InferenceTimingNode: 4.6614e-5/4.6614e-5 on InferenceFrameInfo for sizeof(::Main.OptimizeMeFixed.Container{Any}) with 0 direct children
- InferenceTimingNode: 4.9009e-5/4.9009e-5 on InferenceFrameInfo for Base.typeinfo_eltype(::Type) with 0 direct children
- InferenceTimingNode: 7.1703e-5/0.000322583 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Any) with 1 direct children
- InferenceTimingNode: 0.000387314/0.000387314 on InferenceFrameInfo for Pair{Symbol, DataType}(::Any, ::Any) with 0 direct children
- InferenceTimingNode: 0.000105914/0.000541059 on InferenceFrameInfo for Base.cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64}) with 1 direct children
- InferenceTimingNode: 0.000607956/0.000607956 on InferenceFrameInfo for print(::IOContext{Base.TTY}, ::String, ::String, ::Vararg{String, N} where N) with 0 direct children
- InferenceTimingNode: 0.000452847/0.0010765009999999999 on InferenceFrameInfo for Pair(::Symbol, ::Type) with 1 direct children
- InferenceTimingNode: 0.000594744/0.0010964450000000001 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Object) with 4 direct children
- InferenceTimingNode: 0.000681018/0.001247508 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Container{Any}) with 4 direct children
- InferenceTimingNode: 0.000316136/0.001499497 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::UInt16) with 4 direct children
- InferenceTimingNode: 0.000379646/0.010679996 on InferenceFrameInfo for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 2 direct children
- InferenceTimingNode: 0.000187169/0.010785122 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Vector{Int64}) with 3 direct children
- InferenceTimingNode: 0.002343017/0.014325577999999999 on InferenceFrameInfo for Base.__cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 12 direct children
- InferenceTimingNode: 8.9687e-5/0.018397876 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Tuple{String, Int64}) with 1 direct children
- InferenceTimingNode: 0.01880306/0.030000021999999998 on InferenceFrameInfo for Base.Ryu.writeshortest(::Vector{UInt8}, ::Int64, ::Float32, ::Bool, ::Bool, ::Bool, ::Int64, ::UInt8, ::Bool, ::UInt8, ::Bool, ::Bool) with 29 direct children
- InferenceTimingNode: 9.4713e-5/0.102345776 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
- InferenceTimingNode: 0.001487471/0.107448168 on InferenceFrameInfo for show(::IOContext{Base.TTY}, text/plain::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMeFixed.Object}) with 11 direct children
- InferenceTimingNode: 0.000398518/0.375410298 on InferenceFrameInfo for Main.OptimizeMeFixed.main() with 8 direct children
+17-element Vector{SnoopCompileCore.InferenceTimingNode}:
+ InferenceTimingNode: 4.1511e-5/4.1511e-5 on InferenceFrameInfo for ==(::Type, nothing::Nothing) with 0 direct children
+ InferenceTimingNode: 5.4704e-5/5.4704e-5 on InferenceFrameInfo for Base.typeinfo_eltype(::Type) with 0 direct children
+ InferenceTimingNode: 8.6196e-5/8.6196e-5 on InferenceFrameInfo for sizeof(::Main.OptimizeMeFixed.Container{Any}) with 0 direct children
+ InferenceTimingNode: 9.8028e-5/0.0004209 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Any) with 1 direct children
+ InferenceTimingNode: 0.00042543/0.00042543 on InferenceFrameInfo for Pair{Symbol, DataType}(::Any, ::Any) with 0 direct children
+ InferenceTimingNode: 0.000117212/0.0006026919999999999 on InferenceFrameInfo for Base.cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64}) with 1 direct children
+ InferenceTimingNode: 0.000697067/0.000697067 on InferenceFrameInfo for print(::IOContext{Base.TTY}, ::String, ::String, ::Vararg{String, N} where N) with 0 direct children
+ InferenceTimingNode: 0.000481464/0.0011528530000000001 on InferenceFrameInfo for Pair(::Symbol, ::Type) with 1 direct children
+ InferenceTimingNode: 0.000660858/0.0012205710000000002 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Object) with 4 direct children
+ InferenceTimingNode: 0.000727268/0.001424646 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Container{Any}) with 4 direct children
+ InferenceTimingNode: 0.000420439/0.00216088 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::UInt16) with 4 direct children
+ InferenceTimingNode: 9.0528e-5/0.009614315 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Tuple{String, Int64}) with 1 direct children
+ InferenceTimingNode: 0.000560133/0.011189684999999998 on InferenceFrameInfo for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 2 direct children
+ InferenceTimingNode: 0.000185424/0.011345562999999998 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Vector{Int64}) with 3 direct children
+ InferenceTimingNode: 0.002579144/0.016026644 on InferenceFrameInfo for Base.__cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 12 direct children
+ InferenceTimingNode: 0.018577433/0.05070554099999999 on InferenceFrameInfo for Base.Ryu.writeshortest(::Vector{UInt8}, ::Int64, ::Float32, ::Bool, ::Bool, ::Bool, ::Int64, ::UInt8, ::Bool, ::UInt8, ::Bool, ::Bool) with 29 direct children
+ InferenceTimingNode: 0.000114463/0.12183530599999999 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
 ```
 
-You can see it's the third most expensive root, weighing in at around 100ms.
-Since this method is defined in the `Base.Ryu` module,
+You can see it's the most expensive remaining root, weighing in at around 100ms.
+This method is defined in the `Base.Ryu` module,
 
 ```julia
-julia> node = nodes[end-2]
-InferenceTimingNode: 9.4713e-5/0.102345776 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
+julia> node = nodes[end]
+InferenceTimingNode: 0.000114463/0.12183530599999999 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
 
 julia> Method(node)
 show(io::IO, x::T) where T<:Union{Float16, Float32, Float64} in Base.Ryu at ryu/Ryu.jl:111
 ```
 
-this is not something you can precompile without "soft" piracy.
-Moreover, on the flamegraph you might note that this is followed shortly by a couple of calls to `Ryu.writeshortest`, followed by a long gap.
-That hints that code-generation is expensive.
-Since these are base Julia methods, and `Float32` is a common type, it would make sense to file an issue or pull request that Julia should come shipped with these precompiled.
+Now, we could add this to `warmup` and at least solve the inference problem.
+However, on the flamegraph you might note that this is followed shortly by a couple of calls to `Ryu.writeshortest`, followed by a long gap.
+That hints that other steps, like native code generation, may be expensive.
+Since these are base Julia methods, and `Float32` is a common type, it would make sense to file an issue or pull request that Julia should come shipped with these precompiled--that would cache not only the type-inference but also the native code, and thus represents a far more complete solution.
+
 Later, we'll see how `parcel` can generate such precompile directives automatically, so this is not a step you need to implement entirely on your own.
 
 ### Vararg homogenization
@@ -466,10 +479,11 @@ julia> tinf = @snoopi_deep OptimizeMeFixed.main()
 2.718 is jealous
 ...
  Object x: 7
-InferenceTimingNode: 0.928137102/1.733582092 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 17 direct children
+InferenceTimingNode: 0.888522055/1.496965222 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 15 direct children
 ```
 
-Even without adding a single `precompile` directive, we've substantially shrunk the overall inclusive time from 2.68s to 1.73s.
-This was achieved mostly by limiting specialization (using `Container{Any}` instead of `Container`) and by making some results easier on type-inference (e.g., our changes for the `vcat` pipeline).
+We've substantially shrunk the overall inclusive time from 2.68s to about 1.5s.
+Some of this came from our single `precompile` directive, for `warmup`.
+But even more of it came from limiting specialization (using `Container{Any}` instead of `Container`) and by making some results easier on type-inference (e.g., our changes for the `vcat` pipeline).
 
-On the next page, we'll wrap all this up with a few precompile directives.
+On the next page, we'll wrap all this up with more explicit `precompile` directives.

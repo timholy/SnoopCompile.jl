@@ -41,12 +41,17 @@ function makeobjects()
     return Object.(xs)
 end
 
-# "Soft" piracy for precompilability
-function Base.show(io::IO, mime::MIME"text/plain", X::Vector{Container{T}}) where T
-    invoke(show, Tuple{IO, MIME"text/plain", AbstractArray}, io, mime, X)
-end
-function Base.show(io::IO, mime::MIME"text/plain", X::Vector{Object})
-    invoke(show, Tuple{IO, MIME"text/plain", AbstractArray}, io, mime, X)
+# "Stub" callers for precompilability
+function warmup()
+    mime = MIME("text/plain")
+    io = Base.stdout::Base.TTY
+    v = [Container{Any}(0)]
+    show(io, mime, v)
+    show(IOContext(io), mime, v)
+    v = [Object(0)]
+    show(io, mime, v)
+    show(IOContext(io), mime, v)
+    return nothing
 end
 
 function main()
@@ -58,9 +63,8 @@ function main()
 end
 
 if Base.VERSION >= v"1.4.2"
-    Base.precompile(Tuple{typeof(main)})   # time: 0.39872032
-    Base.precompile(Tuple{typeof(show),IOContext{Base.TTY},MIME{Symbol("text/plain")},Vector{Container{Any}}})   # time: 0.14666735
-    Base.precompile(Tuple{typeof(show),IOContext{Base.TTY},MIME{Symbol("text/plain")},Vector{Object}})   # time: 0.10149027
+    @assert precompile(Tuple{typeof(main)})   # time: 0.4204474
+    @assert precompile(Tuple{typeof(warmup)})
 end
 
 end

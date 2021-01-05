@@ -1,13 +1,13 @@
 # Snooping on inference: `@snoopi_deep`
 
-!!! note
+!!! compat
     `@snoopi_deep` is available on `Julia 1.6.0-DEV.1190` or above, but the results can be relevant for all Julia versions.
 
 Currently, `precompile` only caches results for type-inference, not other stages in code generation.
 For that reason, efforts at reducing latency should be informed by measuring the amount of time spent on type-inference.
 Moreover, because all code needs to be type-inferred before undergoing later stages of code generation, monitoring this "entry point" can give you an overview of the entire compile chain.
 
-On older versions of Julia [`@snoopi`](@ref) allows you to make fairly coarse measurements on inference;
+On older versions of Julia, [`@snoopi`](@ref) allows you to make fairly coarse measurements on inference;
 starting with Julia 1.6, the recommended tool is `@snoopi_deep`, which collects a much more detailed picture of type-inference's actions.
 
 The rich data collected by `@snoopi_deep` are useful for several different purposes;
@@ -52,18 +52,21 @@ julia> tinf = @snoopi_deep FlattenDemo.packintype(1)
 InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 ```
 
-!!! warn
+!!! tip
     Inference gets called only on the *first* invocation of a method with those specific types. You have to redefine the `FlattenDemo` module (by just re-executing the command we used to define it) if you want to collect data with `@snoopi_deep` on the same code a second time.
+
+    To make it easier to perform these demonstrations and use them for documentation purposes, SnoopCompile includes a function [`SnoopCompile.flatten_demo()`](@ref) that redefines the module and returns `tinf`.
 
 This may not look like much, but there's a wealth of information hidden inside `tinf`.
 
 ## Viewing the results
 
 Let's start unpacking the output of `@snoopi_deep` and see how to get more insight.
-First, notice that the output is an `InferenceTimingNode`: that hints that it's the root element of a tree of such nodes, all connected by caller-callee relationships.
+First, notice that the output is an `InferenceTimingNode`: it's the root element of a tree of such nodes, all connected by caller-callee relationships.
 Indeed, this particular node is for `Core.Compiler.Timings.ROOT()`, a "dummy" node that is the root of all such trees.
 
-It will be easier to understand the two numbers if we first display the whole tree.
+You may have noticed that this `ROOT` node prints with two numbers.
+It will be easier to understand their meaning if we first display the whole tree.
 We can do that with the [AbstractTrees](https://github.com/JuliaCollections/AbstractTrees.jl) package:
 
 ```jldoctest flatten-demo; filter=r"[0-9\\.e-]+"
@@ -81,8 +84,8 @@ InferenceTimingNode: 0.00932195/0.0100809 on InferenceFrameInfo for Core.Compile
 ```
 
 This tree structure reveals the caller-callee relationships, showing the specific types that were used for each `MethodInstance`.
-Indeed, as the calls to `getproperty` reveal, it goes beyond the types and even shows the results of [constant propagation];
-the `getproperty(::MyType{Int64}, x::Symbol)` means that the call was `getproperty(y, :x)`, which corresponds to `y.x` in the definition of `extract`.
+Indeed, as the calls to `getproperty` reveal, it goes beyond the types and even shows the results of [constant propagation](https://en.wikipedia.org/wiki/Constant_folding);
+the `getproperty(::MyType{Int64}, x::Symbol)` (note `x::Symbol` instead of just plain `::Symbol`) means that the call was `getproperty(y, :x)`, which corresponds to `y.x` in the definition of `extract`.
 
 !!! note
     Generally we speak of [call graphs](https://en.wikipedia.org/wiki/Call_graph) rather than call trees.
@@ -134,11 +137,12 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 - right-clicking on a box opens the corresponding method in your editor
 - ctrl-click can be used to zoom in
 - empty horizontal spaces correspond to activities other than type-inference
-- any boxes colored red (there are none in this particular example) correspond to *non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module.
+- any boxes colored red (there are none in this particular example, but you'll see some later) correspond to *non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module.
 
 You can explore this flamegraph and compare it to the output from `display_tree`.
 
-Finally, [`flatten`](@ref), on its own or together with [`accumulate_source`](@ref), allows you to get an sense for the cost of individual MethodInstances or Methods.
+Finally, [`flatten`](@ref), on its own or together with [`accumulate_by_source`](@ref), allows you to get an sense for the cost of individual MethodInstances or Methods.
 
 The tools here allow you to get an overview of where inference is spending its time.
-Serious efforts at latency reduction should leverage tools (described next) that help identify the main opportunities for intervention.
+Sometimes, this information alone is enough to show you how to change your code to reduce latency: perhaps your code is spending a lot of time inferring cases that are not needed in practice and could be simplified.
+However, most efforts at latency reduction will probably leverage additional tools (described next) that help identify the main opportunities for intervention.

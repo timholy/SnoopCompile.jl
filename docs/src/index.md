@@ -22,7 +22,7 @@ Inference is the process of determining the type of each object, which in turn
 determines which specific methods get called; once type inference is complete,
 code generation performs optimizations and ultimately generates the assembly
 language (native code) used on CPUs.
-Some aspects of this process are documented [here](https://docs.julialang.org/en/latest/devdocs/eval).
+Some aspects of this process are documented [here](https://docs.julialang.org/en/v1/devdocs/eval/).
 
 Every time you load a package in a fresh Julia session, the methods you use
 need to be JIT-compiled, and this contributes to the latency of using the package.

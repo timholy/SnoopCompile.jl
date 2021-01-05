@@ -1,6 +1,6 @@
 # [Snooping on inference: `@snoopi`](@id macro-snoopi)
 
-The most useful tool is a macro, `@snoopi`, which is only available on Julia 1.2 or higher.
+If you can't use `@snoopi_deep` due to Julia version constraints, the most useful choice is `@snoopi`, which is available on Julia 1.2 or higher.
 
 Julia can cache inference results, so you can use `@snoopi` to generate `precompile`
 directives for your package. Executing these directives when the package is compiled

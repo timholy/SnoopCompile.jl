@@ -7,6 +7,7 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
+    linkcheck = true,
     pages = ["index.md",
              "tutorial.md",
              "Modern tools" => ["snoopr.md", "snoopi_deep.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md"],

@@ -2,6 +2,7 @@
 
 Certain concepts and types will appear repeatedly, so it's worth
 spending a little time to familiarize yourself at the outset.
+You can find a more expansive version of this page in [this blog post](https://julialang.org/blog/2021/01/precompile_tutorial/).
 
 ## MethodInstances, type-inference, and backedges
 
@@ -9,92 +10,100 @@ Our first goal is to understand how code connects together.
 We'll try some experiments using the following:
 
 ```julia
-twice(x::Real) = 2x
-calltwice(container) = twice(container[1])
-calltwice2(container) = calltwice(container)
+double(x::Real) = 2x
+calldouble(container) = double(container[1])
+calldouble2(container) = calldouble(container)
+```
+
+```@meta
+DocTestSetup = quote
+   double(x::Real) = 2x
+   calldouble(container) = double(container[1])
+   calldouble2(container) = calldouble(container)
+end
 ```
 
 Let's create a `container` and run this code:
 
-```julia
+```jldoctest tutorial
 julia> c64 = [1.0]
 1-element Vector{Float64}:
  1.0
 
-julia> calltwice2(c64)
+julia> calldouble2(c64)
 2.0
 ```
 
 Using the [MethodAnalysis](https://github.com/timholy/MethodAnalysis.jl) package, we can get some insights into how Julia represents this code and its compilation dependencies:
 
-```julia
+```jldoctest tutorial; setup=:(calldouble2(c64))
 julia> using MethodAnalysis
 
-julia> mi = methodinstance(twice, (Float64,))
-MethodInstance for twice(::Float64)
+julia> mi = methodinstance(double, (Float64,))
+MethodInstance for double(::Float64)
 
 julia> using AbstractTrees
 
 julia> print_tree(mi)
-MethodInstance for twice(::Float64)
-└─ MethodInstance for calltwice(::Vector{Float64})
-   └─ MethodInstance for calltwice2(::Vector{Float64})
+MethodInstance for double(::Float64)
+└─ MethodInstance for calldouble(::Vector{Float64})
+   └─ MethodInstance for calldouble2(::Vector{Float64})
 ```
 
-This indicates that the result for type-inference on `calltwice2(::Vector{Float64})` depended on the result for `calltwice(::Vector{Float64})`, which in turn depended on `twice(::Float64)`.
+This indicates that the result for type-inference on `calldouble2(::Vector{Float64})` depended on the result for `calldouble(::Vector{Float64})`, which in turn depended on `double(::Float64)`.
 
 Now let's create a new container, one with abstract element type, so that Julia's type-inference cannot accurately predict the type of elements in the container:
 
-```julia
+```jldoctest tutorial
 julia> cabs = AbstractFloat[1.0f0]      # put a Float32 in a Vector{AbstractFloat}
 1-element Vector{AbstractFloat}:
  1.0f0
 
-julia> calltwice2(cabs)
+julia> calldouble2(cabs)
 2.0f0
 ```
 
 Now let's look at the available instances:
 
-```julia
-julia> mis = methodinstances(twice)
+```jldoctest tutorial; setup=:(calldouble2(c64); calldouble2(cabs))
+julia> mis = methodinstances(double)
 3-element Vector{Core.MethodInstance}:
- MethodInstance for twice(::Float64)
- MethodInstance for twice(::AbstractFloat)
- MethodInstance for twice(::Float32)
+ MethodInstance for double(::Float64)
+ MethodInstance for double(::AbstractFloat)
+ MethodInstance for double(::Float32)
 
 julia> print_tree(mis[1])
-MethodInstance for twice(::Float64)
-└─ MethodInstance for calltwice(::Vector{Float64})
-   └─ MethodInstance for calltwice2(::Vector{Float64})
+MethodInstance for double(::Float64)
+└─ MethodInstance for calldouble(::Vector{Float64})
+   └─ MethodInstance for calldouble2(::Vector{Float64})
 
 julia> print_tree(mis[2])
-MethodInstance for twice(::AbstractFloat)
+MethodInstance for double(::AbstractFloat)
 
 julia> print_tree(mis[3])
-MethodInstance for twice(::Float32)
+MethodInstance for double(::Float32)
 ```
 
-`twice(::Float64)` has backedges to `calltwice` and `calltwice2`, but the second two do not because `twice` was only called via runtime dispatch. However, `calltwice` has backedges to `calltwice2`
+`double(::Float64)` has backedges to `calldouble` and `calldouble2`, but the second two do not because `double` was only called via runtime dispatch. However, `calldouble` has backedges to `calldouble2`
 
 ```julia
-julia> mis = methodinstances(calltwice)
+julia> mis = methodinstances(calldouble)
 2-element Vector{Core.MethodInstance}:
- MethodInstance for calltwice(::Vector{Float64})
- MethodInstance for calltwice(::Vector{AbstractFloat})
+ MethodInstance for calldouble(::Vector{Float64})
+ MethodInstance for calldouble(::Vector{AbstractFloat})
 
 julia> print_tree(mis[1])
-MethodInstance for calltwice(::Vector{Float64})
-└─ MethodInstance for calltwice2(::Vector{Float64})
+MethodInstance for calldouble(::Vector{Float64})
+└─ MethodInstance for calldouble2(::Vector{Float64})
 
 julia> print_tree(mis[2])
-MethodInstance for calltwice(::Vector{AbstractFloat})
-└─ MethodInstance for calltwice2(::Vector{AbstractFloat})
+MethodInstance for calldouble(::Vector{AbstractFloat})
+└─ MethodInstance for calldouble2(::Vector{AbstractFloat})
 ```
 
 because `Vector{AbstractFloat}` is a concrete type, whereas `AbstractFloat` is not.
 
-If we create `c32 = [1.0f0]` and `calltwice2(c32)`, then we would see backedges from `twice(::Float32)` all the way back to `calltwice2(::Vector{Float32})`.
+If we create `c32 = [1.0f0]` and then `calldouble2(c32)`, we would also see backedges from `double(::Float32)` all the way back to `calldouble2(::Vector{Float32})`.
 
 ## Precompilation
 
@@ -114,13 +123,13 @@ julia> open("SnoopCompileDemo/src/SnoopCompileDemo.jl", "w") do io
            write(io, """
            module SnoopCompileDemo
 
-           twice(x::Real) = 2x
-           calltwice(container) = twice(container[1])
-           calltwice2(container) = calltwice(container)
+           double(x::Real) = 2x
+           calldouble(container) = double(container[1])
+           calldouble2(container) = calldouble(container)
 
-           precompile(calltwice2, (Vector{Float32},))
-           precompile(calltwice2, (Vector{Float64},))
-           precompile(calltwice2, (Vector{AbstractFloat},))
+           precompile(calldouble2, (Vector{Float32},))
+           precompile(calldouble2, (Vector{Float64},))
+           precompile(calldouble2, (Vector{AbstractFloat},))
 
            end
            """)
@@ -139,14 +148,14 @@ julia> using SnoopCompileDemo
 
 julia> using MethodAnalysis
 
-julia> methodinstances(SnoopCompileDemo.twice)
+julia> methodinstances(SnoopCompileDemo.double)
 3-element Vector{Core.MethodInstance}:
- MethodInstance for twice(::Float32)
- MethodInstance for twice(::Float64)
- MethodInstance for twice(::AbstractFloat)
+ MethodInstance for double(::Float32)
+ MethodInstance for double(::Float64)
+ MethodInstance for double(::AbstractFloat)
 ```
 
-Because of those `precompile` statements, the `MethodInstance`s exist after loading the package even though we haven't run the code in this session--not because it precompiled then when the package loaded, but because they were precompiled during the `Precompiling SnoopCompileDemo...` phase, stored to `*.ji` file, and then reloaded whenever we use the package.
+Because of those `precompile` statements, the `MethodInstance`s exist after loading the package even though we haven't run the code in this session--not because it precompiled them when the package loaded, but because they were precompiled during the `Precompiling SnoopCompileDemo...` phase, stored to `*.ji` file, and then reloaded whenever we use the package.
 You can also verify that the same backedges get created as when we ran this code interactively above.
 
 By having these `MethodInstance`s "pre-loaded" we can save some of the time needed to run type-inference: not much time in this case because the code is so simple, but for more complex methods the savings can be substantial.
@@ -172,7 +181,7 @@ julia> mi.def
 
 So even though the method is defined in `Base`, because `SnoopCompileDemo` needed this code it got stashed in `SnoopCompileDemo.ji`.
 
-*There are significant limitations to this ability to stash `MethodInstance`s from other modules.*  Most crucially, `*.ji` files can only hold code they "own," either:
+*The ability to cache MethodInstances from code defined in other packages or libraries is fundamental to latency reduction; however, it has significant limitations.*  Most crucially, `*.ji` files can only hold code they "own," either:
 
 - to a method defined in the package
 - through a chain of backedges to methods owned by the package
@@ -193,5 +202,9 @@ julia> mi = methodinstance(*, (Int, Float16))
 because there is no "chain of ownership" to `SnoopCompileDemo`.
 Consequently, we can't precompile methods defined in other modules in and of themselves; we can only do it if those methods are linked by backedges to this package.
 
-The consequence is that *precompilation works better when type inference succeeds.*
+Because backedges are created during successful type-inference, the consequence is that *precompilation works better when type inference succeeds.*
 For some packages, time invested in improving inferrability can make your `precompile` directives work better.
+
+```@meta
+DocTestSetup = nothing
+```
