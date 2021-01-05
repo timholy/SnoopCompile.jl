@@ -166,7 +166,7 @@ From this, you can immediately tell that the problem starts from the fact that `
     If you have a lot of inference triggers, sometimes it's best to focus on the runs that cost the most time, particularly if they are not precompilable. You can use `sort!(itrigs; by=inclusive)` to sort the triggers from fastest to slowest,
     and `filter(!SnoopCompile.isprecompilable, itrigs)` to extract just the ones that are not precompilable.
 
-### Adding type-assertions
+### [Adding type-assertions](@id typeasserts)
 
 Let's make our first fix. There are several ways we could go about doing this:
 
@@ -312,6 +312,11 @@ foo(x, y) = foo(convert(X, x)::X, convert(Y, y)::Y)   # this allows you to still
 ```
 
 The "standardizing method" `foo(x, y)` is short and therefore quick to compile, so it doesn't really matter if you compile many different instances.
+
+!!! tip
+    In `convert(X, x)::X`, the final `::X` is a "nice touch" to ensure that if someone writes a broken `convert` method--one which does not actually return an `X`--it doesn't end up triggering a StackOverflowError due to `foo(x, y)` calling itself in an infinite loop. StackOverflowErrors are a particularly nasty form of error to debug, and the typeassert ensures that you get a simple `TypeError` instead.
+
+    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred (see [above](@ref typeasserts)), but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
 
 There are of course cases where you can't implement your code in this way: after all, part of the power of Julia is the ability of generic methods to "do the right thing" for a wide variety of types. But in cases where you're doing a standard task (e.g., writing some data to a file), there's really no good reason to recompile your, e.g., `save` method for a filename encoded as a `String` and a `SubString{String}` and a `SubstitutionString` and an `AbstractString` and ...: after all, the core component of the `save` method probably isn't sensitive to the precise encoding of the filename.  In such cases, it should be safe to convert all filenames to `String` to reduce the diversity of input arguments for the expensive methods.
 
