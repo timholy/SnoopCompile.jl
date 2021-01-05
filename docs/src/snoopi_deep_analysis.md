@@ -13,7 +13,7 @@ In practice, it also turns out that opportunities to adjust specialization are o
 Throughout this page, we'll use the `OptimizeMe` demo, which ships with SnoopCompile.
 
 !!! note
-    To understand what follows, it's essential to inspect the OptimizeMe source code.
+    To understand what follows, it's essential to refer to [OptimizeMe source code](https://github.com/timholy/SnoopCompile.jl/blob/master/examples/OptimizeMe.jl) as you follow along.
 
 ```julia
 julia> using SnoopCompile
@@ -67,7 +67,7 @@ Specifically an [`InferenceTrigger`](@ref) captures callee/caller relationships 
 ```julia
 julia> itrigs = inference_triggers(tinf)
 75-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:20)
+ Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/pathto/SnoopCompile/examples/OptimizeMe.jl:20)
  Inference triggered to call MethodInstance for return_type(::Any, ::Any) from combine_eltypes (./broadcast.jl:740) with specialization MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
  ...
 ```
@@ -83,9 +83,9 @@ Let's start with the first of these and see how it was called:
 
 ```julia
 julia> itrig = itrigs[1]
-Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:20)
+Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/pathto/SnoopCompile/examples/OptimizeMe.jl:20)
 
-julia> stacktrace(itrig.bt)
+julia> stacktrace(itrig)
 22-element Vector{Base.StackTraces.StackFrame}:
  exit_current_timer at typeinfer.jl:166 [inlined]
  typeinf(interp::Core.Compiler.NativeInterpreter, frame::Core.Compiler.InferenceState) at typeinfer.jl:208
@@ -123,14 +123,14 @@ Now, to analyze this trigger in detail, it helps to use `ascend`:
 julia> ascend(itrig)
 Choose a call for analysis (q to quit):
      combine_eltypes(::Type, ::Tuple{Vector{Any}})
- >     copy at ./broadcast.jl:905 => materialize at ./broadcast.jl:883 => contain_list(::Vector{Any}) at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:20
-         main() at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:44
+ >     copy at ./broadcast.jl:905 => materialize at ./broadcast.jl:883 => contain_list(::Vector{Any}) at /pathto/SnoopCompile/examples/OptimizeMe.jl:20
+         main() at /pathto/SnoopCompile/examples/OptimizeMe.jl:44
            eval(::Module, ::Any) at ./boot.jl:360
-             eval_user_input(::Any, ::REPL.REPLBackend) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:139
-               repl_backend_loop(::REPL.REPLBackend) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:200
-                 start_repl_backend(::REPL.REPLBackend, ::Any) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:185
-                   #run_repl#42(::Bool, ::typeof(REPL.run_repl), ::REPL.AbstractREPL, ::Any) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:317
-                     run_repl(::REPL.AbstractREPL, ::Any) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:305
+             eval_user_input(::Any, ::REPL.REPLBackend) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:139
+               repl_backend_loop(::REPL.REPLBackend) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:200
+                 start_repl_backend(::REPL.REPLBackend, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:185
+                   #run_repl#42(::Bool, ::typeof(REPL.run_repl), ::REPL.AbstractREPL, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:317
+                     run_repl(::REPL.AbstractREPL, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:305
 v                      (::Base.var"#872#874"{Bool, Bool, Bool})(::Module) at ./client.jl:387
 
 │ ─ %-1  = invoke contain_list(::Vector{Any})::Union{Missing, Regex, String}
@@ -140,10 +140,10 @@ Variables
   cs::Union{Vector{_A} where _A, BitVector}
 
 Body::Union{Missing, Regex, String}
-    @ /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:20 within `contain_list'
+    @ /pathto/SnoopCompile/examples/OptimizeMe.jl:20 within `contain_list'
 1 ─ %1 = Base.broadcasted(Main.OptimizeMe.Container, list)::Core.PartialStruct(Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Nothing, Type{Main.OptimizeMe.Container}, Tuple{Vector{Any}}}, Any[Core.Const(Main.OptimizeMe.Container), Tuple{Vector{Any}}, Core.Const(nothing)])
 │        (cs = Base.materialize(%1))
-│   @ /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:21 within `contain_list'
+│   @ /pathto/SnoopCompile/examples/OptimizeMe.jl:21 within `contain_list'
 │   %3 = Core._apply_iterate(Base.iterate, Main.OptimizeMe.concat_string, cs)::Union{Missing, Regex, String}
 └──      return %3
 
@@ -161,6 +161,10 @@ Advanced: dump [P]arams cache.
 You can learn more about how to use [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl) from its documentation and an introductory video.
 Here we used the down arrow to select the line `copy at ./broadcast.jl:905 => materialize at ./broadcast.jl:883 => contain_list(::Vector{Any})`, and then hit <Enter> to analyze it in detail.
 From this, you can immediately tell that the problem starts from the fact that `list` is a `Vector{Any}`, and therefore `broadcasted(::Type{Main.OptimizeMe.Container},::Vector{Any})` does not know what types to expect it will encounter.
+
+!!! tip
+    If you have a lot of inference triggers, sometimes it's best to focus on the runs that cost the most time, particularly if they are not precompilable. You can use `sort!(itrigs; by=inclusive)` to sort the triggers from fastest to slowest,
+    and `filter(!SnoopCompile.isprecompilable, itrigs)` to extract just the ones that are not precompilable.
 
 ### Adding type-assertions
 
@@ -208,7 +212,7 @@ If we make that fix and start a fresh session, we discover we're down to 70 trig
 Having made the fix above, now the first `itrig` on the list is
 
 ```julia
-Inference triggered to call MethodInstance for vect(::Int64, ::Vararg{Any, N} where N) from lotsa_containers (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMeFixed.jl:27) with specialization MethodInstance for lotsa_containers()
+Inference triggered to call MethodInstance for vect(::Int64, ::Vararg{Any, N} where N) from lotsa_containers (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:27) with specialization MethodInstance for lotsa_containers()
 ```
 
 `vect` is the call that implements `[1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]` on the corresponding line of `lotsa_containers`.
@@ -233,7 +237,7 @@ Making this simple 3-character fix gets us down to 64 triggers (a savings of 6 i
 Our next entry takes us back to the broadcasting machinery:
 
 ```julia
-Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for lotsa_containers() (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMeFixed.jl:28)
+Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for lotsa_containers() (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:28)
 ```
 
 but this time from `lotsa_containers`. The culprit,
@@ -293,7 +297,7 @@ end
 Our next case is particularly interesting:
 
 ```
-Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMeFixed.Container{Any}}) from #38 (/home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:220) with specialization MethodInstance for (::REPL.var"#38#39"{REPL.REPLDisplay{REPL.LineEditREPL}, MIME{Symbol("text/plain")}, Base.RefValue{Any}})(::Any)
+Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMeFixed.Container{Any}}) from #38 (/pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:220) with specialization MethodInstance for (::REPL.var"#38#39"{REPL.REPLDisplay{REPL.LineEditREPL}, MIME{Symbol("text/plain")}, Base.RefValue{Any}})(::Any)
 ```
 
 In this case we see that the method is `#38`.  This is a `gensym`, or generated symbol, indicating that the method was generated during Julia's lowering pass, and might indicate a macro, a `do` block or other anonymous function, the generator for a `@generated` function, etc.
@@ -438,7 +442,7 @@ Several other triggers come from the `show` pipeline, but in the interests of av
 ```julia
 julia> itrigscat = itrigs[end-4:end-2]
 3-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat (./abstractarray.jl:1630) inlined into MethodInstance for makeobjects() (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMeFixed.jl:39)
+ Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat (./abstractarray.jl:1630) inlined into MethodInstance for makeobjects() (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:39)
  Inference triggered to call MethodInstance for cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64}) from _cat_t (./abstractarray.jl:1636) with specialization MethodInstance for _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
  Inference triggered to call MethodInstance for __cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat_t (./abstractarray.jl:1640) with specialization MethodInstance for _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
 ```

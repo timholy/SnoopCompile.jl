@@ -117,6 +117,7 @@ fdouble(x) = 2x
     @test only(mis).def == which(g, (Any,))
     @test callingframe(itrig).callerframes[1].func === :eval
     @test_throws ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference") inference_triggers(tinf.children[1])
+    @test stacktrace(itrig) isa Vector{StackTraces.StackFrame}
     itrig0 = itrig
     counter = 0
     while !isempty(itrig.callerframes) && counter < 1000  # defensively prevent infinite loop
