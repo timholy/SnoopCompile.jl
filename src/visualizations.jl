@@ -4,7 +4,10 @@ using .PyPlot: plt, PyCall
 
 export specialization_plot
 
-function specialization_plot(ax::PyCall.PyObject, ridata; markersz=9, t0 = 0.001, interactive::Bool=true, kwargs...)
+get_bystr(@nospecialize(by)) = by === inclusive ? "Inclusive" :
+                               by === exclusive ? "Exclusive" : error("unknown ", by)
+
+function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markersz=9, t0 = 0.001, interactive::Bool=true, kwargs...)
     function onclick(event)
         xc, yc = event.xdata, event.ydata
         idx = argmin((log.(rts .+ t0) .- log(xc)).^2 + (log.(its .+ t0) .- log(yc)).^2)
@@ -26,10 +29,11 @@ function specialization_plot(ax::PyCall.PyObject, ridata; markersz=9, t0 = 0.001
     smap = ax.scatter(rts .+ t0, its .+ t0, markersz, nspecs; kwargs...)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("Run time + $t0 (s)")
-    ax.set_ylabel("Inference time + $t0 (s)")
+    ax.set_xlabel("Run time (self) + $t0 (s)")
+    ax.set_ylabel("$bystr inference time + $t0 (s)")
     ax.set_aspect("equal")
-    plt.colorbar(smap, label = "# specializations (incl. consts)", ax=ax)
+    constsmode = consts ? "incl." : "excl."
+    plt.colorbar(smap, label = "# specializations ($constsmode consts)", ax=ax)
     if interactive
         ax.get_figure().canvas.mpl_connect("button_press_event", onclick)
     end
@@ -41,5 +45,9 @@ function specialization_plot(ridata; kwargs...)
     return specialization_plot(ax, ridata; kwargs...)
 end
 
-specialization_plot(ax::PyCall.PyObject, tinf::InferenceTimingNode; consts::Bool=true, kwargs...) = specialization_plot(ax, runtime_inferencetime(tinf; consts); kwargs...)
-specialization_plot(tinf::InferenceTimingNode; consts::Bool=true, kwargs...) = specialization_plot(runtime_inferencetime(tinf; consts); kwargs...)
+function specialization_plot(ax::PyCall.PyObject, tinf::InferenceTimingNode; consts::Bool=true, by=inclusive, kwargs...)
+    specialization_plot(ax, runtime_inferencetime(tinf; consts, by); bystr=get_bystr(by), consts, kwargs...)
+end
+function specialization_plot(tinf::InferenceTimingNode; consts::Bool=true, by=inclusive, kwargs...)
+    specialization_plot(runtime_inferencetime(tinf; consts, by); bystr=get_bystr(by), consts, kwargs...)
+end

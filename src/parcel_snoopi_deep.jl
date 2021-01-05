@@ -371,14 +371,14 @@ MethodLoc(sf::StackTraces.StackFrame) = MethodLoc(sf.func, sf.file, sf.line)
 Base.show(io::IO, ml::MethodLoc) = print(io, ml.func, " at ", ml.file, ':', ml.line, " [inlined and pre-inferred]")
 
 """
-    ridata = runtime_inferencetime(tinf::InferenceTimingNode)
-    ridata = runtime_inferencetime(tinf::InferenceTimingNode, profiledata; lidict)
+    ridata = runtime_inferencetime(tinf::InferenceTimingNode; consts=true, by=inclusive)
+    ridata = runtime_inferencetime(tinf::InferenceTimingNode, profiledata; lidict, consts=true, by=inclusive)
 
 Compare runtime and inference-time on a per-method basis. `ridata[m::Method]` returns `(trun, tinfer, nspecializations)`,
 measuring the approximate amount of time spent running `m`, inferring `m`, and the number of type-specializations, respectively.
 `trun` is estimated from profiling data, which the user is responsible for capturing before the call.
 Typically `tinf` is collected via `@snoopi_deep` on the first call (in a fresh session) to a workload,
-and the profiling data collected on a subsequent call. In some cases you may want to repeat the workload
+and the profiling data collected on a subsequent call. In some cases you may need to repeat the workload
 several times to collect enough profiling samples.
 
 `profiledata` and `lidict` are obtained from `Profile.retrieve()`.
@@ -387,10 +387,13 @@ function runtime_inferencetime(tinf::InferenceTimingNode; kwargs...)
     pdata, lidict = Profile.retrieve()
     return runtime_inferencetime(tinf, pdata; lidict=lidict, kwargs...)
 end
-function runtime_inferencetime(tinf::InferenceTimingNode, pdata; lidict, consts::Bool=true, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
+function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
+                               lidict, consts::Bool=true,
+                               by::Union{typeof(exclusive),typeof(inclusive)}=inclusive,
+                               delay::Float64=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
     lilist, nsamples, nselfs, totalsamples = Profile.parse_flat(StackTraces.StackFrame, pdata, lidict, false)
     tf = flatten(tinf)
-    tm = accumulate_by_source(Method, tf)
+    tm = accumulate_by_source(Method, tf; by=by)  # this `by` is actually irrelevant, but less confusing this way
     # MethodInstances that get inlined don't have the linfo field. Guess the method from the name/line/file.
     # Filenames are complicated because of variations in how paths are encoded, especially for methods in Base & stdlibs.
     methodlookup = Dict{Tuple{Symbol,Int},Vector{Pair{String,Method}}}()  # (func, line) => [file => method]
@@ -429,15 +432,23 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata; lidict, consts:
     @assert all(ttn -> ttn[2] == 0.0, values(ridata))
     # Now add inference times & specialization counts. To get the counts we go back to tf rather than using tm.
     if !consts
-        tf = accumulate_by_source(MethodInstance, tf)
-    end
-    for frame in tf
-        t = exclusive(frame)
-        isROOT(frame) && continue
-        m = MethodInstance(frame).def
-        if isa(m, Method)
-            trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
-            ridata[m] = (trun, tinfer + t, nspecializations + 1)
+        for (t, mi) in accumulate_by_source(MethodInstance, tf; by=by)
+            isROOT(mi) && continue
+            m = mi.def
+            if isa(m, Method)
+                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
+                ridata[m] = (trun, tinfer + t, nspecializations + 1)
+            end
+        end
+    else
+        for frame in tf
+            isROOT(frame) && continue
+            t = by(frame)
+            m = MethodInstance(frame).def
+            if isa(m, Method)
+                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
+                ridata[m] = (trun, tinfer + t, nspecializations + 1)
+            end
         end
     end
     # Sort the outputs to try to prioritize opportunities for the developer. Because we have multiple objectives (fast runtime
