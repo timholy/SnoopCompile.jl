@@ -280,7 +280,8 @@ include("testmodules/SnoopBench.jl")
     @test length(prs) == 2
     _, (tmodBase, tmis) = prs[findfirst(pr->pr.first === Base, prs)]
     tw, nw = SnoopCompile.write(io, tmis; tmin=0.0)
-    @test 0.0 <= tw <= tmodBase && 0 <= nw <= length(tmis)
+    @test 0.0 <= tw <= tmodBase * (1+10*eps())
+    @test 0 <= nw <= length(tmis)
     str = String(take!(io))
     @test !occursin(r"Base.Fix2\{typeof\(isequal\).*SnoopBench.A\}", str)
     @test length(split(chomp(str), '\n')) == nw
