@@ -166,7 +166,7 @@ function accumulate_by_source(::Type{M}, flattened::Vector{InferenceTiming}; tmi
             tmp[mi] = by(frame)    # module-level thunks are stored verbatim
         end
     end
-    return sort([(t, m) for (m, t) in tmp if t >= tmin]; by=first)
+    return sort(Tuple{Float64,Union{M,MethodInstance}}[(t, m) for (m, t) in tmp if t >= tmin]; by=first)
 end
 
 accumulate_by_source(flattened::Vector{InferenceTiming}; kwargs...) = accumulate_by_source(Method, flattened; kwargs...)
@@ -390,11 +390,12 @@ end
 function runtime_inferencetime(tinf::InferenceTimingNode, pdata; lidict, consts::Bool=true, delay=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
     lilist, nsamples, nselfs, totalsamples = Profile.parse_flat(StackTraces.StackFrame, pdata, lidict, false)
     tf = flatten(tinf)
-    tm = accumulate_by_source(tf)
+    tm = accumulate_by_source(Method, tf)
     # MethodInstances that get inlined don't have the linfo field. Guess the method from the name/line/file.
     # Filenames are complicated because of variations in how paths are encoded, especially for methods in Base & stdlibs.
     methodlookup = Dict{Tuple{Symbol,Int},Vector{Pair{String,Method}}}()  # (func, line) => [file => method]
     for (_, m) in tm
+        isa(m, Method) || continue
         fm = get!(Vector{Pair{String,Method}}, methodlookup, (m.name, Int(m.line)))
         push!(fm, string(m.file) => m)
     end
