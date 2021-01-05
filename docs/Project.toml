@@ -1,5 +1,7 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
 
 [compat]
-Documenter = "0.24"
+Documenter = "0.25"
+MethodAnalysis = "0.4"

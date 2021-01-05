@@ -22,7 +22,7 @@ Inference is the process of determining the type of each object, which in turn
 determines which specific methods get called; once type inference is complete,
 code generation performs optimizations and ultimately generates the assembly
 language (native code) used on CPUs.
-Some aspects of this process are documented [here](https://docs.julialang.org/en/latest/devdocs/eval).
+Some aspects of this process are documented [here](https://docs.julialang.org/en/v1/devdocs/eval/).
 
 Every time you load a package in a fresh Julia session, the methods you use
 need to be JIT-compiled, and this contributes to the latency of using the package.
@@ -39,7 +39,7 @@ for "top level" calls to methods defined in Julia or other packages, even if you
 with types defined in your package.
 Finally, what does get saved can sometimes be invalidated by loading other packages.
 
-Despite these limitations, there are cases where precompilation can substantially reduce
+Despite these limitations, there are many cases where precompilation can substantially reduce
 latency.
 SnoopCompile is designed to try to allow you to analyze the costs of JIT-compilation, identify
 key bottlenecks that contribute to latency, and set up `precompile` directives to see whether
@@ -51,7 +51,7 @@ SnoopCompile is intended primarily for package *developers* who want to improve 
 experience for their users.
 Because the results of SnoopCompile are typically stored in the `*.ji` precompile files,
 users automatically get the benefit of any latency reductions achieved by adding
-`precompile` directives to your package.
+`precompile` directives to the source code of your package.
 
 [PackageCompiler](https://github.com/JuliaLang/PackageCompiler.jl) is an alternative
 that *non-developer users* may want to consider for their own workflow.
@@ -67,3 +67,30 @@ PackageCompiler may outweigh its benefits.
 Finally, another alternative for reducing latency without any modifications
 to package files is [Revise](https://github.com/timholy/Revise.jl).
 It can be used in conjunction with SnoopCompile.
+
+## [A note on Julia versions and the recommended workflow](@id workflow)
+
+SnoopCompile is closely intertwined with Julia's own internals.
+Some "data collection" and analysis features are available only on newer versions of Julia.
+In particular, some of the most powerful tools were made possible through several additions made in Julia 1.6;
+SnoopCompile just exposes these tools in convenient form.
+
+If you're a developer looking to reduce the latency of your packages, you are *strongly*
+encouraged to use SnoopCompile on Julia 1.6 or later. The fruits of your labors will often
+reduce latency even for users of earlier Julia versions, but your ability to understand
+what changes need to be made will be considerably enhanced by using the latest tools.
+
+For developers who can use Julia 1.6+, the recommended sequence is:
+
+1. Check for [invalidations](@ref), and if egregious make fixes before proceeding further
+2. Record inference data with [`@snoopi_deep`](@ref). Analyze the data to:
+    + adjust method specialization in your package or its dependencies
+    + fix problems in type inference
+    + add precompile directives
+
+Under 2, the first two sub-points can often be done at the same time; the last item is best done as a final step, because the specific
+precompile directives needed depend on the state of your code, and a few fixes in specialization
+and/or type inference can alter or even decrease the number of necessary precompile directives.
+
+Although there are other tools within SnoopCompile available, most developers can probably stop after the steps above.
+The documentation will describe the tools in this order, followed by descriptions of additional and older tools.

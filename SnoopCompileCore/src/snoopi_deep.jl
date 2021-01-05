@@ -78,8 +78,8 @@ corresponds to the time spent _not_ in julia's type inference (codegen, llvm_opt
 There are many different ways of inspecting and using the data stored in `tinf`.
 The simplest is to load the `AbstracTrees` package and display the tree with
 `AbstractTrees.print_tree(tinf)`.
-See also:  [`flamegraph`](@ref), [`flatten`](@ref), [`inference_triggers`](@ref), [`SnoopCompile.parcel`](@ref),
-[`runtime_inferencetime`](@ref).
+See also:  `flamegraph`, `flatten`, `inference_triggers`, `SnoopCompile.parcel`,
+`runtime_inferencetime`.
 
 # Example
 ```jldoctest; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+/[0-9\\.e-]+|\\d direct)"

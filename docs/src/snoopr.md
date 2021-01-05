@@ -1,7 +1,34 @@
-# Snooping on and fixing invalidations: `@snoopr`
+# [Snooping on and fixing invalidations: `@snoopr`](@id invalidations)
+
+!!! compat
+    `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
+
+Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
+For safety, Julia's compiler *invalidates* that old code, marking it as unsuitable for use; the next time you call
+that method, it will have to be compiled again from scratch. (If no one ever needs that method again, there is no
+major loss.)
+
+Some packages define new methods that force invalidation of previously-compiled code. If your package, or any of your
+dependencies, triggers many invalidations, it has several bad effects:
+
+- any invalidated methods you need for the functionality in your package will have to be recompiled.
+  This will lead to a direct (and occasionally large) slowdown for your package.
+- invalidations by your dependencies (packages you rely on) can block precompilation of methods in your package,
+  preventing you from taking advantage of some the other features of SnoopCompile.
+- even if you don't need the invalidated code for your package, any invalidations triggered by your package
+  might harm packages that depend on yours.
+
+For these reasons, it's advisable to begin by analyzing invalidations.
+On recent Julia versions, most packages do not trigger a large number of invalidations; often, all that is needed is a quick glance at invalidations before moving on to the next step.
+Occasionally, checking for invalidations can save you a lot of confusion and frustration at later steps, so it is well worth taking a look.
+
+Readers who want more background and context are encouraged to read [this blog post](https://julialang.org/blog/2020/08/invalidations/).
 
 !!! note
-    `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
+    Invalidatons occur only for compiled code; method definitions themselves cannot be invalidated.
+    As a consequence, it's possible to have latent invalidation risk; this risk can become exposed
+    if you use some intermediate functionality before loading your package, or if your dependencies someday add `precompile`
+    directives. So even if you've checked for invalidations previously, sometimes it's worth taking a fresh look.
 
 ## Recording invalidations
 
@@ -11,8 +38,6 @@ DocTestSetup = quote
     using SnoopCompile
 end
 ```
-
-Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
 
 To record the invalidations caused by defining new methods, use `@snoopr`.
 `@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis:
@@ -46,10 +71,10 @@ julia> callf(container) = f(container[1]);
 julia> call2f(container) = callf(container);
 ```
 
-Because code doesn't get compiled until it gets run, and invalidations only affect compiled code, let's run this with different container types:
+Because code doesn't get compiled until it gets run, and invalidations only affect compiled code, let's run this with three different container types:
 
 ```jldoctest invalidations
-julia> c64  = [1.0]; c32 = [1.0f0]; cabs = AbstractFloat[1.0];
+julia> c64  = [1.0]; c32 = [1.0f0]; cabs = AbstractFloat[1.0];  # Vector{Float64}, Vector{Float32}, and Vector{AbstractFloat}, respectively
 
 julia> call2f(c64)
 1
@@ -71,13 +96,14 @@ So we can see the consequences for the compiled code, we'll make this definition
 julia> using SnoopCompileCore
 
 julia> invalidations = @snoopr f(::Float64) = 2;
-
-julia> using SnoopCompile
 ```
 
-The simplest thing we can do is list or count invalidations:
+As should be apparent, running `call2f` on `c64` should produce a different result than formerly, so Julia certainly
+needs to invalidate that code.  Let's see what that looks like. The simplest thing we can do is list or count invalidations:
 
 ```jldoctest invalidations
+julia> using SnoopCompile
+
 julia> length(uinvalidated(invalidations))  # collect the unique MethodInstances & count them
 6
 ```
@@ -170,6 +196,9 @@ also got called by some other method, and that method had also been executed (fo
 then `callf` would have multiple children.
 This is often seen with more complex, real-world tests.
 As a medium-complexity example, try the following:
+
+!!! info
+    Any demonstration involving real-world packages might be altered from what is shown here by new releases of the relevant packages.
 
 ```julia
 julia> using Revise
@@ -451,9 +480,9 @@ In our first example, note that the call `call2f(c32)` did not get invalidated: 
 knew all the specific types, and new methods did not affect any of those types.
 The main tips for writing invalidation-resistant code are:
 
-- use [concrete types](https://docs.julialang.org/en/latest/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
+- use [concrete types](https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
 - write inferrable code (be especially aware of [julia issue 15276](https://github.com/JuliaLang/julia/issues/15276))
-- don't engage in [type-piracy](https://docs.julialang.org/en/latest/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
+- don't engage in [type-piracy](https://docs.julialang.org/en/v1/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
 
 Since these tips also improve performance and allow programs to behave more predictably,
 these guidelines are not intrusive.
@@ -463,7 +492,7 @@ Indeed, searching for and eliminating invalidations can help you improve the qua
 
 In cases where invalidations occur, but you can't use concrete types (there are indeed many valid uses of `Vector{Any}`),
 you can often prevent the invalidation using some additional knowledge.
-One common example is extracting information from an [IOContext](https://docs.julialang.org/en/latest/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
+One common example is extracting information from an [IOContext](https://docs.julialang.org/en/v1/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
 
 ```julia
 struct IOContext{IO_t <: IO} <: AbstractPipe
