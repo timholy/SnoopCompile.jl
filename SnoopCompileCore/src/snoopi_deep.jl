@@ -1,3 +1,38 @@
+struct InferenceTiming
+    mi_info::Core.Compiler.Timings.InferenceFrameInfo
+    inclusive_time::Float64
+    exclusive_time::Float64
+end
+"""
+    inclusive(frame)
+
+Return the time spent inferring `frame` and its callees.
+"""
+inclusive(it::InferenceTiming) = it.inclusive_time
+"""
+    exclusive(frame)
+
+Return the time spent inferring `frame`, not including the time needed for any of its callees.
+"""
+exclusive(it::InferenceTiming) = it.exclusive_time
+
+struct InferenceTimingNode
+    mi_timing::InferenceTiming
+    start_time::Float64
+    children::Vector{InferenceTimingNode}
+    bt
+end
+inclusive(node::InferenceTimingNode) = inclusive(node.mi_timing)
+exclusive(node::InferenceTimingNode) = exclusive(node.mi_timing)
+InferenceTiming(node::InferenceTimingNode) = node.mi_timing
+
+function InferenceTimingNode(t::Core.Compiler.Timings.Timing)
+    children = [InferenceTimingNode(child) for child in t.children]
+    time, start_time = t.time/10^9, t.start_time/10^9
+    incl_time = time + sum(inclusive, children; init=0.0)
+    return InferenceTimingNode(InferenceTiming(t.mi_info, incl_time, time), start_time, children, t.bt)
+end
+
 function start_deep_timing()
     Core.Compiler.Timings.reset_timings()
     Core.Compiler.__set_measure_typeinf(true)
@@ -8,7 +43,7 @@ function stop_deep_timing()
 end
 
 function finish_snoopi_deep()
-    return Core.Compiler.Timings._timings[1]
+    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
 end
 
 function _snoopi_deep(cmd::Expr)
@@ -24,41 +59,36 @@ function _snoopi_deep(cmd::Expr)
 end
 
 """
-    timing_tree = @snoopi_deep commands
+    tinf = @snoopi_deep commands
 
-Produce a profile of julia's type inference, containing the amount of time spent inferring
-every `MethodInstance` processed while executing `commands`.
+Produce a profile of julia's type inference, recording the amount of time spent inferring
+every `MethodInstance` processed while executing `commands`. Each fresh entrance to
+type inference (whether executed directly in `commands` or because a call was made
+by runtime-dispatch) also collects a backtrace so the caller can be identified.
 
-The top-level node in this profile tree is `ROOT`, which contains the time spent _not_ in
-julia's type inference (codegen, llvm_opt, runtime, etc).
+`tinf` is a tree, each node containing data on a particular inference "frame" (the method,
+argument-type specializations, parameters, and even any constant-propagated values).
+Each reports the [`exclusive`](@ref)/[`inclusive`](@ref) times, where the exclusive
+time corresponds to the time spent inferring this frame in and of itself, whereas
+the inclusive time includes the time needed to infer all the callees of this frame.
 
-To make use of these results, see the processing functions in SnoopCompile:
-    - [`SnoopCompile.flatten_times(timing_tree)`](@ref)
-    - [`SnoopCompile.flamegraph(timing_tree)`](@ref)
+The top-level node in this profile tree is `ROOT`. Uniquely, its exclusive time
+corresponds to the time spent _not_ in julia's type inference (codegen, llvm_opt, runtime, etc).
 
-# Examples
-```julia
-julia> timing = @snoopi_deep begin
-           @eval sort(rand(100))  # Evaluate some code and profile julia's type inference
-       end;
+There are many different ways of inspecting and using the data stored in `tinf`.
+The simplest is to load the `AbstracTrees` package and display the tree with
+`AbstractTrees.print_tree(tinf)`.
+See also:  [`flamegraph`](@ref), [`flatten`](@ref), [`inference_triggers`](@ref), [`SnoopCompile.parcel`](@ref),
+[`runtime_inferencetime`](@ref).
 
-julia> using SnoopCompile, ProfileView
-
-julia> times = flatten_times(timing, tmin_secs=0.001)
-4-element Vector{Any}:
- 0.001088448 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for fpsort!(...
- 0.001618478 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for rand!(...
- 0.002289655 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for _rand_max383!(...
- 0.093143594 => Core.Compiler.Timings.InferenceFrameInfo(MethodInstance for ROOT(), ...
-
-julia> fg = flamegraph(timing)
-Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
-
-julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
-
-julia> fg = flamegraph(timing; tmin_secs=0.0001)  # Skip very tiny frames
-Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:70, 0x00, 0:15355670))
+# Example
+```jldoctest; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+/[0-9\\.e-]+|\\d direct)"
+julia> tinf = @snoopi_deep begin
+           sort(rand(100))  # Evaluate some code and profile julia's type inference
+       end
+InferenceTimingNode: 0.110018224/0.131464476 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 2 direct children
 ```
+
 """
 macro snoopi_deep(cmd)
     return _snoopi_deep(cmd)
