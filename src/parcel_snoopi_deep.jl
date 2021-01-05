@@ -21,6 +21,7 @@ Core.Method(x::InferenceNode) = MethodInstance(x).def::Method   # deliberately t
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 isROOT(mi_info::InferenceNode) = isROOT(MethodInstance(mi_info))
+isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
 
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
@@ -823,8 +824,12 @@ function FlameGraphs.flamegraph(tinf::InferenceTimingNode; tmin = 0.0, excluded_
     io = IOBuffer()
 
     # Compute a "root" frame for the top-level node, to cover the whole profile
-    node_data, _ = _flamegraph_frame(io, tinf, tinf.start_time, false, excluded_modules, mode; toplevel=true)
+    node_data, _ = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=true)
     root = Node(node_data)
+    if !isROOT(tinf)
+        node_data, child_check_precompilable = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=false)
+        root = addchild(root, node_data)
+    end
     return _build_flamegraph!(root, io, tinf, tinf.start_time, tmin, true, excluded_modules, mode)
 end
 function _build_flamegraph!(root, io::IO, node::InferenceTimingNode, start_secs, tmin, check_precompilable, excluded_modules, mode)
@@ -883,7 +888,8 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
     start = node.start_time - start_secs
     if toplevel
         # Compute a range over the whole profile for the top node.
-        range = round(Int, start*1e9) : round(Int, (max_end_time(node) - start_secs)*1e9)
+        stop_secs = isROOT(node) ? max_end_time(node) : max_end_time(node, true)
+        range = round(Int, start*1e9) : round(Int, (stop_secs - start_secs)*1e9)
     else
         range = round(Int, start*1e9) : round(Int, (start + inclusive(node))*1e9)
     end
@@ -915,7 +921,7 @@ end
 # NOTE: The "root" node doesn't cover the whole profile, because it's only the _complement_
 # of the inference times (so it's missing the _overhead_ from the measurement).
 # SO we need to manually create a root node that covers the whole thing.
-function max_end_time(node::InferenceTimingNode)
+function max_end_time(node::InferenceTimingNode, recursive::Bool=false, tmax=-one(node.start_time))
     # It's possible that node is already the longest-reaching node.
     t_end = node.start_time + inclusive(node)
     # It's also possible that the last child extends past the end of node. (I think this is
@@ -923,5 +929,11 @@ function max_end_time(node::InferenceTimingNode)
     last_node = isempty(node.children) ? node : node.children[end]
     child_end = last_node.start_time + inclusive(last_node)
     # Return the maximum end time to make sure the top node covers the entire graph.
-    return max(t_end, child_end)
+    tmax = max(t_end, child_end, tmax)
+    if recursive
+        for child in node.children
+            tmax = max_end_time(child, true, tmax)
+        end
+    end
+    return tmax
 end
