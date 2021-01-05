@@ -28,12 +28,15 @@ const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{St
 
 # These should be in SnoopCompileCore, except that it promises not to specialize Base methods
 Base.show(io::IO, t::InferenceTiming) = (print(io, "InferenceTiming: "); _show(io, t))
-_show(io::IO, t::InferenceTiming) = print(io, exclusive(t), '/', inclusive(t), " on ", t.mi_info)
+function _show(io::IO, t::InferenceTiming)
+    print(io, string(exclusive(t)), "/", string(inclusive(t)), " on ")
+    print(io, t.mi_info)
+end
 
 function Base.show(io::IO, node::InferenceTimingNode)
     print(io, "InferenceTimingNode: ")
     _show(io, node.mi_timing)
-    print(io, " with ", length(node.children), " direct children")
+    print(io, " with ", string(length(node.children)), " direct children")
 end
 
 """
@@ -866,7 +869,7 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
             str = String(take!(io))
             startswith(str, "InferenceFrameInfo for ") && (str = str[length("InferenceFrameInfo for ")+1:end])
             return str
-        elseif mode == :spec
+        elseif mode === :spec
             return frame_name(io, mi_info)
         else
             return func_name(MethodInstance(mi_info), mode)
@@ -937,3 +940,15 @@ function max_end_time(node::InferenceTimingNode, recursive::Bool=false, tmax=-on
     end
     return tmax
 end
+
+for IO in (IOContext{Base.TTY}, IOContext{IOBuffer}, IOBuffer)
+    for T = (InferenceTimingNode, InferenceTrigger, Precompiles, MethodLoc, Location, LocationTrigger)
+        @assert precompile(show, (IO, T))
+    end
+end
+@assert precompile(flamegraph, (InferenceTimingNode,))
+@assert precompile(inference_triggers, (InferenceTimingNode,))
+@assert precompile(flatten, (InferenceTimingNode,))
+@assert precompile(accumulate_by_source, (Vector{InferenceTiming},))
+@assert precompile(isprecompilable, (MethodInstance,))
+@assert precompile(parcel, (InferenceTimingNode,))
