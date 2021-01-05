@@ -306,6 +306,12 @@ include("testmodules/SnoopBench.jl")
     str = String(take!(io))  # just to clear it in case we use it again
     @test !occursin("ccall(:jl_generating_output", read(file_base, String))
     rm(td, recursive=true, force=true)
+
+    # issue #197
+    f197(::Vector{T}) where T<:Integer = zero(T)
+    g197(@nospecialize(x::Vector{<:Number})) = f197(x)
+    g197([1,2,3])
+    @test SnoopCompile.get_reprs([(rand(), mi) for mi in methodinstances(f197)])[1] isa AbstractSet
 end
 
 @testset "Specialization" begin
