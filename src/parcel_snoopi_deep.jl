@@ -24,7 +24,9 @@ isROOT(mi_info::InferenceNode) = isROOT(MethodInstance(mi_info))
 isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
 
 # Record instruction pointers we've already looked up (performance optimization)
-const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+const lookups = Dict{Union{UInt, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+lookups_key(ip) = ip
+lookups_key(ip::Ptr{Nothing}) = UInt(ip)
 
 # These should be in SnoopCompileCore, except that it promises not to specialize Base methods
 Base.show(io::IO, t::InferenceTiming) = (print(io, "InferenceTiming: "); _show(io, t))
@@ -384,14 +386,14 @@ several times to collect enough profiling samples.
 `profiledata` and `lidict` are obtained from `Profile.retrieve()`.
 """
 function runtime_inferencetime(tinf::InferenceTimingNode; kwargs...)
-    pdata, lidict = Profile.retrieve()
-    return runtime_inferencetime(tinf, pdata; lidict=lidict, kwargs...)
+    pdata = Profile.fetch()
+    lookup_firstip!(lookups, pdata)
+    return runtime_inferencetime(tinf, pdata; lidict=lookups, kwargs...)
 end
 function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
                                lidict, consts::Bool=true,
                                by::Union{typeof(exclusive),typeof(inclusive)}=inclusive,
                                delay::Float64=ccall(:jl_profile_delay_nsec, UInt64, ())/10^9)
-    lilist, nsamples, nselfs, totalsamples = Profile.parse_flat(StackTraces.StackFrame, pdata, lidict, false)
     tf = flatten(tinf)
     tm = accumulate_by_source(Method, tf; by=by)  # this `by` is actually irrelevant, but less confusing this way
     # MethodInstances that get inlined don't have the linfo field. Guess the method from the name/line/file.
@@ -418,15 +420,18 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
 
     ridata = Dict{Union{Method,MethodLoc},Tuple{Float64,Float64,Int}}()
     # Insert the profiling data
-    for (sf, nself) in zip(lilist, nselfs)
-        mi = sf.linfo
-        m = isa(mi, MethodInstance) ? mi.def : matchloc(sf)
-        if isa(m, Method) || isa(m, MethodLoc)
-            trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
-            ridata[m] = (trun + nself*delay, tinfer, nspecializations)
-        else
-            @show typeof(m) m
-            error("whoops")
+    lilists, nselfs = select_firstip(pdata, lidict)
+    for (sfs, nself) in zip(lilists, nselfs)
+        for sf in sfs
+            mi = sf.linfo
+            m = isa(mi, MethodInstance) ? mi.def : matchloc(sf)
+            if isa(m, Method) || isa(m, MethodLoc)
+                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
+                ridata[m] = (trun + nself*delay, tinfer, nspecializations)
+            else
+                @show typeof(m) m
+                error("whoops")
+            end
         end
     end
     @assert all(ttn -> ttn[2] == 0.0, values(ridata))
@@ -460,6 +465,39 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
     savings((trun, tinfer, nspec)::Tuple{Float64,Float64,Int}) = tinfer * (nspec - 1)
     savings(pr::Pair) = savings(pr.second)
     return sort(collect(ridata); by=savings)
+end
+
+function lookup_firstip!(lookups, pdata)
+    isfirst = true
+    for ip in pdata
+        if isfirst
+            get!(()->Base.StackTraces.lookup(ip), lookups, ip)
+            isfirst = false
+        end
+        if ip == 0
+            isfirst = true
+        end
+    end
+    return lookups
+end
+function select_firstip(pdata, lidict)
+    counter = Dict{eltype(pdata),Int}()
+    isfirst = true
+    for ip in pdata
+        if isfirst
+            counter[ip] = get(counter, ip, 0) + 1
+            isfirst = false
+        end
+        if ip == 0
+            isfirst = true
+        end
+    end
+    lilists, nselfs = valtype(lidict)[], Int[]
+    for (ip, n) in counter
+        push!(lilists, lidict[ip])
+        push!(nselfs, n)
+    end
+    return lilists, nselfs
 end
 
 ## Analysis of inference triggers
@@ -517,7 +555,7 @@ callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx)
     while idx < length(bt)
-        ip = bt[idx+=1]
+        ip = lookups_key(bt[idx+=1])
         sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
         sf = sfs[end]
         sf.from_c && continue

@@ -336,7 +336,7 @@ end
     tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test ti > tr
     @test nspec >= length(Ts)
-    # specialization_plot(axs[1], rit; interactive=false)
+    # specialization_plot(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
 
     Profile.clear()
     @profile for i = 1:nruns
@@ -347,5 +347,5 @@ end
     tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test ti < tr
     @test nspec == 1
-    # specialization_plot(axs[2], rit; interactive=false)
+    # specialization_plot(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end
