@@ -51,7 +51,9 @@ export @snoopc
 
 using Core: MethodInstance, CodeInfo
 using InteractiveUtils
-using Serialization, OrderedCollections
+using Serialization
+using Printf
+using OrderedCollections
 import YAML  # For @snoopl
 using Requires
 

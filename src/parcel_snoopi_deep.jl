@@ -29,7 +29,7 @@ const lookups = Dict{Union{Ptr{Nothing}, Core.Compiler.InterpreterIP}, Vector{St
 # These should be in SnoopCompileCore, except that it promises not to specialize Base methods
 Base.show(io::IO, t::InferenceTiming) = (print(io, "InferenceTiming: "); _show(io, t))
 function _show(io::IO, t::InferenceTiming)
-    print(io, string(exclusive(t)), "/", string(inclusive(t)), " on ")
+    print(io, @sprintf("%8.6f", exclusive(t)), "/", @sprintf("%8.6f", inclusive(t)), " on ")
     print(io, t.mi_info)
 end
 
