@@ -7,11 +7,27 @@ export specialization_plot
 get_bystr(@nospecialize(by)) = by === inclusive ? "Inclusive" :
                                by === exclusive ? "Exclusive" : error("unknown ", by)
 
+"""
+    methodref, ax = specialization_plot(tinf::InferenceTimingNode; consts::Bool=true, by=inclusive)
+    methodref     = specialization_plot(ax, tinf::InferenceTimingNode; kwargs...)
+
+Create a scatter plot comparing:
+    - (vertical axis) the inference time for all instances of each Method, as captured by `tinf`;
+    - (horizontal axis) the run time cost, as estimated by capturing a `@profile` before calling this function.
+
+Each dot corresponds to a single method. The color encodes the number of times that method was inferred.
+Clicking on a dot prints the method (or location, if inlined) to the REPL, and sets `methodref[]` to
+that method.
+
+This depends on PyPlot, which must be loaded first. `ax` is the pyplot axis.
+"""
 function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markersz=9, t0 = 0.001, interactive::Bool=true, kwargs...)
+    methodref = Ref{Method}()
     function onclick(event)
         xc, yc = event.xdata, event.ydata
         idx = argmin((log.(rts .+ t0) .- log(xc)).^2 + (log.(its .+ t0) .- log(yc)).^2)
         m = meths[idx]
+        methodref[] = m
         println(m, " ($(nspecs[idx]) specializations)")
     end
 
@@ -26,7 +42,7 @@ function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markers
     meths, rts, its, nspecs = meths[sp], rts[sp], its[sp], nspecs[sp]
 
     # Add t0 to each entry to handle times of zero in the log-log plot
-    smap = ax.scatter(rts .+ t0, its .+ t0, markersz, nspecs; kwargs...)
+    smap = ax.scatter(rts .+ t0, its .+ t0, markersz, nspecs; norm=plt.matplotlib.colors.LogNorm(), kwargs...)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Run time (self) + $t0 (s)")
@@ -37,12 +53,12 @@ function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markers
     if interactive
         ax.get_figure().canvas.mpl_connect("button_press_event", onclick)
     end
-    return ax
+    return methodref
 end
 
 function specialization_plot(ridata; kwargs...)
     fig, ax = plt.subplots()
-    return specialization_plot(ax, ridata; kwargs...)
+    return specialization_plot(ax, ridata; kwargs...), ax
 end
 
 function specialization_plot(ax::PyCall.PyObject, tinf::InferenceTimingNode; consts::Bool=true, by=inclusive, kwargs...)
