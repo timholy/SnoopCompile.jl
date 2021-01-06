@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Tutorial on the foundations · SnoopCompile</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">SnoopCompile</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">SnoopCompile.jl</a></li><li class="is-active"><a class="tocitem" href>Tutorial on the foundations</a><ul class="internal"><li><a class="tocitem" href="#MethodInstances,-type-inference,-and-backedges"><span>MethodInstances, type-inference, and backedges</span></a></li><li><a class="tocitem" href="#Precompilation"><span>Precompilation</span></a></li></ul></li><li><span class="tocitem">Modern tools</span><ul><li><a class="tocitem" href="../snoopr/">Snooping on and fixing invalidations: <code>@snoopr</code></a></li><li><a class="tocitem" href="../snoopi_deep/">Snooping on inference: <code>@snoopi_deep</code></a></li><li><a class="tocitem" href="../snoopi_deep_analysis/">Using <code>@snoopi_deep</code> results to improve inferrability and control specialization</a></li><li><a class="tocitem" href="../snoopi_deep_parcel/">Using <code>@snoopi_deep</code> results to generate precompile directives</a></li></ul></li><li><span class="tocitem">Older tools</span><ul><li><a class="tocitem" href="../snoopi/">Snooping on inference: <code>@snoopi</code></a></li><li><a class="tocitem" href="../snoopc/">Snooping on code generation: <code>@snoopc</code></a></li></ul></li><li><a class="tocitem" href="../userimg/">Creating <code>userimg.jl</code> files</a></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Tutorial on the foundations</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Tutorial on the foundations</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/timholy/SnoopCompile.jl/blob/master/docs/src/tutorial.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="tutorial"><a class="docs-heading-anchor" href="#tutorial">Tutorial on the foundations</a><a id="tutorial-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial" title="Permalink"></a></h1><p>Certain concepts and types will appear repeatedly, so it&#39;s worth spending a little time to familiarize yourself at the outset. You can find a more expansive version of this page in <a href="https://julialang.org/blog/2021/01/precompile_tutorial/">this blog post</a>.</p><h2 id="MethodInstances,-type-inference,-and-backedges"><a class="docs-heading-anchor" href="#MethodInstances,-type-inference,-and-backedges">MethodInstances, type-inference, and backedges</a><a id="MethodInstances,-type-inference,-and-backedges-1"></a><a class="docs-heading-anchor-permalink" href="#MethodInstances,-type-inference,-and-backedges" title="Permalink"></a></h2><p>Our first goal is to understand how code connects together. We&#39;ll try some experiments using the following:</p><pre><code class="language-julia">double(x::Real) = 2x
+calldouble(container) = double(container[1])
+calldouble2(container) = calldouble(container)</code></pre><p>Let&#39;s create a <code>container</code> and run this code:</p><pre><code class="language-julia-repl">julia&gt; c64 = [1.0]
+1-element Vector{Float64}:
+ 1.0
+
+julia&gt; calldouble2(c64)
+2.0</code></pre><p>Using the <a href="https://github.com/timholy/MethodAnalysis.jl">MethodAnalysis</a> package, we can get some insights into how Julia represents this code and its compilation dependencies:</p><pre><code class="language-julia-repl">julia&gt; using MethodAnalysis
+
+julia&gt; mi = methodinstance(double, (Float64,))
+MethodInstance for double(::Float64)
+
+julia&gt; using AbstractTrees
+
+julia&gt; print_tree(mi)
+MethodInstance for double(::Float64)
+└─ MethodInstance for calldouble(::Vector{Float64})
+   └─ MethodInstance for calldouble2(::Vector{Float64})</code></pre><p>This indicates that the result for type-inference on <code>calldouble2(::Vector{Float64})</code> depended on the result for <code>calldouble(::Vector{Float64})</code>, which in turn depended on <code>double(::Float64)</code>.</p><p>Now let&#39;s create a new container, one with abstract element type, so that Julia&#39;s type-inference cannot accurately predict the type of elements in the container:</p><pre><code class="language-julia-repl">julia&gt; cabs = AbstractFloat[1.0f0]      # put a Float32 in a Vector{AbstractFloat}
+1-element Vector{AbstractFloat}:
+ 1.0f0
+
+julia&gt; calldouble2(cabs)
+2.0f0</code></pre><p>Now let&#39;s look at the available instances:</p><pre><code class="language-julia-repl">julia&gt; mis = methodinstances(double)
+3-element Vector{Core.MethodInstance}:
+ MethodInstance for double(::Float64)
+ MethodInstance for double(::AbstractFloat)
+ MethodInstance for double(::Float32)
+
+julia&gt; print_tree(mis[1])
+MethodInstance for double(::Float64)
+└─ MethodInstance for calldouble(::Vector{Float64})
+   └─ MethodInstance for calldouble2(::Vector{Float64})
+
+julia&gt; print_tree(mis[2])
+MethodInstance for double(::AbstractFloat)
+
+julia&gt; print_tree(mis[3])
+MethodInstance for double(::Float32)</code></pre><p><code>double(::Float64)</code> has backedges to <code>calldouble</code> and <code>calldouble2</code>, but the second two do not because <code>double</code> was only called via runtime dispatch. However, <code>calldouble</code> has backedges to <code>calldouble2</code></p><pre><code class="language-julia">julia&gt; mis = methodinstances(calldouble)
+2-element Vector{Core.MethodInstance}:
+ MethodInstance for calldouble(::Vector{Float64})
+ MethodInstance for calldouble(::Vector{AbstractFloat})
+
+julia&gt; print_tree(mis[1])
+MethodInstance for calldouble(::Vector{Float64})
+└─ MethodInstance for calldouble2(::Vector{Float64})
+
+julia&gt; print_tree(mis[2])
+MethodInstance for calldouble(::Vector{AbstractFloat})
+└─ MethodInstance for calldouble2(::Vector{AbstractFloat})</code></pre><p>because <code>Vector{AbstractFloat}</code> is a concrete type, whereas <code>AbstractFloat</code> is not.</p><p>If we create <code>c32 = [1.0f0]</code> and then <code>calldouble2(c32)</code>, we would also see backedges from <code>double(::Float32)</code> all the way back to <code>calldouble2(::Vector{Float32})</code>.</p><h2 id="Precompilation"><a class="docs-heading-anchor" href="#Precompilation">Precompilation</a><a id="Precompilation-1"></a><a class="docs-heading-anchor-permalink" href="#Precompilation" title="Permalink"></a></h2><p>During <em>package precompilation</em>, Julia creates a <code>*.ji</code> file typically stored in <code>.julia/compiled/v1.x/</code>, where <code>1.x</code> is your version of Julia. Your <code>*.ji</code> file might just have definitions of constants, types, and methods, but optionally you can also include the results of type-inference. This happens automatically if you run code while your package is being built, but generally the recommended procedure is to add <em>precompile directives</em>.</p><p>Let&#39;s turn the example above into a package. In a fresh session,</p><pre><code class="language-julia">(@v1.6) pkg&gt; generate SnoopCompileDemo
+  Generating  project SnoopCompileDemo:
+    SnoopCompileDemo/Project.toml
+    SnoopCompileDemo/src/SnoopCompileDemo.jl
+
+julia&gt; open(&quot;SnoopCompileDemo/src/SnoopCompileDemo.jl&quot;, &quot;w&quot;) do io
+           write(io, &quot;&quot;&quot;
+           module SnoopCompileDemo
+
+           double(x::Real) = 2x
+           calldouble(container) = double(container[1])
+           calldouble2(container) = calldouble(container)
+
+           precompile(calldouble2, (Vector{Float32},))
+           precompile(calldouble2, (Vector{Float64},))
+           precompile(calldouble2, (Vector{AbstractFloat},))
+
+           end
+           &quot;&quot;&quot;)
+       end
+282
+
+julia&gt; push!(LOAD_PATH, &quot;SnoopCompileDemo/&quot;)
+4-element Vector{String}:
+ &quot;@&quot;
+ &quot;@v#.#&quot;
+ &quot;@stdlib&quot;
+ &quot;SnoopCompileDemo/&quot;
+
+julia&gt; using SnoopCompileDemo
+[ Info: Precompiling SnoopCompileDemo [44c70eed-03a3-46c0-8383-afc033fb6a27]
+
+julia&gt; using MethodAnalysis
+
+julia&gt; methodinstances(SnoopCompileDemo.double)
+3-element Vector{Core.MethodInstance}:
+ MethodInstance for double(::Float32)
+ MethodInstance for double(::Float64)
+ MethodInstance for double(::AbstractFloat)</code></pre><p>Because of those <code>precompile</code> statements, the <code>MethodInstance</code>s exist after loading the package even though we haven&#39;t run the code in this session–not because it precompiled them when the package loaded, but because they were precompiled during the <code>Precompiling SnoopCompileDemo...</code> phase, stored to <code>*.ji</code> file, and then reloaded whenever we use the package. You can also verify that the same backedges get created as when we ran this code interactively above.</p><p>By having these <code>MethodInstance</code>s &quot;pre-loaded&quot; we can save some of the time needed to run type-inference: not much time in this case because the code is so simple, but for more complex methods the savings can be substantial.</p><p>This code got cached in <code>SnoopCompileDemo.ji</code>. It&#39;s worth noting that even though the <code>precompile</code> directive got issued from this package, it might save <code>MethodInstances</code> for methods defined in other packages. For example, Julia does not come pre-built with the inferred code for <code>Int * Float32</code>: in a fresh session,</p><pre><code class="language-julia">julia&gt; using MethodAnalysis
+
+julia&gt; mi = methodinstance(*, (Int, Float32))
+</code></pre><p>returns <code>nothing</code> (the <code>MethodInstance</code> doesn&#39;t exist), whereas if we&#39;ve loaded <code>SnoopCompileDemo</code> then</p><pre><code class="language-julia">julia&gt; mi = methodinstance(*, (Int, Float32))
+MethodInstance for *(::Int64, ::Float32)
+
+julia&gt; mi.def
+*(x::Number, y::Number) in Base at promotion.jl:322</code></pre><p>So even though the method is defined in <code>Base</code>, because <code>SnoopCompileDemo</code> needed this code it got stashed in <code>SnoopCompileDemo.ji</code>.</p><p><em>The ability to cache MethodInstances from code defined in other packages or libraries is fundamental to latency reduction; however, it has significant limitations.</em>  Most crucially, <code>*.ji</code> files can only hold code they &quot;own,&quot; either:</p><ul><li>to a method defined in the package</li><li>through a chain of backedges to methods owned by the package</li></ul><p>If we add</p><pre><code class="language-julia">precompile(*, (Int, Float16))</code></pre><p>to the definition of <code>SnoopCompileDemo.jl</code>, nothing happens:</p><pre><code class="language-julia">julia&gt; mi = methodinstance(*, (Int, Float16))
+                                                 # nothing</code></pre><p>because there is no &quot;chain of ownership&quot; to <code>SnoopCompileDemo</code>. Consequently, we can&#39;t precompile methods defined in other modules in and of themselves; we can only do it if those methods are linked by backedges to this package.</p><p>Because backedges are created during successful type-inference, the consequence is that <em>precompilation works better when type inference succeeds.</em> For some packages, time invested in improving inferrability can make your <code>precompile</code> directives work better.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« SnoopCompile.jl</a><a class="docs-footer-nextpage" href="../snoopr/">Snooping on and fixing invalidations: <code>@snoopr</code> »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 6 January 2021 18:07">Wednesday 6 January 2021</span>. Using Julia version 1.7.0-DEV.221.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
