@@ -342,8 +342,8 @@ end
     end
     rit = runtime_inferencetime(tinf_spec)
     m = @which SnoopBench.spell_spec(first(Ts))
-    tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
-    @test ti > tr
+    trspec, tispec, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test tispec > trspec
     @test nspec >= length(Ts)
     # specialization_plot(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
 
@@ -353,8 +353,9 @@ end
     end
     rit = runtime_inferencetime(tinf_unspec)
     m = @which SnoopBench.spell_unspec(first(Ts))
-    tr, ti, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
-    @test ti < tr
-    @test nspec == 1
+    trunspec, tiunspec, nunspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test tiunspec < tispec/10
+    @test trunspec < 10*trspec
+    @test nunspec == 1
     # specialization_plot(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end
