@@ -38,6 +38,15 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
     @test issorted(frames; by=exclusive)
     names = [Method(frame).name for frame in frames]
     @test sort(names) == [:ROOT, :g, :g, :h, :i, :i, :i]
+    mg = which(M.g, (Int,))
+    tinfsg = collect_for(mg, tinf)
+    @test length(tinfsg) == 2
+    @test all(node -> Method(node) == mg, tinfsg)
+    mig = MethodInstance(first(tinfsg))
+    tinfsg1 = collect_for(mig, tinf)
+    @test length(tinfsg1) == 1
+    @test MethodInstance(tinfsg1[1]) == mig
+    @test all(node -> Method(node) == mg, tinfsg)
 
     longest_frame_time = exclusive(frames[end])
     @test length(flatten(tinf, tmin=longest_frame_time)) == 1

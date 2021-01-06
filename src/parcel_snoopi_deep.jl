@@ -171,6 +171,24 @@ end
 
 accumulate_by_source(flattened::Vector{InferenceTiming}; kwargs...) = accumulate_by_source(Method, flattened; kwargs...)
 
+"""
+    list = collect_for(m::Method, tinf::InferenceTimingNode)
+    list = collect_for(m::MethodInstance, tinf::InferenceTimingNode)
+
+Collect all `InferenceTimingNode`s (descendants of `tinf`) that match `m`.
+"""
+collect_for(target::Union{Method,MethodInstance}, tinf::InferenceTimingNode) = collect_for!(InferenceTimingNode[], target, tinf)
+function collect_for!(out, target, tinf)
+    matches(mi::MethodInstance, node) = MethodInstance(node) == mi
+    matches(m::Method, node) = (mi = MethodInstance(node); mi.def == m)
+
+    matches(target, tinf) && push!(out, tinf)
+    for child in tinf.children
+        collect_for!(out, target, child)
+    end
+    return out
+end
+
 ## parcel and supporting infrastructure
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
