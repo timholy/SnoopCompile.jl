@@ -436,31 +436,31 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
     end
     matchloc(sf::StackTraces.StackFrame) = matchloc(MethodLoc(sf))
 
-    ridata = Dict{Union{Method,MethodLoc},Tuple{Float64,Float64,Int}}()
+    ridata = Dict{Union{Method,MethodLoc},Tuple{Float64,Float64,Float64,Int}}()
     # Insert the profiling data
-    lilists, nselfs = select_firstip(pdata, lidict)
-    for (sfs, nself) in zip(lilists, nselfs)
+    lilists, nselfs, nrtds = select_firstip(pdata, lidict)
+    for (sfs, nself, nrtd) in zip(lilists, nselfs, nrtds)
         for sf in sfs
             mi = sf.linfo
             m = isa(mi, MethodInstance) ? mi.def : matchloc(sf)
             if isa(m, Method) || isa(m, MethodLoc)
-                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
-                ridata[m] = (trun + nself*delay, tinfer, nspecializations)
+                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
+                ridata[m] = (trun + nself*delay, trtd + nrtd*delay, tinfer, nspecializations)
             else
                 @show typeof(m) m
                 error("whoops")
             end
         end
     end
-    @assert all(ttn -> ttn[2] == 0.0, values(ridata))
+    @assert all(ttn -> ttn[3] == 0.0, values(ridata))
     # Now add inference times & specialization counts. To get the counts we go back to tf rather than using tm.
     if !consts
         for (t, mi) in accumulate_by_source(MethodInstance, tf; by=by)
             isROOT(mi) && continue
             m = mi.def
             if isa(m, Method)
-                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
-                ridata[m] = (trun, tinfer + t, nspecializations + 1)
+                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
+                ridata[m] = (trun, trtd, nrtdm, tinfer + t, nspecializations + 1)
             end
         end
     else
@@ -469,8 +469,8 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
             t = by(frame)
             m = MethodInstance(frame).def
             if isa(m, Method)
-                trun, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0))
-                ridata[m] = (trun, tinfer + t, nspecializations + 1)
+                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
+                ridata[m] = (trun, trtd, tinfer + t, nspecializations + 1)
             end
         end
     end
@@ -480,17 +480,19 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
     # there were only one specialization of each method, and the answers are sorted by the estimated savings. This does not
     # even attempt to account for any risk to the runtime. For any serious analysis, looking at the scatter plot with
     # [`specialization_plot`](@ref) is recommended.
-    savings((trun, tinfer, nspec)::Tuple{Float64,Float64,Int}) = tinfer * (nspec - 1)
+    savings((trun, trtd, tinfer, nspec)::Tuple{Float64,Float64,Float64,Int}) = tinfer * (nspec - 1)
     savings(pr::Pair) = savings(pr.second)
     return sort(collect(ridata); by=savings)
 end
 
 function lookup_firstip!(lookups, pdata)
     isfirst = true
-    for ip in pdata
+    for (i, ip) in enumerate(pdata)
         if isfirst
-            get!(()->Base.StackTraces.lookup(ip), lookups, ip)
-            isfirst = false
+            sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
+            if !all(sf -> sf.from_c, sfs)
+                isfirst = false
+            end
         end
         if ip == 0
             isfirst = true
@@ -499,23 +501,34 @@ function lookup_firstip!(lookups, pdata)
     return lookups
 end
 function select_firstip(pdata, lidict)
-    counter = Dict{eltype(pdata),Int}()
+    counter = Dict{eltype(pdata),Tuple{Int,Int}}()
     isfirst = true
+    isrtd = false
     for ip in pdata
         if isfirst
-            counter[ip] = get(counter, ip, 0) + 1
-            isfirst = false
+            sfs = lidict[ip]
+            if !all(sf -> sf.from_c, sfs)
+                n, nrtd = get(counter, ip, (0, 0))
+                counter[ip] = (n + 1, nrtd + isrtd)
+                isfirst = isrtd = false
+            else
+                for sf in sfs
+                    isrtd |= FlameGraphs.status(sf) & FlameGraphs.runtime_dispatch
+                end
+            end
         end
         if ip == 0
             isfirst = true
+            isrtd = false
         end
     end
-    lilists, nselfs = valtype(lidict)[], Int[]
-    for (ip, n) in counter
+    lilists, nselfs, nrtds = valtype(lidict)[], Int[], Int[]
+    for (ip, (n, nrtd)) in counter
         push!(lilists, lidict[ip])
         push!(nselfs, n)
+        push!(nrtds, nrtd)
     end
-    return lilists, nselfs
+    return lilists, nselfs, nrtds
 end
 
 ## Analysis of inference triggers

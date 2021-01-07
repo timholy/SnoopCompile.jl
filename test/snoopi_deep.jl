@@ -341,10 +341,17 @@ end
         SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     end
     rit = runtime_inferencetime(tinf_spec)
+    @test !any(rit) do (ml, _)
+        endswith(string(ml.file), ".c")   # attribute all costs to Julia code, not C code
+    end
     m = @which SnoopBench.spell_spec(first(Ts))
-    trspec, tispec, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
-    @test tispec > trspec
+    trspec, trtd, tispec, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test tispec > trspec      # more time is spent on inference than on runtime
     @test nspec >= length(Ts)
+    # Check that much of the time in `mappushes!` is spend on runtime dispatch
+    mp = @which SnoopBench.mappushes!(SnoopBench.spell_spec, [], first(Ts))
+    trmp, trtdmp, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
+    @test trtdmp >= 0.5*trmp
     # specialization_plot(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
 
     Profile.clear()
@@ -353,9 +360,12 @@ end
     end
     rit = runtime_inferencetime(tinf_unspec)
     m = @which SnoopBench.spell_unspec(first(Ts))
-    trunspec, tiunspec, nunspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    trunspec, trdtunspec, tiunspec, nunspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test tiunspec < tispec/10
     @test trunspec < 10*trspec
     @test nunspec == 1
+    # Test that no runtime dispatch occurs in mappushes!
+    trmp, trtdmp, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
+    @test trtdmp == 0
     # specialization_plot(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end

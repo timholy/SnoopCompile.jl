@@ -15,14 +15,15 @@ Create a scatter plot comparing:
     - (vertical axis) the inference time for all instances of each Method, as captured by `tinf`;
     - (horizontal axis) the run time cost, as estimated by capturing a `@profile` before calling this function.
 
-Each dot corresponds to a single method. The color encodes the number of times that method was inferred.
+Each dot corresponds to a single method. The face color encodes the number of times that method was inferred,
+and the edge color corresponds to the fraction of the runtime spent on runtime dispatch (black is 0%, bright red is 100%).
 Clicking on a dot prints the method (or location, if inlined) to the REPL, and sets `methodref[]` to
 that method.
 
 This depends on PyPlot, which must be loaded first. `ax` is the pyplot axis.
 """
-function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markersz=9, t0 = 0.001, interactive::Bool=true, kwargs...)
-    methodref = Ref{Method}()
+function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markersz=25, linewidth=0.5, t0 = 0.001, interactive::Bool=true, kwargs...)
+    methodref = Ref{Union{Method,MethodLoc}}()
     function onclick(event)
         xc, yc = event.xdata, event.ydata
         idx = argmin((log.(rts .+ t0) .- log(xc)).^2 + (log.(its .+ t0) .- log(yc)).^2)
@@ -31,18 +32,19 @@ function specialization_plot(ax::PyCall.PyObject, ridata; bystr, consts, markers
         println(m, " ($(nspecs[idx]) specializations)")
     end
 
-    meths, rts, its, nspecs = Union{Method,MethodLoc}[], Float64[], Float64[], Int[]
-    for (m, (rt, it, nspec)) in ridata
+    meths, rts, its, nspecs, ecols = Union{Method,MethodLoc}[], Float64[], Float64[], Int[], Tuple{Float64,Float64,Float64}[]
+    for (m, (rt, trtd, it, nspec)) in ridata
         push!(meths, m)
         push!(rts, rt)
         push!(its, it)
         push!(nspecs, nspec)
+        push!(ecols, (rt > 0 ? trtd/rt : 0.0, 0.0, 0.0))
     end
     sp = sortperm(nspecs)
-    meths, rts, its, nspecs = meths[sp], rts[sp], its[sp], nspecs[sp]
+    meths, rts, its, nspecs, ecols = meths[sp], rts[sp], its[sp], nspecs[sp], ecols[sp]
 
     # Add t0 to each entry to handle times of zero in the log-log plot
-    smap = ax.scatter(rts .+ t0, its .+ t0, markersz, nspecs; norm=plt.matplotlib.colors.LogNorm(), kwargs...)
+    smap = ax.scatter(rts .+ t0, its .+ t0, markersz, nspecs; norm=plt.matplotlib.colors.LogNorm(), edgecolors=ecols, linewidths=linewidth, kwargs...)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Run time (self) + $t0 (s)")
