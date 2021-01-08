@@ -1,6 +1,7 @@
 # SnoopCompile
 
 [![Build Status](https://github.com/timholy/SnoopCompile.jl/workflows/CI/badge.svg)](https://github.com/timholy/SnoopCompile.jl/actions?query=workflow%3A%22CI%22+branch%3Amaster)
+[![Codecov](https://codecov.io/github/timholy/SnoopCompile.jl/coverage.svg)](https://codecov.io/gh/timholy/SnoopCompile.jl)
 
 SnoopCompile observes the Julia compiler, causing it to record the
 functions and argument types it's compiling.  From these lists of methods,
