@@ -341,7 +341,7 @@ julia> methodinstances(m)       # let's see what specializations we have
 
 In this case we have 7 MethodInstances (some of which are clearly due to poor inferrability of the caller) when one might suffice.
 
-### Creating "warmpup" methods
+### Creating "warmup" methods
 
 Our next case is particularly interesting:
 
@@ -412,7 +412,7 @@ We handled not just `Vector{Container{Any}}` but also `Vector{Object}`, since th
 If you make this change, start a fresh session, and recreate the flame graph, you'll see that the wide red flames are gone.
 
 !!! info
-    It's worth noting that this `warmpup` method needed to be carefully written to succeed in its mission. `stdout` is not inferrable (it's a global that can be replaced by `redirect_stdout`), so we needed to annotate its type. We also might have been tempted to use a loop, `for io in (stdout, IOContext(stdout)) ... end`, but inference needs a dedicated call-site where it knows all the types. ([Union-splitting](https://julialang.org/blog/2018/08/union-splitting/) can sometimes come to the rescue, but not if the list is long or elements non-inferrable.) The safest option is to make each call from a separate site in the code.
+    It's worth noting that this `warmup` method needed to be carefully written to succeed in its mission. `stdout` is not inferrable (it's a global that can be replaced by `redirect_stdout`), so we needed to annotate its type. We also might have been tempted to use a loop, `for io in (stdout, IOContext(stdout)) ... end`, but inference needs a dedicated call-site where it knows all the types. ([Union-splitting](https://julialang.org/blog/2018/08/union-splitting/) can sometimes come to the rescue, but not if the list is long or elements non-inferrable.) The safest option is to make each call from a separate site in the code.
 
 The next trigger, a call to `sprint` from inside `Base.alignment(io::IO, x::Any)`, could also be handled using this `warmup` trick, but the flamegraph says this isn't an expensive method to infer.  In such cases, it's fine to choose to leave it be.
 
