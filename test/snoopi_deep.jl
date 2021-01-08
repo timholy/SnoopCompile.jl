@@ -329,7 +329,7 @@ end
     tinf_spec =   @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     tf_unspec = flatten(tinf_unspec)
     tf_spec   = flatten(tinf_spec)
-    @test length(tf_unspec) < 10
+    @test length(tf_unspec) < length(Ts) ÷ 5
     @test any(tmi -> occursin("spell_unspec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
     @test length(tf_spec) >= length(Ts)
     @test !any(tmi -> occursin("spell_spec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
@@ -364,8 +364,8 @@ end
     @test tiunspec < tispec/10
     @test trunspec < 10*trspec
     @test nunspec == 1
-    # Test that no runtime dispatch occurs in mappushes!
-    trmp, trtdmp, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
-    @test trtdmp == 0
+    # Test that little runtime dispatch occurs in mappushes!
+    _, trtdmpu, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
+    @test trtdmpu < trtdmp/10
     # specialization_plot(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end
