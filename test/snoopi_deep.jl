@@ -333,6 +333,7 @@ end
     @test any(tmi -> occursin("spell_unspec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
     @test length(tf_spec) >= length(Ts)
     @test !any(tmi -> occursin("spell_spec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
+    @test !any(tmi -> occursin("spell_spec(::Type)", repr(MethodInstance(tmi))), tf_unspec)
 
     # fig, axs = plt.subplots(1, 2)
 
@@ -345,14 +346,14 @@ end
         endswith(string(ml.file), ".c")   # attribute all costs to Julia code, not C code
     end
     m = @which SnoopBench.spell_spec(first(Ts))
-    trspec, trtd, tispec, nspec = rit[findfirst(pr -> pr.first == m, rit)].second
-    @test tispec > trspec      # more time is spent on inference than on runtime
-    @test nspec >= length(Ts)
+    dspec = rit[findfirst(pr -> pr.first == m, rit)].second
+    @test dspec.tinf > dspec.trun      # more time is spent on inference than on runtime
+    @test dspec.nspec >= length(Ts)
     # Check that much of the time in `mappushes!` is spend on runtime dispatch
     mp = @which SnoopBench.mappushes!(SnoopBench.spell_spec, [], first(Ts))
-    trmp, trtdmp, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
-    @test trtdmp >= 0.5*trmp
-    # specialization_plot(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
+    dmp = rit[findfirst(pr -> pr.first == mp, rit)].second
+    @test dmp.trtd >= 0.5*dmp.trun
+    # pgdsgui(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
 
     Profile.clear()
     @profile for i = 1:nruns
@@ -360,12 +361,12 @@ end
     end
     rit = runtime_inferencetime(tinf_unspec)
     m = @which SnoopBench.spell_unspec(first(Ts))
-    trunspec, trdtunspec, tiunspec, nunspec = rit[findfirst(pr -> pr.first == m, rit)].second
-    @test tiunspec < tispec/10
-    @test trunspec < 10*trspec
-    @test nunspec == 1
+    dunspec = rit[findfirst(pr -> pr.first == m, rit)].second # trunspec, trdtunspec, tiunspec, nunspec
+    @test dunspec.tinf < dspec.tinf/10
+    @test dunspec.trun < 10*dspec.trun
+    @test dunspec.nspec == 1
     # Test that no runtime dispatch occurs in mappushes!
-    trmp, trtdmp, _, _ = rit[findfirst(pr -> pr.first == mp, rit)].second
-    @test trtdmp == 0
-    # specialization_plot(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
+    dmp = rit[findfirst(pr -> pr.first == mp, rit)].second
+    @test dmp.trtd == 0
+    # pgdsgui(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end

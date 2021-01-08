@@ -390,6 +390,14 @@ MethodLoc(sf::StackTraces.StackFrame) = MethodLoc(sf.func, sf.file, sf.line)
 
 Base.show(io::IO, ml::MethodLoc) = print(io, ml.func, " at ", ml.file, ':', ml.line, " [inlined and pre-inferred]")
 
+struct PGDSData
+    trun::Float64     # runtime cost
+    trtd::Float64     # runtime dispatch cost
+    tinf::Float64     # inference time  (either exclusive/inclusive depending on settings)
+    nspec::Int        # number of specializations
+end
+PGDSData() = PGDSData(0.0, 0.0, 0.0, 0)
+
 """
     ridata = runtime_inferencetime(tinf::InferenceTimingNode; consts=true, by=inclusive)
     ridata = runtime_inferencetime(tinf::InferenceTimingNode, profiledata; lidict, consts=true, by=inclusive)
@@ -436,7 +444,7 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
     end
     matchloc(sf::StackTraces.StackFrame) = matchloc(MethodLoc(sf))
 
-    ridata = Dict{Union{Method,MethodLoc},Tuple{Float64,Float64,Float64,Int}}()
+    ridata = Dict{Union{Method,MethodLoc},PGDSData}()
     # Insert the profiling data
     lilists, nselfs, nrtds = select_firstip(pdata, lidict)
     for (sfs, nself, nrtd) in zip(lilists, nselfs, nrtds)
@@ -444,23 +452,22 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
             mi = sf.linfo
             m = isa(mi, MethodInstance) ? mi.def : matchloc(sf)
             if isa(m, Method) || isa(m, MethodLoc)
-                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
-                ridata[m] = (trun + nself*delay, trtd + nrtd*delay, tinfer, nspecializations)
+                d = get(ridata, m, PGDSData())
+                ridata[m] = PGDSData(d.trun + nself*delay, d.trtd + nrtd*delay, d.tinf, d.nspec)
             else
                 @show typeof(m) m
                 error("whoops")
             end
         end
     end
-    @assert all(ttn -> ttn[3] == 0.0, values(ridata))
     # Now add inference times & specialization counts. To get the counts we go back to tf rather than using tm.
     if !consts
         for (t, mi) in accumulate_by_source(MethodInstance, tf; by=by)
             isROOT(mi) && continue
             m = mi.def
             if isa(m, Method)
-                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
-                ridata[m] = (trun, trtd, nrtdm, tinfer + t, nspecializations + 1)
+                d = get(ridata, m, PGDSData())
+                ridata[m] = PGDSData(d.trun, d.trtd, d.tinf + t, d.nspec + 1)
             end
         end
     else
@@ -469,8 +476,8 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
             t = by(frame)
             m = MethodInstance(frame).def
             if isa(m, Method)
-                trun, trtd, tinfer, nspecializations = get(ridata, m, (0.0, 0.0, 0.0, 0))
-                ridata[m] = (trun, trtd, tinfer + t, nspecializations + 1)
+                d = get(ridata, m, PGDSData())
+                ridata[m] = PGDSData(d.trun, d.trtd, d.tinf + t, d.nspec + 1)
             end
         end
     end
@@ -480,7 +487,7 @@ function runtime_inferencetime(tinf::InferenceTimingNode, pdata;
     # there were only one specialization of each method, and the answers are sorted by the estimated savings. This does not
     # even attempt to account for any risk to the runtime. For any serious analysis, looking at the scatter plot with
     # [`specialization_plot`](@ref) is recommended.
-    savings((trun, trtd, tinfer, nspec)::Tuple{Float64,Float64,Float64,Int}) = tinfer * (nspec - 1)
+    savings(d::PGDSData) = d.tinf * (d.nspec - 1)
     savings(pr::Pair) = savings(pr.second)
     return sort(collect(ridata); by=savings)
 end

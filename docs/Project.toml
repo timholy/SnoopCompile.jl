@@ -1,7 +1,9 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
 Documenter = "0.25"
 MethodAnalysis = "0.4"
+PyPlot = "2"

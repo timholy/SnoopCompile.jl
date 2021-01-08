@@ -9,6 +9,13 @@
 @snoopc
 ```
 
+## GUIs
+
+```@docs
+flamegraph
+pgdsgui
+```
+
 ## Analysis of invalidations
 
 ```@docs
@@ -26,6 +33,7 @@ flatten
 exclusive
 inclusive
 accumulate_by_source
+collect_for
 inference_triggers
 callerinstance
 callingframe
