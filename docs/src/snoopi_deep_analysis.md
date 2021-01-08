@@ -1,4 +1,4 @@
-# Using `@snoopi_deep` results to improve inferrability and control specialization
+# Using `@snoopi_deep` results to improve inferrability
 
 As indicated in the [workflow](@ref), the recommended steps to reduce latency are:
 
@@ -6,9 +6,7 @@ As indicated in the [workflow](@ref), the recommended steps to reduce latency ar
 - fix problems in type inference
 - add precompile directives
 
-The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) results in breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
-
-In practice, it also turns out that opportunities to adjust specialization are often revealed by analyzing inference failures, so we address this topic first.
+The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) introduces breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
 
 Throughout this page, we'll use the `OptimizeMe` demo, which ships with SnoopCompile.
 
@@ -200,7 +198,7 @@ since `list[1]` is of type `Any`, Julia will not be able to deduce which `conver
 Without that final `::Float64`, inference cannot simply assume that the result is a `Float64`.
 The type-assert `::Float64` enforces the fact that you're expecting that `convert` call to actually return a `Float64`--it will error if it fails to do so, and it's this error that allows inference to be certain that for the purposes of any later code it must be a `Float64`.
 
-Of course, this just trades one form of inference failure for another--the call to `convert` will be made by runtime dispatch--but this can nevertheless be a big win for three reasons:
+Of course, this just trades one form of inference failure for another--the call to `convert` will be made by runtime dispatch--but this can nevertheless be a big win for two reasons:
 
 - even though the `convert` call will be made by runtime dispatch, in this particular case `convert(Float64, ::Float64)` is already compiled in Julia itself.  Consequently it doesn't require a fresh run of inference.
 - even in cases where the types are such that `convert` might need to be inferred & compiled, the type-assertion allows Julia to assume that `item1` is henceforth a `Float64`.  This makes it possible for inference to succeed for any code that follows.  When that's a large amount of code, the savings can be considerable.
@@ -234,6 +232,8 @@ Making this simple 3-character fix gets us down to 64 triggers (a savings of 6 i
 
 ### Reducing specialization
 
+We talked about reducing specialization of callees in [profile-guided despecialization](@ref pgds).
+Here we'll cover a complemetary technique, reducing specialization from the standpoint of the caller.
 Our next entry takes us back to the broadcasting machinery:
 
 ```julia
@@ -285,61 +285,6 @@ end
 ```
 
 `@nospecialize` hints to Julia that it should avoid creating many specializations for different argument types.
-
-!!! tip
-    Julia's specialization, when used appropriately, can be fantastic for runtime performance, but its cost has to be weighed against the time needed to compile the specializations.
-    Limiting specialization is often the change that yields the greatest latency savings.
-    Sometimes, it can even *help* runtime performance, if specialization requires that more calls be made via runtime dispatch.
-    Having tools to analyze both runtime and compile-time performance can help you strike the right balance.
-
-### Argument standardization
-
-While not immediately relevant here, a very important technique that falls within the domain of reducing specialization is *argument standardization*: instead of
-
-```julia
-function foo(x, y)
-    # some huge function, slow to compile, and you'd prefer not to compile it many times for different types of x and y
-end
-```
-
-consider whether you can safely write this as
-
-```julia
-function foo(x::X, y::Y)   # X and Y are concrete types
-    # some huge function, but the concrete typing ensures you only compile it once
-end
-foo(x, y) = foo(convert(X, x)::X, convert(Y, y)::Y)   # this allows you to still call it with any argument types
-```
-
-The "standardizing method" `foo(x, y)` is short and therefore quick to compile, so it doesn't really matter if you compile many different instances.
-
-!!! tip
-    In `convert(X, x)::X`, the final `::X` is a "nice touch" to ensure that if someone writes a broken `convert` method--one which does not actually return an `X`--it doesn't end up triggering a StackOverflowError due to `foo(x, y)` calling itself in an infinite loop. StackOverflowErrors are a particularly nasty form of error to debug, and the typeassert ensures that you get a simple `TypeError` instead.
-
-    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred (see [above](@ref typeasserts)), but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
-
-There are of course cases where you can't implement your code in this way: after all, part of the power of Julia is the ability of generic methods to "do the right thing" for a wide variety of types. But in cases where you're doing a standard task (e.g., writing some data to a file), there's really no good reason to recompile your, e.g., `save` method for a filename encoded as a `String` and a `SubString{String}` and a `SubstitutionString` and an `AbstractString` and ...: after all, the core component of the `save` method probably isn't sensitive to the precise encoding of the filename.  In such cases, it should be safe to convert all filenames to `String` to reduce the diversity of input arguments for the expensive methods.
-
-Detecting the opportunity for argument standardization is often facilitated by looking at, e.g.,
-
-```julia
-julia> tms = accumulate_by_source(flatten(tinf));  # collect all MethodInstances that belong to the same Method
-
-julia> t, m = tms[end-1]        # the ones towards the end take the most time, maybe they are over-specialized?
-(0.4138147, save(filename::AbstractString, data) in SomePkg at /pathto/SomePkg/src/SomePkg.jl:23)
-
-julia> methodinstances(m)       # let's see what specializations we have
-7-element Vector{Core.MethodInstance}:
- MethodInstance for save(::String, ::Vector{SomePkg.SomeDataType})
- MethodInstance for save(::SubString{String}, ::Vector{SomePkg.SomeDataType})
- MethodInstance for save(::AbstractString, ::Vector{SomePkg.SomeDataType})
- MethodInstance for save(::String, ::Vector{SomePkg.SomeDataType{SubString{String}}})
- MethodInstance for save(::SubString{String}, ::Array)
- MethodInstance for save(::String, ::Vector{var"#s92"} where var"#s92"<:SomePkg.SomeDataType)
- MethodInstance for save(::String, ::Array)
-```
-
-In this case we have 7 MethodInstances (some of which are clearly due to poor inferrability of the caller) when one might suffice.
 
 ### Creating "warmup" methods
 

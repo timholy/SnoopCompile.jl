@@ -1,5 +1,6 @@
 using Documenter
 using SnoopCompile
+import PyPlot   # so that the visualizations.jl file is loaded
 
 makedocs(
     sitename = "SnoopCompile",
@@ -10,7 +11,7 @@ makedocs(
     linkcheck = true,
     pages = ["index.md",
              "tutorial.md",
-             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md"],
+             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "pgdsgui.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md"],
              "Older tools" => ["snoopi.md", "snoopc.md"],
              "userimg.md",
              "reference.md"]
