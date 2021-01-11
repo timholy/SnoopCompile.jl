@@ -538,6 +538,112 @@ function select_firstip(pdata, lidict)
     return lilists, nselfs, nrtds
 end
 
+function pgds(@nospecialize(mpredicate), nargtypesthresh::Int, ridata, tinf::InferenceTimingNode)
+    msettings = Pair{Method,Int32}[]
+    for (m, d) in ridata
+        isa(m, MethodLoc) && continue
+        @show m mpredicate(d)
+        if mpredicate(d)
+            nodes = collect_for(m, tinf)
+            tinc = map(inclusive, nodes)
+            @show tinc
+            if maximum(tinc) < 0.8*sum(tinc)   # if it's not dominated by a single (likely, first) inference run...
+                # paramslist = map(nodes) do node
+                #     mi = MethodInstance(node)
+                #     (Base.unwrap_unionall(mi.specTypes)::DataType).parameters
+                # end
+                paramslist = map(node -> node.mi_timing.mi_info.slottypes, nodes)
+                nargtypes = argdiversity(paramslist, Int(m.nargs))
+                popfirst!(nargtypes)   # discard the function-type
+                all(<(nargtypesthresh), nargtypes) && continue
+                flags = zero(Int32)
+                for (i, n) in enumerate(nargtypes)
+                    if n >= nargtypesthresh
+                        flags |= oneunit(Int32) << (i-1)
+                    end
+                end
+                push!(msettings, m=>flags)
+            end
+        end
+    end
+    return msettings
+end
+
+function argdiversity(paramslist::Union{Vector{Core.SimpleVector},Vector{Vector{Any}}}, minargs::Int)
+    argtypes = [Base.IdSet{Any}() for i = 1:minargs]
+    for params in paramslist
+        for i = 1:minargs
+            length(params) >= i && push!(argtypes[i], params[i])
+        end
+    end
+    return map(length, argtypes)
+end
+
+function write(prefix::AbstractString, msettings::Vector{Pair{Method,Int32}})
+    modsettings = Dict{Module, Vector{Pair{Method,Int32}}}()
+    for (m, s) in msettings
+        list = get!(()->Vector{Pair{Method,Int32}}(), modsettings, m.module)
+        push!(list, m=>s)
+    end
+    mkpath(prefix)
+    for (mod, list) in modsettings
+        open(joinpath(prefix, "despecialize_$(mod).jl"), "w") do io
+            write(io, list)
+        end
+    end
+    return nothing
+end
+
+function write(io::IO, msettings::Vector{Pair{Method,Int32}})
+    for (m, s) in msettings
+        ws = whichstmt(m)
+        if ws !== nothing
+            println(io, "let m = ", ws)
+            println(io, "    m.nospecialize |= $s")
+            println(io, "end")
+        end
+    end
+end
+
+function whichstmt(m::Method)
+    mname = string(m.name)
+    tvars = TypeVar[]
+    # paramrepr = map(T->(if isa(T, TypeVar) T = T.ub end; reprcontext(m.module, T)), Iterators.drop(Base.unwrap_unionall(m.sig).parameters, 1))
+    paramrepr = map(Iterators.drop(Base.unwrap_unionall(m.sig).parameters, 1)) do T
+    # paramrepr = map(Iterators.drop(m.sig.parameters, 1)) do T
+        if isa(T, TypeVar)
+            reprcontext(m.module, T.ub)
+            # push!(tvars, T)
+            # string(T.name)
+        else
+            reprcontext(m.module, T)
+        end
+    end
+    # wherestr = join(map(tvars) do tv
+    #     tv.lb
+    mbody = match(r"^#(\w[^#]*)#\d+", mname)
+    if mbody !== nothing
+        # Keyword body function, find from the main method
+        pttstr = tuplestring(paramrepr[m.nkw+2:end])
+        return "only(methods(Base.bodyfunction(which($(mbody.captures[1]), $pttstr))))"
+    end
+    mkw = match(r"^kw##(.*)$|^([^#]*)##kw$", mname)
+    if mkw !== nothing
+        pttstr = tuplestring(paramrepr)
+        fname = something(mkw.captures...)
+        return "which(Core.kwfunc($fname), $pttstr)"
+    end
+    mhash = match(r"#", mname)
+    if mhash === nothing
+        mstr = repr(m.sig; context=:module=>m.module)
+        return "which($mstr)"
+        # pttstr = tuplestring(paramrepr)
+        # return "which($mname, $pttstr)"
+    end
+    println("skipping ", m)
+    return nothing
+end
+
 ## Analysis of inference triggers
 
 """
