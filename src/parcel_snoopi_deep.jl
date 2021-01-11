@@ -751,9 +751,11 @@ function skiphigherorder(itrig::InferenceTrigger; exact::Bool=true)
     ft = Base.unwrap_unionall(Base.unwrap_unionall(MethodInstance(itrig.node).specTypes).parameters[1])
     sfs, idx = itrig.callerframes, itrig.btidx
     while idx < length(itrig.node.bt)
-        callermi = sfs[end].linfo
-        if !hasparameter(callermi.specTypes, ft, exact)
-            return InferenceTrigger(itrig.node, sfs, idx)
+        if !isempty(sfs)
+            callermi = sfs[end].linfo
+            if !hasparameter(callermi.specTypes, ft, exact)
+                return InferenceTrigger(itrig.node, sfs, idx)
+            end
         end
         ret = next_julia_frame(itrig.node.bt, idx)
         ret === nothing && return InferenceTrigger(itrig.node, sfs, idx)
