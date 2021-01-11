@@ -668,7 +668,11 @@ function maybe_internal(itrig::InferenceTrigger)
         if isa(linfo, MethodInstance)
             m = linfo.def
             if isa(m, Method)
-                m.module === Base && m.name === :include_string && return false
+                if m.module === Base
+                    m.name === :include_string && return false
+                    m.name === :_include_from_serialized && return false
+                    m.name === :return_types && return false   # from `@inferred`
+                end
                 m.name === :eval && return false
             end
         end
