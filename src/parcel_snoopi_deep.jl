@@ -591,16 +591,18 @@ Return the MethodInstance `mi` of the caller in the selected stackframe in `itri
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
-function next_julia_frame(bt, idx)
-    while idx < length(bt)
-        ip = lookups_key(bt[idx+=1])
+function next_julia_frame(bt, idx, Δ=1; methodonly::Bool=true)
+    while 1 <= idx+Δ <= length(bt)
+        ip = lookups_key(bt[idx+=Δ])
         sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
         sf = sfs[end]
         sf.from_c && continue
+        methodonly || return sfs, idx
         mi = sf.linfo
         isa(mi, Core.MethodInstance) || continue
         m = mi.def
         isa(m, Method) || continue
+        # Exclude frames that are in Core.Compiler
         m.module === Core.Compiler && continue
         return sfs, idx
     end
@@ -799,6 +801,80 @@ Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(Cthulhu.instance(
 Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
 Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
+### inference trigger trees
+# good for organizing into "events"
+
+struct TriggerNode
+    itrig::Union{Nothing,InferenceTrigger}
+    children::Vector{TriggerNode}
+    parent::TriggerNode
+
+    TriggerNode() = new(nothing, TriggerNode[])
+    TriggerNode(parent::TriggerNode, itrig::InferenceTrigger) = new(itrig, TriggerNode[], parent)
+end
+
+function Base.show(io::IO, node::TriggerNode)
+    print(io, "TriggerNode for ")
+    AbstractTrees.printnode(io, node)
+    print(io, " with ", length(node.children), " direct children")
+end
+
+AbstractTrees.children(node::TriggerNode) = node.children
+function AbstractTrees.printnode(io::IO, node::TriggerNode)
+    if node.itrig === nothing
+        print(io, "root")
+    else
+        print(io, MethodInstance(node.itrig.node))
+    end
+end
+
+function addchild!(node, itrig)
+    newnode = TriggerNode(node, itrig)
+    push!(node.children, newnode)
+    return newnode
+end
+
+truncbt(itrig::InferenceTrigger) = itrig.node.bt[max(1, itrig.btidx):end]
+
+function findparent(node::TriggerNode, bt)
+    node.itrig === nothing && return node   # this is the root
+    btnode = truncbt(node.itrig)
+    lbt, lbtnode = length(bt), length(btnode)
+    if lbt > lbtnode && view(bt, lbt - lbtnode + 1 : lbt) == btnode
+        return node
+    end
+    return findparent(node.parent, bt)
+end
+
+function trigger_tree(itrigs::AbstractVector{InferenceTrigger})
+    root = node = TriggerNode()
+    for itrig in itrigs
+        thisbt = truncbt(itrig)
+        node = findparent(node, thisbt)
+        node = addchild!(node, itrig)
+    end
+    return root
+end
+
+flatten(node::TriggerNode) = flatten!(InferenceTrigger[], node)
+function flatten!(itrigs, node::TriggerNode)
+    if node.itrig !== nothing
+        push!(itrigs, node.itrig)
+    end
+    for child in node.children
+        flatten!(itrigs, child)
+    end
+    return itrigs
+end
+
+InteractiveUtils.edit(node::TriggerNode) = edit(node.itrig)
+Base.stacktrace(node::TriggerNode) = stacktrace(node.itrig)
+Cthulhu.ascend(node::TriggerNode) = ascend(node.itrig)
+
+
+### inference trigger locations
+# useful for analyzing patterns at the level of Methods rather than MethodInstances
+
 struct Location  # essentially a LineNumberNode + function name
     func::Symbol
     file::Symbol
@@ -874,6 +950,268 @@ function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
     end
     return sort([LocationTrigger(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
+
+function linetable_match(linetable::Vector{Core.LineInfoNode}, sffile::String, sffunc::String, sfline::Int)
+    idxs = Int[]
+    for (idx, line) in enumerate(linetable)
+        (line.line == sfline && String(line.method) == sffunc) || continue
+        # filename matching is a bit troublesome because of differences in naming of Base & stdlibs, defer it
+        push!(idxs, idx)
+    end
+    length(idxs) == 1 && return idxs
+    # Look at the filename too
+    delidxs = Int[]
+    for (i, idx) in enumerate(idxs)
+        endswith(sffile, String(linetable[idx].file)) || push!(delidxs, i)
+    end
+    deleteat!(idxs, delidxs)
+    return idxs
+end
+linetable_match(linetable::Vector{Core.LineInfoNode}, sf::StackTraces.StackFrame) =
+    linetable_match(linetable, String(sf.file)::String, String(sf.func)::String, Int(sf.line)::Int)
+
+### suggestions
+
+@enum Suggestion CallerVararg CalleeVararg InvokedCalleeVararg ErrorPath UnspecCall UnspecType Invoke Inlineable
+
+struct Suggested
+    itrig::InferenceTrigger
+    categories::Vector{Suggestion}
+end
+Suggested(itrig::InferenceTrigger) = Suggested(itrig, Suggestion[])
+
+const testrex = r"stdlib.*Test\.jl$"
+
+function Base.show(io::IO, s::Suggested)
+    if !isempty(s.itrig.callerframes)
+        sf = s.itrig.callerframes[1]
+        print(io, sf.file, ':', sf.line, ": ")
+        sf = s.itrig.callerframes[end]
+    else
+        sf = "<none>"
+    end
+    rtcallee = MethodInstance(s.itrig.node)
+    showcaller = true
+    if ErrorPath ∈ s.categories
+        printstyled(io, "error path"; color=:cyan)
+        print(io, " (deliberately uninferred, ignore this one)")
+        showcaller = false
+    else
+        if CallerVararg ∈ s.categories
+            printstyled(io, "caller is varargs"; color=:cyan)
+            print(io, " (ignore this one, specialize the caller ", sf, ", or improve inferrability of its caller)")
+        elseif InvokedCalleeVararg ∈ s.categories
+            printstyled(io, "invoked callee is varargs"; color=:cyan)
+            print(io, " (ignore this one, homogenize the arguments, declare an umbrella type, or force-specialize the callee ", rtcallee, ")")
+        elseif CalleeVararg ∈ s.categories
+            printstyled(io, "callee is varargs and caller is not specialized"; color=:cyan)
+            print(io, " (ignore this one)")
+        end
+        if UnspecCall ∈ s.categories
+            printstyled(io, "non-inferrable call"; color=:cyan)
+            print(io, ", perhaps annotate ", sf.linfo.def, " with type ", rtcallee)
+            print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
+        end
+        if UnspecType ∈ s.categories
+            printstyled(io, "partial type call"; color=:cyan)
+            print(io, ", perhaps annotate ", sf.linfo.def, " with type ", rtcallee)
+            print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
+        end
+        if Invoke ∈ s.categories
+            printstyled(io, "regular invoke"; color=:cyan)
+            print(io, " (perhaps precompile ", sf, ")")
+            showcaller = false
+        end
+        if isempty(s.categories)
+            printstyled(io, "I've got nothing to say"; color=:cyan)
+            print(io, " for ", rtcallee, " consider `stacktrace(itrig)` or `ascend(itrig)`")
+            showcaller = false
+        end
+    end
+    if showcaller
+        idx = s.itrig.btidx
+        ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+        if ret !== nothing
+            sfs, idx = ret
+            if s.categories != [Inlineable]
+                println(io, "\nimmediate caller(s):")
+                show(io, MIME("text/plain"), sfs)
+            end
+            if s.categories == [Inlineable]
+                print(io, "inlineable (ignore this one)")
+            elseif (UnspecCall ∈ s.categories || UnspecType ∈ s.categories || CallerVararg ∈ s.categories) && Inlineable ∈ s.categories
+                print(io, "\nNote: all callers were inlineable and this was called from a Test. You should be able to ignore this.")
+            end
+        end
+        # See if we can extract a Test line
+        ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+        while ret !== nothing
+            sfs, idx = ret
+            itest = findfirst(sf -> match(testrex, String(sf.file)) !== nothing, sfs)
+            if itest !== nothing && itest > 1
+                print(io, "\nFrom test at ", sfs[itest-1])
+                break
+            end
+            ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+        end
+    end
+end
+
+"""
+    isignorable(s::Suggested)
+
+Returns `true` if `s` is unlikely to be an inference problem in need of fixing.
+"""
+isignorable(s::Suggestion) = s ∈ (CallerVararg, InvokedCalleeVararg, CalleeVararg, Invoke, Inlineable)
+isignorable(s::Suggested) = any(isignorable, s.categories)
+
+Base.stacktrace(s::Suggested) = stacktrace(s.itrig)
+Cthulhu.ascend(s::Suggested) = ascend(s.itrig)
+
+"""
+    suggest(itrig::InferenceTrigger)
+
+Analyze `itrig` and attempt to suggest an interpretation or remedy. This returns a structure of type `Suggested`;
+the easiest thing to do with the result is to `show` it; however, you can also filter a list of suggestions.
+
+# Example
+
+```julia
+julia> itrigs = inference_triggers(tinf);
+
+julia> sugs = suggest.(itrigs);
+
+julia> sugs_important = filter(!isignorable, sugs)    # discard the ones that probably don't need to be addressed
+```
+
+!!! warning
+    Suggestions are approximate at best; most often, the proposed fixes should not be taken literally,
+    but instead taken as a hint about the "outcome" of a particular runtime dispatch incident.
+    The suggestions target calls made with non-inferrable argumets, but often the best place to fix the problem
+    is at an earlier stage in the code, where the argument was first computed.
+
+    You can get much deeper insight via `ascend` (and Cthulhu generally), and even `stacktrace` is often useful.
+    Suggestions are intended to be a quick and easier-to-comprehend first pass at analyzing an inference trigger.
+"""
+function suggest(itrig::InferenceTrigger)
+    s = Suggested(itrig)
+    inlineable = false
+
+    # Did this call come from a `@testset`? If so, and everything in between is inlineable, we should mark it so
+    ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodonly=false)
+    if ret !== nothing
+        sfs, idx = ret
+        itest = findfirst(sf -> match(testrex, String(sf.file)) !== nothing, sfs)
+        if itest !== nothing && itest > 1
+            tt = Base.unwrap_unionall(MethodInstance(itrig.node).specTypes)::DataType
+            cts = Base.code_typed_by_type(tt; debuginfo=:source)
+            if length(cts) == 1 && cts[1][1].inlineable
+                inlineable = true
+            end
+        end
+    end
+
+    if isempty(itrig.callerframes)
+        inlineable && push!(s.categories, Inlineable)
+        return s
+    end
+
+    sf = itrig.callerframes[end]
+    tt = Base.unwrap_unionall(sf.linfo.specTypes)::DataType
+    if Base.isvarargtype(tt.parameters[end])
+        push!(s.categories, CallerVararg)
+        return s
+    end
+
+    rtcallee = MethodInstance(itrig.node)
+    cts = Base.code_typed_by_type(tt; debuginfo=:source)
+    for (ct, rt) in cts
+        inlineable |= ct.inlineable
+        ltidxs = linetable_match(ct.linetable, itrig.callerframes[1])
+        stmtidxs = findall(∈(ltidxs), ct.codelocs)
+        rtcalleename = isa(rtcallee.def, Method) ? (rtcallee.def::Method).name : nothing
+        for stmtidx in stmtidxs
+            stmt = ct.code[stmtidx]
+            if isa(stmt, Expr)
+                if stmt.head === :invoke
+                    mi = stmt.args[1]
+                    if mi == MethodInstance(itrig.node)
+                        if mi.def.isva
+                            push!(s.categories, InvokedCalleeVararg)
+                        else
+                            push!(s.categories, Invoke)
+                        end
+                    end
+                elseif stmt.head === :call
+                    callee = stmt.args[1]
+                    if isa(callee, Core.SSAValue)
+                        callee = ct.ssavaluetypes[callee.id]
+                    end
+                    if isa(callee, GlobalRef) && isa(rtcallee.def, Method)
+                        # First, check if this is an error path
+                        skipme = false
+                        if stmtidx + 2 <= length(ct.code)
+                            chkstmt = ct.code[stmtidx + 2]
+                            if isa(chkstmt, Core.ReturnNode) && !isdefined(chkstmt, :val)
+                                push!(s.categories, ErrorPath)
+                                skipme = true
+                            end
+                        end
+                        if !skipme
+                            rtm = rtcallee.def::Method
+                            calleef = getfield(callee.mod, callee.name)
+                            if calleef === Core._apply_iterate
+                                callee = stmt.args[3]
+                                if isa(callee, GlobalRef)
+                                    calleef = getfield(callee.mod, callee.name)
+                                elseif isa(callee, Function)
+                                    calleef = callee
+                                else
+                                    error("unhandled callee ", callee)
+                                end
+                            end
+                            if rtm ∈ methods(calleef)
+                                if rtm.isva
+                                    push!(s.categories, CalleeVararg)
+                                else
+                                    push!(s.categories, UnspecCall)
+                                end
+                            end
+                        end
+                    elseif isa(callee, UnionAll)
+                        tt = Base.unwrap_unionall(callee)
+                        if tt <: Type
+                            T = tt.parameters[1]
+                            if (Base.unwrap_unionall(T)::DataType).name.name === rtcalleename
+                                push!(s.categories, UnspecType)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    inlineable && push!(s.categories, Inlineable)
+    return s
+end
+
+const SuggestNode = AbstractTrees.AnnotationNode{Union{Nothing,Suggested}}
+SuggestNode(s::Union{Nothing,Suggested}) = SuggestNode(s, SuggestNode[])
+
+function suggest(node::TriggerNode)
+    stree = node.itrig === nothing ? SuggestNode(nothing) : SuggestNode(suggest(node.itrig))
+    suggest!(stree, node)
+end
+function suggest!(stree, node)
+    for child in node.children
+        newnode = SuggestNode(suggest(child.itrig))
+        push!(stree.children, newnode)
+        suggest!(newnode, child)
+    end
+    return stree
+end
+
+Base.show(io::IO, node::SuggestNode) = print_tree(io, node)
 
 ## Flamegraph creation
 

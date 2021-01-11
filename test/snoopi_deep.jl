@@ -140,6 +140,13 @@ fdouble(x) = 2x
     @test itrig != itrig0
     @test InferenceTrigger(itrig) == itrig0
 
+    # Tree generation
+    itree = trigger_tree(itrigs)
+    @test length(itree.children) == 1
+    @test isempty(itree.children[1].children)
+    print_tree(io, itree)
+    @test occursin(r"myplus.*UInt8.*Float16", String(take!(io)))
+
     # Where the caller is inlined into something else
     callee(x) = 2x
     @inline caller(c) = callee(c[1])
@@ -154,11 +161,23 @@ fdouble(x) = 2x
     @test occursin(r"to call MethodInstance for .*callee.*\(::UInt8\)", str)
     @test occursin("from caller", str)
     @test occursin(r"inlined into MethodInstance for .*callercaller.*\(::Vector{Vector{Any}}\)", str)
+    s = suggest(itrig)
+    @test isignorable(s)
+    print(io, s)
+    @test occursin(r"snoopi_deep\.jl:\d+: inlineable \(ignore this one\)", String(take!(io)))
 
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
     tinf = @snoopi_deep map(mysqrt, c)
     itrigs = inference_triggers(tinf)
+    itree = trigger_tree(itrigs)
+    io = IOBuffer()
+    print_tree(io, itree)
+    @test occursin(r"mysqrt.*Float64", String(take!(io)))
+    print(io, itree)
+    @test String(take!(io)) == "TriggerNode for root with 2 direct children"
+    @test length(flatten(itree)) > length(c)
+    length(suggest(itree).children) == 2
     loctrigs = accumulate_by_source(itrigs)
     show(io, loctrigs)
     @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
@@ -188,6 +207,19 @@ fdouble(x) = 2x
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test skiphigherorder(itrig) == itrig
+
+    # Test one called from toplevel
+    fromtask() = while false end; 1
+    tinf = @snoopi_deep wait(@async fromtask())
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
+    itree = trigger_tree(itrigs)
+    print_tree(io, itree)
+    @test occursin(r"{var\"#fromtask", String(take!(io)))
+    s = suggest(itrigs[1])
+    @test isempty(s.categories)
+    print(io, s)
+    @test occursin("nothing to say", String(take!(io)))
 end
 
 @testset "flamegraph_export" begin
