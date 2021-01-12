@@ -59,6 +59,37 @@ InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compi
 
 This may not look like much, but there's a wealth of information hidden inside `tinf`.
 
+## A quick check for invalidations
+
+!!! warning
+    The presence of rampant invalidations in the MethodInstances returned by `tinf` can make some of the other analyses quite confusing. Hence, users of `@snoopi_deep` are advised to check for invalidations before proceeding further.
+
+While nowhere near as powerful as [`@snoopr`](@ref), you can also detect invalidations using `tinf`:
+
+```julia
+julia> invalidations(tinf)
+Core.MethodInstance[]
+```
+
+If you see this, all's well. You might alternatively see something like
+
+```julia
+julia> invs = invalidations(tinf)
+4-element Vector{Core.MethodInstance}:
+ MethodInstance for (NamedTuple{(:dims,), T} where T<:Tuple)(::Tuple{Int64})
+ MethodInstance for (NamedTuple{(:init,), T} where T<:Tuple)(::Tuple{Int64})
+ MethodInstance for (NamedTuple{(:init,), T} where T<:Tuple)(::Tuple{Int64})
+ MethodInstance for (NamedTuple{(:dims,), T} where T<:Tuple)(::Tuple{Int64})
+```
+
+which may be a consequence of the `@generated` function used for `NamedTuple` creation.
+(Investigations are ongoing.)
+
+However, if you see a large number of invalidations, you should stop here and try to resolve them before proceeding further with `tinf`.
+
+!!! tip
+    If you nevertheless think that proceeding makes sense, consider whether the action you're running inside `@snoopi_deep` might load additional packages. If so, one way to circumvent the invalidation is to load all those packages *before* running the workload inside `@snoopi_deep`. The output of [`invalidation_trees`](@ref) on the same workload can help you determine which packages to load. If you *still* see substantial `invalidations(tinf)`, this may merit additional investigation. One relatively harmless explanation is that your tests may redefine methods used in testing.
+
 ## Viewing the results
 
 Let's start unpacking the output of `@snoopi_deep` and see how to get more insight.
