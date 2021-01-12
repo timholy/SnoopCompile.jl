@@ -34,6 +34,9 @@ inclusive
 accumulate_by_source
 collect_for
 inference_triggers
+trigger_tree
+suggest
+isignorable
 callerinstance
 callingframe
 skiphigherorder

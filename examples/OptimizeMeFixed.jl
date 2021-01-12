@@ -9,6 +9,13 @@ struct Container{T}
     value::T
 end
 
+function lotsa_containers()
+    list = Any[1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]
+    cs = Container{Any}.(list)
+    println("lotsa containers:")
+    display(cs)
+end
+
 concat_string(c1::Container, c2::Container) = string(c1.value) * ' ' * string(c2.value)
 
 function contain_concrete(item1, item2)
@@ -22,13 +29,6 @@ function contain_list(list)
     item1 = convert(Float64, list[1])::Float64
     item2 = list[2]::String
     return contain_concrete(item1, item2)
-end
-
-function lotsa_containers()
-    list = Any[1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]
-    cs = Container{Any}.(list)
-    println("lotsa containers:")
-    display(cs)
 end
 
 struct Object
@@ -55,10 +55,10 @@ function warmup()
 end
 
 function main()
+    lotsa_containers()
     println(contain_concrete(3.14, "is great"))
     list = [2.718, "is jealous"]
     println(contain_list(list))
-    lotsa_containers()
     display(makeobjects())
 end
 
