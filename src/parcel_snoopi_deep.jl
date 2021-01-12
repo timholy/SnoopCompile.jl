@@ -191,6 +191,31 @@ function collect_for!(out, target, tinf)
     return out
 end
 
+function invalidations(root::InferenceTimingNode)
+    invs = MethodInstance[]
+    nodes = flatten(root; sortby=nothing)
+    world = Base.get_world_counter()
+    for node in nodes
+        mi = MethodInstance(node)
+        if isdefined(mi, :cache)
+            # Check all CodeInstances
+            ci = mi.cache
+            while true
+                if ci.max_world < world
+                    push!(invs, mi)
+                    break
+                end
+                if isdefined(ci, :next)
+                    ci = ci.next
+                else
+                    break
+                end
+            end
+        end
+    end
+    return invs
+end
+
 ## parcel and supporting infrastructure
 
 function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))

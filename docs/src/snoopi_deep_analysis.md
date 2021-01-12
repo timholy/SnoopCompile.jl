@@ -2,6 +2,7 @@
 
 As indicated in the [workflow](@ref), the recommended steps to reduce latency are:
 
+- check for invalidations
 - adjust method specialization in your package or its dependencies
 - fix problems in type inference
 - add precompile directives
