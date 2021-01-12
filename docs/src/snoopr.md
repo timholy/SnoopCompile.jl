@@ -481,12 +481,17 @@ knew all the specific types, and new methods did not affect any of those types.
 The main tips for writing invalidation-resistant code are:
 
 - use [concrete types](https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-abstract-container-1) wherever possible
-- write inferrable code (be especially aware of [julia issue 15276](https://github.com/JuliaLang/julia/issues/15276))
+- write inferrable code
 - don't engage in [type-piracy](https://docs.julialang.org/en/v1/manual/style-guide/#Avoid-type-piracy-1) (our `c64` example is essentially like type-piracy, where we redefined behavior for a pre-existing type)
 
 Since these tips also improve performance and allow programs to behave more predictably,
 these guidelines are not intrusive.
 Indeed, searching for and eliminating invalidations can help you improve the quality of your code.
+
+#### Fixing `Core.Box`
+
+[Julia issue 15276](https://github.com/JuliaLang/julia/issues/15276) is one of the more surprising forms of inference failure; it is the most common cause of a `Core.Box` annotation.
+Read [this explanation of why this happens and what you can do to fix it](https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured).
 
 #### Adding type annotations
 
