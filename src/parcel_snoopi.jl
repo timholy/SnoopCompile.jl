@@ -214,10 +214,11 @@ let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
         strippedname(tn::Core.TypeName) = Symbol(string(tn.name)[2:end])
 
         T === Union{} && return true
+        T = Base.unwrap_unionall(T)
         if isa(T, Union)
             return known_type(mod, T.a) & known_type(mod, T.b)
         end
-        T = Base.unwrap_unionall(T)::DataType
+        T = T::DataType
         tn = T.name
         tpath = fullname(tn.module)
         key = (mod, tpath, tn.name)

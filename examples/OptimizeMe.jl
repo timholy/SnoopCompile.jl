@@ -8,6 +8,7 @@ module OptimizeMe
 struct Container{T}
     value::T
 end
+
 concat_string(c1::Container, c2::Container) = string(c1.value) * ' ' * string(c2.value)
 
 function contain_concrete(item1, item2)
@@ -31,7 +32,6 @@ end
 struct Object
     x::Int
 end
-Base.show(io::IO, o::Object) = print(io, "Object x: ", o.x)
 
 function makeobjects()
     xs = [1:5; 7]

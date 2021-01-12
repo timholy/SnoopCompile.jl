@@ -668,7 +668,11 @@ function maybe_internal(itrig::InferenceTrigger)
         if isa(linfo, MethodInstance)
             m = linfo.def
             if isa(m, Method)
-                m.module === Base && m.name === :include_string && return false
+                if m.module === Base
+                    m.name === :include_string && return false
+                    m.name === :_include_from_serialized && return false
+                    m.name === :return_types && return false   # from `@inferred`
+                end
                 m.name === :eval && return false
             end
         end
@@ -747,9 +751,11 @@ function skiphigherorder(itrig::InferenceTrigger; exact::Bool=true)
     ft = Base.unwrap_unionall(Base.unwrap_unionall(MethodInstance(itrig.node).specTypes).parameters[1])
     sfs, idx = itrig.callerframes, itrig.btidx
     while idx < length(itrig.node.bt)
-        callermi = sfs[end].linfo
-        if !hasparameter(callermi.specTypes, ft, exact)
-            return InferenceTrigger(itrig.node, sfs, idx)
+        if !isempty(sfs)
+            callermi = sfs[end].linfo
+            if !hasparameter(callermi.specTypes, ft, exact)
+                return InferenceTrigger(itrig.node, sfs, idx)
+            end
         end
         ret = next_julia_frame(itrig.node.bt, idx)
         ret === nothing && return InferenceTrigger(itrig.node, sfs, idx)
@@ -905,8 +911,8 @@ The empty horizontal periods in the flamegraph correspond to times when somethin
 The total width of the flamegraph is set from the `ROOT` node.
 """
 function FlameGraphs.flamegraph(tinf::InferenceTimingNode; tmin = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
+    isROOT(tinf) && isempty(tinf.children) && error("root node has no children")
     io = IOBuffer()
-
     # Compute a "root" frame for the top-level node, to cover the whole profile
     node_data, _ = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=true)
     root = Node(node_data)

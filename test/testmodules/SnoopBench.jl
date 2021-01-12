@@ -26,7 +26,7 @@ mappushes3(@nospecialize(f), src) = mappushes3!(f, [], src)
 function spell_spec(::Type{T}) where T
     name = Base.unwrap_unionall(T).name.name
     str = ""
-    for c in str
+    for c in string(name)
         str *= c
     end
     return str
@@ -34,7 +34,7 @@ end
 function spell_unspec(@nospecialize(T))
     name = Base.unwrap_unionall(T).name.name
     str = ""
-    for c in str
+    for c in string(name)
         str *= c
     end
     return str
