@@ -28,7 +28,6 @@ findcaller
 ## Analysis of `@snoopi_deep`
 
 ```@docs
-SnoopCompile.flamegraph
 flatten
 exclusive
 inclusive

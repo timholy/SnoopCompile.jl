@@ -154,16 +154,18 @@ end
     `where` type-parameters force specialization, regardless of `@nospecialize`: in `spelltype(@nospecialize(::Type{T})) where T`, the `@nospecialize` has no impact and you'll get full specialization on `T`.
     Instead, use `@nospecialize(T::Type)` as shown.
 
-If we now rerun that demo, you should see something like this:
+If we now rerun that demo, you should see a plot of the same kind as shown above, but with different costs for each dot.
+The differences are best appreciated comparing them side-by-side ([`pgdsgui`](@ref) allows you to specify a particular axis into
+which to plot):
 
-![pgdsgui](assets/pgds_nospec.png)
+![pgdsgui-compare](assets/pgds_compareplots.png)
 
-Superficially this may look similar to the original plot, but take a careful look:
+The results with `@nospecialize` are shown on the right. You can see that:
 
-- Now, the most expensive-to-infer method is ~0.02s (formerly it was ~1s)
+- Now, the most expensive-to-infer method is <0.01s (formerly it was ~1s)
 - No method has more than 2 specializations
 
-    Moreover, our runtimes (post-compilation) really aren't very different, both in the ballpark of a few millseconds (you can check with `@btime` from BenchmarkTools to be sure).
+Moreover, our runtimes (post-compilation) really aren't very different, both in the ballpark of a few millseconds (you can check with `@btime` from BenchmarkTools to be sure).
 
 In total, we've reduced compilation time approximately 50× without appreciably hurting runtime perfomance.
 Reducing specialization, when appropriate, can often yield your biggest reductions in latency.
@@ -202,7 +204,7 @@ The "standardizing method" `foo(x, y)` is short and therefore quick to compile, 
     Without it, `foo(x, y)` might call itself in an infinite loop, ultimately triggering a StackOverflowError.
     StackOverflowErrors are a particularly nasty form of error, and the typeassert ensures that you get a simple `TypeError` instead.
 
-    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred (see [above](@ref typeasserts)), but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
+    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred (this will be discussed in more detail [later](@ref typeasserts)), but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
 
 There are of course cases where you can't implement your code in this way: after all, part of the power of Julia is the ability of generic methods to "do the right thing" for a wide variety of types. But in cases where you're doing a standard task, e.g., writing some data to a file, there's really no good reason to recompile your `save` method for a filename encoded as a `String` and again for a `SubString{String}` and again for a `SubstitutionString` and again for an `AbstractString` and ...: after all, the core of the `save` method probably isn't sensitive to the precise encoding of the filename.  In such cases, it should be safe to convert all filenames to `String`, thereby reducing the diversity of input arguments for expensive-to-compile methods.
 

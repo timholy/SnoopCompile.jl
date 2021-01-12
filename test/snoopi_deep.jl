@@ -326,9 +326,19 @@ end
 @testset "Specialization" begin
     Ts = subtypes(Any)
     tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
-    tinf_spec =   @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     tf_unspec = flatten(tinf_unspec)
-    tf_spec   = flatten(tinf_spec)
+    # To ensure independent data, invalidate all compiled CodeInstances
+    mis = map(last, accumulate_by_source(MethodInstance, tf_unspec))
+    for mi in mis
+        SnoopCompile.isROOT(mi) && continue
+        visit(mi) do item
+            isa(item, Core.CodeInstance) || return true
+            item.max_world = 0
+            return true
+        end
+    end
+    tinf_spec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
+    tf_spec = flatten(tinf_spec)
     @test length(tf_unspec) < length(Ts) ÷ 5
     @test any(tmi -> occursin("spell_unspec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
     @test length(tf_spec) >= length(Ts)
@@ -338,6 +348,7 @@ end
     # fig, axs = plt.subplots(1, 2)
 
     nruns = 10^3
+    SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     @profile for i = 1:nruns
         SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     end
@@ -356,6 +367,7 @@ end
     # pgdsgui(axs[1], rit; bystr="Inclusive", consts=true, interactive=false)
 
     Profile.clear()
+    SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     @profile for i = 1:nruns
         SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     end
