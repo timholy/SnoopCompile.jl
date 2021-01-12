@@ -6,7 +6,9 @@ As indicated in the [workflow](@ref), the recommended steps to reduce latency ar
 - fix problems in type inference
 - add precompile directives
 
-The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) introduces breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
+The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) results in breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
+
+In practice, it also turns out that opportunities to adjust specialization are often revealed by analyzing inference failures, so this page is complementary to the previous one.
 
 Throughout this page, we'll use the `OptimizeMe` demo, which ships with SnoopCompile.
 
@@ -22,15 +24,6 @@ julia> include("OptimizeMe.jl")
 Main.OptimizeMe
 
 julia> tinf = @snoopi_deep OptimizeMe.main()
-6-element Vector{Main.OptimizeMe.Object}:
- Object x: 1
- Object x: 2
- Object x: 3
- Object x: 4
- Object x: 5
- Object x: 7
-3.14 is great
-2.718 is jealous
 lotsa containers:
 7-element Vector{Main.OptimizeMe.Container}:
  Main.OptimizeMe.Container{Int64}(1)
@@ -40,10 +33,19 @@ lotsa containers:
  Main.OptimizeMe.Container{Char}('a')
  Main.OptimizeMe.Container{Vector{Int64}}([0])
  Main.OptimizeMe.Container{Tuple{String, Int64}}(("key", 42))
-InferenceTimingNode: 1.430486369/2.677729717 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 76 direct children
+3.14 is great
+2.718 is jealous
+6-element Vector{Main.OptimizeMe.Object}:
+ Main.OptimizeMe.Object(1)
+ Main.OptimizeMe.Object(2)
+ Main.OptimizeMe.Object(3)
+ Main.OptimizeMe.Object(4)
+ Main.OptimizeMe.Object(5)
+ Main.OptimizeMe.Object(7)
+InferenceTimingNode: 1.423913/2.713560 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 77 direct children
 
 julia> fg = flamegraph(tinf)
-Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:2677729717))
+Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:2713559552))
 ```
 
 If you visualize `fg` with ProfileView, you'll see something like this:
@@ -64,112 +66,244 @@ Specifically an [`InferenceTrigger`](@ref) captures callee/caller relationships 
 
 ```julia
 julia> itrigs = inference_triggers(tinf)
-75-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/pathto/SnoopCompile/examples/OptimizeMe.jl:20)
- Inference triggered to call MethodInstance for return_type(::Any, ::Any) from combine_eltypes (./broadcast.jl:740) with specialization MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
- ...
+76-element Vector{InferenceTrigger}:
+ Inference triggered to call MethodInstance for vect(::Int64, ::Vararg{Any, N} where N) from lotsa_containers (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:13) with specialization MethodInstance for lotsa_containers()
+ Inference triggered to call MethodInstance for promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N) from vect (./array.jl:126) with specialization MethodInstance for vect(::Int64, ::Vararg{Any, N} where N)
+ Inference triggered to call MethodInstance for promote_typeof(::UInt8, ::UInt16, ::Vararg{Any, N} where N) from promote_typeof (./promotion.jl:272) with specialization MethodInstance for promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N)
+ ⋮
 ```
 
-This indicates that a whopping 75 calls were (1) made by runtime dispatch and (2) the callee had not previously been inferred.
-(There was a 76th call that had to be inferred, the original call to `main()`, but by default [`inference_triggers`](@ref) excludes calls made directly from top-level. You can change that through keyword arguments.)
-In some cases, this might indicate that you'll need to fix 75 separate callers; fortunately, in many cases fixing the origin of inference problems can fix a number of later callees.
+This indicates that a whopping 76 calls were (1) made by runtime dispatch and (2) the callee had not previously been inferred.
+(There was a 77th call that had to be inferred, the original call to `main()`, but by default [`inference_triggers`](@ref) excludes calls made directly from top-level. You can change that through keyword arguments.)
 
 !!! tip
     In the REPL, SnoopCompile displays `InferenceTrigger`s with yellow coloration for the callee, red for the caller method, and blue for the caller specialization. This makes it easier to quickly identify the most important information.
 
-Let's start with the first of these and see how it was called:
+In some cases, this might indicate that you'll need to fix 76 separate callers; fortunately, in many cases fixing the origin of inference problems can fix a number of later callees.
+To assist in interpreting these individual triggers, it's often helpful to organize them in a tree:
 
 ```julia
-julia> itrig = itrigs[1]
-Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for contain_list(::Vector{Any}) (/pathto/SnoopCompile/examples/OptimizeMe.jl:20)
+julia> itree = trigger_tree(itrigs)
+TriggerNode for root with 14 direct children
 
-julia> stacktrace(itrig)
-22-element Vector{Base.StackTraces.StackFrame}:
- exit_current_timer at typeinfer.jl:166 [inlined]
- typeinf(interp::Core.Compiler.NativeInterpreter, frame::Core.Compiler.InferenceState) at typeinfer.jl:208
- typeinf_ext(interp::Core.Compiler.NativeInterpreter, mi::Core.MethodInstance) at typeinfer.jl:835
- typeinf_ext_toplevel(interp::Core.Compiler.NativeInterpreter, linfo::Core.MethodInstance) at typeinfer.jl:868
- typeinf_ext_toplevel(mi::Core.MethodInstance, world::UInt64) at typeinfer.jl:864
- copy at broadcast.jl:905 [inlined]
- materialize at broadcast.jl:883 [inlined]
- contain_list(list::Vector{Any}) at OptimizeMe.jl:20
- main() at OptimizeMe.jl:44
- top-level scope at snoopi_deep.jl:53
- eval(m::Module, e::Any) at boot.jl:360
- eval_user_input(ast::Any, backend::REPL.REPLBackend) at REPL.jl:139
- repl_backend_loop(backend::REPL.REPLBackend) at REPL.jl:200
- start_repl_backend(backend::REPL.REPLBackend, consumer::Any) at REPL.jl:185
- run_repl(repl::REPL.AbstractREPL, consumer::Any; backend_on_current_task::Bool) at REPL.jl:317
- run_repl(repl::REPL.AbstractREPL, consumer::Any) at REPL.jl:305
- (::Base.var"#872#874"{Bool, Bool, Bool})(REPL::Module) at client.jl:387
- #invokelatest#2 at essentials.jl:707 [inlined]
- invokelatest at essentials.jl:706 [inlined]
- run_main_repl(interactive::Bool, quiet::Bool, banner::Bool, history_file::Bool, color_set::Bool) at client.jl:372
- exec_options(opts::Base.JLOptions) at client.jl:302
- _start() at client.jl:485
+julia> using AbstractTrees
+
+julia> print_tree(itree)
+root
+├─ MethodInstance for vect(::Int64, ::Vararg{Any, N} where N)
+│  └─ MethodInstance for promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N)
+│     └─ MethodInstance for promote_typeof(::UInt8, ::UInt16, ::Vararg{Any, N} where N)
+│        └─ MethodInstance for promote_typeof(::UInt16, ::Float32, ::Vararg{Any, N} where N)
+│           └─ MethodInstance for promote_typeof(::Float32, ::Char, ::Vararg{Any, N} where N)
+│              ⋮
+│
+├─ MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
+│  ├─ MethodInstance for return_type(::Any, ::Any)
+│  ├─ MethodInstance for return_type(::Any, ::Any, ::UInt64)
+│  ├─ MethodInstance for return_type(::Core.Compiler.NativeInterpreter, ::Any, ::Any)
+│  ├─ MethodInstance for contains_is(::Core.SimpleVector, ::Any)
+│  └─ MethodInstance for promote_typejoin_union(::Type{Main.OptimizeMe.Container})
+├─ MethodInstance for Main.OptimizeMe.Container(::Int64)
+⋮
 ```
 
-Each `itrig` stores a backtrace captured at the entrance to inference, and that records enough information to identify the caller.
-You can see that this trigger came from `copy at broadcast.jl:905 [inlined]`, a method in Julia's own broadcasting machinery.
-`edit(itrig)` will open the first non-inlined frame in this stacktrace in your editor, which in this case takes you straight to the culprit, `contain_list`.
+The parent-child relationships are based on the backtraces at the entrance to inference.
 
-Before analyzing this in detail, it's worth noting that `main` called a very similar function,  `contain_concrete`, before calling `contain_list`.  Why isn't `contain_concrete` the source of the first inference trigger? The reason is that Julia can successfully infer all the calls in `contain_concrete`, so there are no calls that required runtime dispatch.
+Let's start with the first of these.
 
-Now, to analyze this trigger in detail, it helps to use `ascend`:
+### `suggest` and a fix involving manual `eltype` specification
 
-```julia
-julia> ascend(itrig)
-Choose a call for analysis (q to quit):
-     combine_eltypes(::Type, ::Tuple{Vector{Any}})
- >     copy at ./broadcast.jl:905 => materialize at ./broadcast.jl:883 => contain_list(::Vector{Any}) at /pathto/SnoopCompile/examples/OptimizeMe.jl:20
-         main() at /pathto/SnoopCompile/examples/OptimizeMe.jl:44
-           eval(::Module, ::Any) at ./boot.jl:360
-             eval_user_input(::Any, ::REPL.REPLBackend) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:139
-               repl_backend_loop(::REPL.REPLBackend) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:200
-                 start_repl_backend(::REPL.REPLBackend, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:185
-                   #run_repl#42(::Bool, ::typeof(REPL.run_repl), ::REPL.AbstractREPL, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:317
-                     run_repl(::REPL.AbstractREPL, ::Any) at /pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:305
-v                      (::Base.var"#872#874"{Bool, Bool, Bool})(::Module) at ./client.jl:387
+Because the analysis of inference failures is somewhat complex, SnoopCompile attempts to `suggest` an interpretation and/or remedy for each trigger:
 
-│ ─ %-1  = invoke contain_list(::Vector{Any})::Union{Missing, Regex, String}
-Variables
-  #self#::Core.Const(Main.OptimizeMe.contain_list)
-  list::Vector{Any}
-  cs::Union{Vector{_A} where _A, BitVector}
-
-Body::Union{Missing, Regex, String}
-    @ /pathto/SnoopCompile/examples/OptimizeMe.jl:20 within `contain_list'
-1 ─ %1 = Base.broadcasted(Main.OptimizeMe.Container, list)::Core.PartialStruct(Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Nothing, Type{Main.OptimizeMe.Container}, Tuple{Vector{Any}}}, Any[Core.Const(Main.OptimizeMe.Container), Tuple{Vector{Any}}, Core.Const(nothing)])
-│        (cs = Base.materialize(%1))
-│   @ /pathto/SnoopCompile/examples/OptimizeMe.jl:21 within `contain_list'
-│   %3 = Core._apply_iterate(Base.iterate, Main.OptimizeMe.concat_string, cs)::Union{Missing, Regex, String}
-└──      return %3
-
-Select a call to descend into or ↩ to ascend. [q]uit. [b]ookmark.
-Toggles: [o]ptimize, [w]arn, [v]erbose printing for warntype code, [d]ebuginfo, [s]yntax highlight for Source/LLVM/Native.
-Show: [S]ource code, [A]ST, [L]LVM IR, [N]ative code
-Actions: [E]dit source code, [R]evise and redisplay
-Advanced: dump [P]arams cache.
- • %1  = call broadcasted(::Type{Main.OptimizeMe.Container},::Vector{Any})
-   %2  = call materialize(::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Nothing, Type{Main.OptimizeMe.Container}, Tuple{Vector{Any}}})::Union{Vector{_A} where _A, BitVector}
-   %3  = call concat_string(::Main.OptimizeMe.Container,::Main.OptimizeMe.Container)::Union{Missing, Regex, String}
-   ↩
 ```
-
-You can learn more about how to use [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl) from its documentation and an introductory video.
-Here we used the down arrow to select the line `copy at ./broadcast.jl:905 => materialize at ./broadcast.jl:883 => contain_list(::Vector{Any})`, and then hit <Enter> to analyze it in detail.
-From this, you can immediately tell that the problem starts from the fact that `list` is a `Vector{Any}`, and therefore `broadcasted(::Type{Main.OptimizeMe.Container},::Vector{Any})` does not know what types to expect it will encounter.
+julia> suggest(itree.children[1])
+/pathto/SnoopCompile/examples/OptimizeMe.jl:13: invoked callee is varargs (ignore this one, homogenize the arguments, declare an umbrella type, or force-specialize the callee MethodInstance for vect(::Int64, ::Vararg{Any, N} where N))
+immediate caller(s):
+1-element Vector{Base.StackTraces.StackFrame}:
+ main() at OptimizeMe.jl:42
+└─ ./array.jl:126: caller is varargs (ignore this one, specialize the caller vect(::Int64, ::Vararg{Any, N} where N) at array.jl:126, or improve inferrability of its caller)
+   immediate caller(s):
+   1-element Vector{Base.StackTraces.StackFrame}:
+    lotsa_containers() at OptimizeMe.jl:13
+   └─ ./promotion.jl:272: caller is varargs (ignore this one, specialize the caller promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N) at promotion.jl:272, or improve inferrability of its caller)
+      immediate caller(s):
+      1-element Vector{Base.StackTraces.StackFrame}:
+       vect(::Int64, ::Vararg{Any, N} where N) at array.jl:126
+      └─ ./promotion.jl:272: caller is varargs (ignore this one, specialize the caller promote_typeof(::UInt8, ::UInt16, ::Vararg{Any, N} where N) at promotion.jl:272, or improve inferrability of its caller)
+         immediate caller(s):
+         1-element Vector{Base.StackTraces.StackFrame}:
+          promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N) at promotion.jl:272
+         └─ ./promotion.jl:272: caller is varargs (ignore this one, specialize the caller promote_typeof(::UInt16, ::Float32, ::Vararg{Any, N} where N) at promotion.jl:272, or improve inferrability of its caller)
+            immediate caller(s):
+            1-element Vector{Base.StackTraces.StackFrame}:
+             promote_typeof(::UInt8, ::UInt16, ::Vararg{Any, N} where N) at promotion.jl:272
+            └─ ./promotion.jl:272: caller is varargs (ignore this one, specialize the caller promote_typeof(::Float32, ::Char, ::Vararg{Any, N} where N) at promotion.jl:272, or improve inferrability of its caller)
+               immediate caller(s):
+               1-element Vector{Base.StackTraces.StackFrame}:
+                promote_typeof(::UInt16, ::Float32, ::Vararg{Any, N} where N) at promotion.jl:272
+               ⋮
+```
 
 !!! tip
-    If you have a lot of inference triggers, sometimes it's best to focus on the runs that cost the most time, particularly if they are not precompilable. You can use `sort!(itrigs; by=inclusive)` to sort the triggers from fastest to slowest,
-    and `filter(!SnoopCompile.isprecompilable, itrigs)` to extract just the ones that are not precompilable.
+    In the REPL, interpretation are highlighted in color to help distinguish individual suggestions.
+
+In this case, the interpretation for the first node is "invoked callee is varargs" and suggestions are to choose one of "ignore...homogenize...umbrella type...force-specialize".
+Initially, this may seem pretty opaque.
+It helps if we look at the referenced line `OptimizeMe.jl:13`:
+
+```julia
+list = [1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]
+```
+
+You'll notice above that the callee for the first node is `vect`; that's what handles the creation of the vector `[1, ...]`.
+If you look back up at the `itree`, you can see that a lot of `promote_typeof` calls follow, and you can see that the types listed in the arguments match the elements in `list`.
+The problem, here, is that `vect` has never been inferred for this particular combination of argument types, and the fact that the types are diverse means that Julia has decided not to specialize it for this combination.
+(If Julia had specialized it, it would have been inferred when `lotsa_containers` was inferred; the fact that it is showing up as a trigger means it wasn't.)
+
+Let's see what kind of object this line creates:
+
+```julia
+julia> typeof(list)
+Vector{Any} (alias for Array{Any, 1})
+```
+
+Since it creates a `Vector{Any}`, perhaps we should just tell Julia to create such an object directly: we modify `[1, 0x01, ...]` to `Any[1, 0x01, ...]` (note the `Any` in front of `[`), so that Julia doesn't have to deduce the container type on its own.
+This follows the "declare an umbrella type" suggestion.
+
+!!! note
+    "Force-specialize" means to encourage Julia to violate its heuristics and specialize the callee.
+    Often this can be achieved by supplying a "spurious" type parameter.
+    Examples include replacing `higherorderfunction(f::Function, args...)` with `function higherorderfunction(f::F, args...) where F<:Function`,
+    or `function getindex(A::MyArrayType{T,N}, idxs::Vararg{Int,N}) where {T,N}` instead of just `getindex(A::MyArrayType, idxs::Int...)`.
+    (In the latter case, the `N` parameter is the crucial one: it forces specialization for a particular number of `Int` arguments.)
+
+    This technique is not useful for the particular case we analyzed here, but it can be in other settings.
+
+Making this simple 3-character fix eliminates that entire branch of the tree (a savings of 6 inference triggers).
+
+### `eltype`s and reducing specialization in `broadcast`
+
+Let's move on to the next entry:
+
+```
+julia> print_tree(itree.children[2])
+MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
+├─ MethodInstance for return_type(::Any, ::Any)
+├─ MethodInstance for return_type(::Any, ::Any, ::UInt64)
+├─ MethodInstance for return_type(::Core.Compiler.NativeInterpreter, ::Any, ::Any)
+├─ MethodInstance for contains_is(::Core.SimpleVector, ::Any)
+└─ MethodInstance for promote_typejoin_union(::Type{Main.OptimizeMe.Container})
+
+julia> suggest(itree.children[2])
+./broadcast.jl:905: regular invoke (perhaps precompile lotsa_containers() at OptimizeMe.jl:14)
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any, ::UInt64) consider `stacktrace(itrig)` or `ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Core.Compiler.NativeInterpreter, ::Any, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for contains_is(::Core.SimpleVector, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
+└─ ./broadcast.jl:740: non-inferrable call, perhaps annotate combine_eltypes(f, args::Tuple) in Base.Broadcast at broadcast.jl:740 with type MethodInstance for promote_typejoin_union(::Type{Main.OptimizeMe.Container})
+   If a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.
+   immediate caller(s):
+   3-element Vector{Base.StackTraces.StackFrame}:
+    copy at broadcast.jl:905 [inlined]
+    materialize at broadcast.jl:883 [inlined]
+    lotsa_containers() at OptimizeMe.jl:14
+```
+
+While this tree is attributed to broadcast, you can see several references here to `OptimizeMe.jl:14`, which contains:
+
+```julia
+cs = Container.(list)
+```
+
+`Container.(list)` is a broadcasting operation, and once again we find that this has inferrability problems.
+In this case, the initial suggestion "perhaps precompile `lotsa_containers`" is *not* helpful.
+(The "regular invoke" just means that the initial call was one where inference knew all the argument types, and hence in principle might be precompilable, but from this tree we see that this broke down in some of its callees.)
+Several children have no interpretation ("I've got nothing to say...").
+Only the last one, "non-inferrable call", is (marginally) useful, it means that a call was made with arguments whose types could not be inferred.
+
+!!! warning
+    You should always view these suggestions skeptically.
+    Often, they flag downstream issues that are better addressed at the source; frequently the best fix may be at a line a bit before the one identified in a trigger, or even in a dependent callee of a line prior to the flagged one.
+    This is a product of the fact that *returning* a non-inferrable argument is not the thing that forces a new round of inference;
+    it's *doing something* (making a specialization-worthy call) with the object of non-inferrable type that triggers a fresh entrance into inference.
+
+How might we go about fixing this?
+One hint is to notice that `itree.children[3]` through `itree.children[7]` also ultimiately derive from this one line of `OptimizeMe`,
+but from a later line within `broadcast.jl` which explains why they are not bundled together with `itree.children[2]`.
+May of these correspond to creating different `Container` types, for example:
+
+```
+└─ MethodInstance for restart_copyto_nonleaf!(::Vector{Main.OptimizeMe.Container}, ::Vector{Main.OptimizeMe.Container{Int64}}, ::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Tuple{Base.OneTo{Int64}}, Type{Main.OptimizeMe.Container}, Tuple{Base.Broadcast.Extruded{Vector{Any}, Tuple{Bool}, Tuple{Int64}}}}, ::Main.OptimizeMe.Container{UInt8}, ::Int64, ::Base.OneTo{Int64}, ::Int64, ::Int64)
+   ├─ MethodInstance for Main.OptimizeMe.Container(::UInt16)
+   ├─ MethodInstance for Main.OptimizeMe.Container(::Float32)
+   ├─ MethodInstance for Main.OptimizeMe.Container(::Char)
+   ├─ MethodInstance for Main.OptimizeMe.Container(::Vector{Int64})
+   └─ MethodInstance for Main.OptimizeMe.Container(::Tuple{String, Int64})
+```
+
+We've created a `Container{T}` for each specific `T` of the objects in `list`.
+In some cases, there may be good reasons for such specialization, and in such cases we just have to live with these inference failures.
+However, in other cases the specialization might be detrimental to compile-time and/or runtime performance.
+In such cases, we might decide to create them all as `Container{Any}`:
+
+```julia
+cs = Container{Any}.(list)
+```
+
+This 5-character change ends up eliminating 45 of our original 76 triggers.
+Not only did we eliminate the triggers from broadcasting, but we limited the number of different `show(::IO, ::Container{T})` MethodInstances we need from later calls in `main`.
+
+When the `Container` constructor does more complex operations, in some cases you may find that `Container{Any}(args...)` still gets specialized for different types of `args...`.
+In such cases, you can create a special constructor that instructs Julia to avoid specialization in specific instances, e.g.,
+
+```julia
+struct Container{T}
+    field1::T
+    morefields...
+
+    # This constructor permits specialization on `args`
+    Container{T}(args...) where {T} = new{T}(args...)
+
+    # For Container{Any}, we prevent specialization
+    Container{Any}(@nospecialize(args...)) = new{Any}(args...)
+end
+```
+
+If you're following along, the best option is to make these fixes and go back to the beginning, re-collecting `tinf` and processing the triggers.
+We're down to 32 inference triggers.
 
 ### [Adding type-assertions](@id typeasserts)
 
-Let's make our first fix. There are several ways we could go about doing this:
+If you've made the fixes above, the first child of `itree` is one for `show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Container{Any}})`;
+we'll skip that one for now, because it's a bit more sophisticated.
+Right below it, we see
+
+```
+├─ MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
+│  ├─ MethodInstance for return_type(::Any, ::Any)
+│  ├─ MethodInstance for return_type(::Any, ::Any, ::UInt64)
+```
+
+and related nodes for `similar`, `copyto_nonleaf!`, etc., just as we saw above, so this looks like another case of broadcasting failure.
+In this case, `suggest` quickly indicates that it's the broadcasting in
+
+```julia
+function contain_list(list)
+    cs = Container.(list)
+    return concat_string(cs...)
+end
+```
+
+Now we know the problem: `main` creates `list = [2.718, "is jealous"]`,
+a vector with different object types, and this leads to inference failures in broadcasting.
+But wait, you might notice, `contain_concrete` gets called before `contain_list`, why doesn't it have a problem?
+The reason is that `contain_concrete` and its callee, `concat_string`, provide opportunities for inference to handle each object in a separate argument;
+the problems arise from bundling objects of different types into the same container.
+
+There are several ways we could go about fixig this example:
 
 - we could delete `contain_list` altogether and use `contain_concrete` for everything.
-- we could create `list` as a tuple rather than a `Vector{Any}`; (small) tuples allow inference to succeed even when each element has a different type. This is as simple as changing `list = [2.718, "is jealous"]` to `list = (2.718, "is jealous")`.
+- we could try creating `list` as a tuple rather than a `Vector{Any}`; (small) tuples sometimes allow inference to succeed even when each element has a different type. This is as simple as changing `list = [2.718, "is jealous"]` to `list = (2.718, "is jealous")`, but whether it works to solve all your inference problems depends on the particular case.
 - we could use external knowledge to annotate the types of the items in `list::Vector{Any}`.
 
 Here we'll illustrate the last of these, since it's the only one that's nontrivial.
@@ -203,105 +337,190 @@ Of course, this just trades one form of inference failure for another--the call 
 - even though the `convert` call will be made by runtime dispatch, in this particular case `convert(Float64, ::Float64)` is already compiled in Julia itself.  Consequently it doesn't require a fresh run of inference.
 - even in cases where the types are such that `convert` might need to be inferred & compiled, the type-assertion allows Julia to assume that `item1` is henceforth a `Float64`.  This makes it possible for inference to succeed for any code that follows.  When that's a large amount of code, the savings can be considerable.
 
-If we make that fix and start a fresh session, we discover we're down to 70 triggers (a savings of 5 inference triggers).
+Let's make that fix and also annotate the container type from `main`, `list = Any[2.718, "is jealous"]`.
+Just to see how we're progressing, we start a fresh session and discover we're down to 20 triggers with just three direct branches.
 
-### Declaring container types
+### Vararg homogenization
 
-Having made the fix above, now the first `itrig` on the list is
-
-```julia
-Inference triggered to call MethodInstance for vect(::Int64, ::Vararg{Any, N} where N) from lotsa_containers (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:27) with specialization MethodInstance for lotsa_containers()
-```
-
-`vect` is the call that implements `[1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]` on the corresponding line of `lotsa_containers`.
-You can see the first element is an `Int`, followed by `Vararg{Any}`.
-We've used a combination of arguments that evidently hasn't been used before, and creating the vector involves another several inference triggers.
-
-Let's see what kind of object this line creates:
+We'll again skip over the `show` branches (they are two of the remaining three), and focus on this one:
 
 ```julia
-julia> list = [1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)];
+julia> node = itree.children[2]
+TriggerNode for MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 2 direct children
 
-julia> typeof(list)
-Vector{Any} (alias for Array{Any, 1})
+julia> print_tree(node)
+MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
+├─ MethodInstance for cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64})
+└─ MethodInstance for __cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
+
+julia> suggest(node)
+./abstractarray.jl:1630: invoked callee is varargs (ignore this one, force-specialize the callee MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N), or declare an umbrella type)
+immediate caller(s):
+1-element Vector{Base.StackTraces.StackFrame}:
+ main() at OptimizeMe.jl:48
+├─ ./abstractarray.jl:1636: caller is varargs (ignore this one, specialize the caller _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) at abstractarray.jl:1636, or improve inferrability of its caller)
+│  immediate caller(s):
+│  1-element Vector{Base.StackTraces.StackFrame}:
+│   cat_t(::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N; dims::Val{1}) at abstractarray.jl:1632
+└─ ./abstractarray.jl:1640: caller is varargs (ignore this one, specialize the caller _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) at abstractarray.jl:1640, or improve inferrability of its caller)
+   immediate caller(s):
+   1-element Vector{Base.StackTraces.StackFrame}:
+    cat_t(::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N; dims::Val{1}) at abstractarray.jl:1632
 ```
 
-Since it creates a `Vector{Any}`, perhaps we should just tell Julia to create such an object directly: we modify `[1, 0x01, ...]` to `Any[1, 0x01, ...]`, so that Julia doesn't have to deduce the container type on its own.
-
-Making this simple 3-character fix gets us down to 64 triggers (a savings of 6 inference triggers).
-
-### Reducing specialization
-
-We talked about reducing specialization of callees in [profile-guided despecialization](@ref pgds).
-Here we'll cover a complemetary technique, reducing specialization from the standpoint of the caller.
-Our next entry takes us back to the broadcasting machinery:
+Due to Julia's optimization and inlining, it's sometimes a bit hard to tell from these shortened displays where a particular trigger comes from.
+In this case we extract the specific trigger and show the stacktrace:
 
 ```julia
-Inference triggered to call MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}}) from copy (./broadcast.jl:905) inlined into MethodInstance for lotsa_containers() (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:28)
+julia> itrig = node.itrig
+Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat (./abstractarray.jl:1630) inlined into MethodInstance for makeobjects() (/tmp/OptimizeMe.jl:39)
+
+julia> stacktrace(itrig)
+24-element Vector{Base.StackTraces.StackFrame}:
+ exit_current_timer at typeinfer.jl:166 [inlined]
+ typeinf(interp::Core.Compiler.NativeInterpreter, frame::Core.Compiler.InferenceState) at typeinfer.jl:208
+ typeinf_ext(interp::Core.Compiler.NativeInterpreter, mi::Core.MethodInstance) at typeinfer.jl:835
+ typeinf_ext_toplevel(interp::Core.Compiler.NativeInterpreter, linfo::Core.MethodInstance) at typeinfer.jl:868
+ typeinf_ext_toplevel(mi::Core.MethodInstance, world::UInt64) at typeinfer.jl:864
+ _cat at abstractarray.jl:1630 [inlined]
+ #cat#127 at abstractarray.jl:1769 [inlined]
+ cat at abstractarray.jl:1769 [inlined]
+ vcat at abstractarray.jl:1698 [inlined]
+ makeobjects() at OptimizeMe.jl:39
+ main() at OptimizeMe.jl:48
+ top-level scope at snoopi_deep.jl:53
+ eval(m::Module, e::Any) at boot.jl:360
+ eval_user_input(ast::Any, backend::REPL.REPLBackend) at REPL.jl:139
+ repl_backend_loop(backend::REPL.REPLBackend) at REPL.jl:200
+ start_repl_backend(backend::REPL.REPLBackend, consumer::Any) at REPL.jl:185
+ run_repl(repl::REPL.AbstractREPL, consumer::Any; backend_on_current_task::Bool) at REPL.jl:317
+ run_repl(repl::REPL.AbstractREPL, consumer::Any) at REPL.jl:305
+ (::Base.var"#872#874"{Bool, Bool, Bool})(REPL::Module) at client.jl:387
+ #invokelatest#2 at essentials.jl:707 [inlined]
+ invokelatest at essentials.jl:706 [inlined]
+ run_main_repl(interactive::Bool, quiet::Bool, banner::Bool, history_file::Bool, color_set::Bool) at client.jl:372
+ exec_options(opts::Base.JLOptions) at client.jl:302
+ _start() at client.jl:485
 ```
 
-but this time from `lotsa_containers`. The culprit,
+(You can also call `stacktrace` directly on `node`.)
+It's the lines immediately following `typeinf_ext_toplevel` that need concern us:
+you can see that the "last stop" on code we wrote here was `makeobjects() at OptimizeMe.jl:39`, after which it goes fairly deep into the concatenation pipeline before suffering an inference trigger at `_cat at abstractarray.jl:1630`.
+
+In this case, the first hint is quite useful, if we know how to interpret it.
+The `invoked callee is varargs` reassures us that the immediate caller, `_cat`, knows exactly which method it is calling (that's the meaning of the `invoked`).
+The real problem is that it doesn't know how to specialize it.
+The suggestion to `homogenize the arguments` is the crucial hint:
+the problem comes from the fact that in
 
 ```julia
-cs = Container.(list)
+xs = [1:5; 7]
 ```
 
-comes from the fact that we're again broadcasting over a `Vector{Any}`.
-This time, however, the type diversity is so high that it's impractical to limit the types via type-asserting: this sure looks like a case where we basically need to be able to handle anything at all.
-
-In such circumstances, sometimes there is nothing you can do.
-But when the operations that follow are not a major runtime cost (see [`runtime_inferencetime`](@ref)), one thing you can do is deliberately reduce specialization, and therefore limit the number of times inference needs to run.
-A detailed examination of `itrigs` reveals that the next 19 inference triggers are due to this one line, including a set of five like
-
-```
- Inference triggered to call MethodInstance for Main.OptimizeMeFixed.Container(::UInt16) from _broadcast_getindex_evalf (./broadcast.jl:648) inlined into MethodInstance for copyto_nonleaf!(::Vector{Main.OptimizeMeFixed.Container}, ::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Tuple{Base.OneTo{Int64}}, Type{Main.OptimizeMeFixed.Container}, Tuple{Base.Broadcast.Extruded{Vector{Any}, Tuple{Bool}, Tuple{Int64}}}}, ::Base.OneTo{Int64}, ::Int64, ::Int64) (./broadcast.jl:1076)
- Inference triggered to call MethodInstance for Main.OptimizeMeFixed.Container(::Float32) from _broadcast_getindex_evalf (./broadcast.jl:648) inlined into MethodInstance for copyto_nonleaf!(::Vector{Main.OptimizeMeFixed.Container}, ::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Tuple{Base.OneTo{Int64}}, Type{Main.OptimizeMeFixed.Container}, Tuple{Base.Broadcast.Extruded{Vector{Any}, Tuple{Bool}, Tuple{Int64}}}}, ::Base.OneTo{Int64}, ::Int64, ::Int64) (./broadcast.jl:1076)
-...
-```
-
-corresponding to creating a `Container{T}` for each specific `T` for the types in `list`.
-In this case, let's imagine that the runtime performance of these objects isn't critical, and so let's decide to create them all as `Container{Any}`:
+`1:5` is a `UnitRange{Int}` whereas `7` is an `Int`, and the fact that these are two different types prevents Julia from knowing how to specialize that varargs call.
+But this is easy to fix, because the result will be identical if we write this as
 
 ```julia
-cs = Container{Any}.(list)
+xs = [1:5; 7:7]
 ```
 
-This change gets us all the way down to just 19 remaining triggers (a savings of 45 triggers).
-Not only did we eliminate the triggers from broadcasting, but we limited the number of different `show(::IO, ::Container{T})` MethodInstances we need from later calls in `main`.
+in which case both arguments are `UnitRange{Int}`, and this allows Julia to specialize the varargs call.
 
-When the `Container` constructor does more complex operations, in some cases you may find that `Container{Any}(args...)` still gets specialized for different types of `args...`. In such cases, you can create a special constructor that instructs Julia to avoid specialization in specific instances, e.g.,
+!!! note
+    It's generally a good thing that Julia doesn't specialize each and every varargs call, because the lack of specialization reduces latency.
+    However, when you can homogenize the argument types and make it inferrable, you make it more worthy of precompilation, which is a different and ultimately more impactful approach to latency reduction.
+
+### Defining `show` methods for custom types
+
+Finally we are left with nodes that are related to `show`.
+We'll temporarily skip the first of these and examine
 
 ```julia
-struct Container{T}
-    field1::T
-    morefields...
-
-    # This constructor permits specialization on `args`
-    Container{T}(args...) where {T} = new{T}(args...)
-
-    # For Container{Any}, we prevent specialization
-    Container{Any}(@nospecialize(args...)) = new{Any}(args...)
-end
+julia> print_tree(node)
+MethodInstance for show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Object})
+└─ MethodInstance for var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, ::typeof(sprint), ::Function, ::Main.OptimizeMe.Object)
+   └─ MethodInstance for sizeof(::Main.OptimizeMe.Object)
 ```
 
-`@nospecialize` hints to Julia that it should avoid creating many specializations for different argument types.
+We'll use this as an excuse to point out that if you don't know how to deal with the root node of this (sub)tree, you can tackle later nodes:
+
+```julia
+julia> itrigsnode = flatten(node)
+3-element Vector{InferenceTrigger}:
+ Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Object}) from #38 (/home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:220) with specialization MethodInstance for (::REPL.var"#38#39"{REPL.REPLDisplay{REPL.LineEditREPL}, MIME{Symbol("text/plain")}, Base.RefValue{Any}})(::Any)
+ Inference triggered to call MethodInstance for var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, ::typeof(sprint), ::Function, ::Main.OptimizeMe.Object) from sprint##kw (./strings/io.jl:101) inlined into MethodInstance for alignment(::IOContext{Base.TTY}, ::Vector{Main.OptimizeMe.Object}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::Int64, ::Int64) (./arrayshow.jl:68)
+ Inference triggered to call MethodInstance for sizeof(::Main.OptimizeMe.Object) from _show_default (./show.jl:402) with specialization MethodInstance for _show_default(::IOContext{IOBuffer}, ::Any)
+
+julia> itrig = itrigsnode[end]
+Inference triggered to call MethodInstance for sizeof(::Main.OptimizeMe.Object) from _show_default (./show.jl:402) with specialization MethodInstance for _show_default(::IOContext{IOBuffer}, ::Any)
+```
+
+The stacktrace begins
+
+```julia
+julia> stacktrace(itrig)
+35-element Vector{Base.StackTraces.StackFrame}:
+ exit_current_timer at typeinfer.jl:166 [inlined]
+ typeinf(interp::Core.Compiler.NativeInterpreter, frame::Core.Compiler.InferenceState) at typeinfer.jl:208
+ typeinf_ext(interp::Core.Compiler.NativeInterpreter, mi::Core.MethodInstance) at typeinfer.jl:835
+ typeinf_ext_toplevel(interp::Core.Compiler.NativeInterpreter, linfo::Core.MethodInstance) at typeinfer.jl:868
+ typeinf_ext_toplevel(mi::Core.MethodInstance, world::UInt64) at typeinfer.jl:864
+ _show_default(io::IOContext{IOBuffer}, x::Any) at show.jl:402
+ show_default at show.jl:395 [inlined]
+ show(io::IOContext{IOBuffer}, x::Any) at show.jl:390
+ sprint(f::Function, args::Main.OptimizeMe.Object; context::IOContext{Base.TTY}, sizehint::Int64) at io.jl:103
+⋮
+```
+
+You can see that `sprint` called `show` which called `_show_default`;
+`_show_default` clearly needed to call `sizeof`.
+The hint, in this case, suggests the impossible:
+
+```
+julia> suggest(itrig)
+./show.jl:402: non-inferrable call, perhaps annotate _show_default(io::IO, x) in Base at show.jl:397 with type MethodInstance for sizeof(::Main.OptimizeMe.Object)
+If a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.
+immediate caller(s):
+2-element Vector{Base.StackTraces.StackFrame}:
+ show_default at show.jl:395 [inlined]
+ show(io::IOContext{IOBuffer}, x::Any) at show.jl:390
+```
+
+Because `Base` doesn't know about `OptimizeMe.Object`, you could not add such an annotation, and it wouldn't be correct in the vast majority of cases.
+
+As the name implies, `_show_default` is the fallback `show` method.
+We can fix this by adding our own `show` method
+
+```julia
+Base.show(io::IO, o::Object) = print(io, "Object x: ", o.x)
+```
+
+to the module definition.
+`Object` is so simple that this is slightly silly, but in more complex cases adding good `show` methods improves usability of your packages tremendously.
+(SnoopCompile has many `show` specializations, and without them it would be practically unusable.)
+
+When you do define a custom `show` method, you own it, so of course it will be precompilable.
+So we've circumvented this particular issue.
 
 ### Creating "warmup" methods
 
-Our next case is particularly interesting:
+Finally, it is time to deal with those long-delayed `show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::T)` triggers and the triggers they inspire.
+We have two of them, one for `T = Vector{Main.OptimizeMe.Container{Any}}` and one for `T = Vector{Main.OptimizeMe.Object}`.
+Let's look at just the trigger associated with the first:
 
 ```
+julia> itrig
 Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMeFixed.Container{Any}}) from #38 (/pathto/julia/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:220) with specialization MethodInstance for (::REPL.var"#38#39"{REPL.REPLDisplay{REPL.LineEditREPL}, MIME{Symbol("text/plain")}, Base.RefValue{Any}})(::Any)
 ```
 
 In this case we see that the method is `#38`.  This is a `gensym`, or generated symbol, indicating that the method was generated during Julia's lowering pass, and might indicate a macro, a `do` block or other anonymous function, the generator for a `@generated` function, etc.
 
 !!! warning
-    It's particularly worth your while to improve inferrability for gensym-methods. The number assiged to a gensymmed-method may change as you modify the package (possibly due to changes at very difference source-code locations), and so any explicit `precompile` directives involving gensyms may not have a long useful life.
+    It's particularly worth your while to improve inferrability for gensym-methods. The number assiged to a gensymmed-method may change as you or other developers modify the package (possibly due to changes at very difference source-code locations), and so any explicit `precompile` directives involving gensyms may not have a long useful life.
 
     But not all methods with `#` in their name are problematic: methods ending in `##kw` or that look like `##funcname#39` are *keyword* and *body* methods, respectively, for methods that accept keywords.  They can be obtained from the main method, and so `precompile` directives for such methods will not be outdated by incidental changes to the package.
 
-`edit(itrig)` takes us to
+`edit(itrig)` (or equivalently, `edit(node)` where `node` is a child of `itree`) takes us to this method in `Base`:
 
 ```julia
 function display(d::REPLDisplay, mime::MIME"text/plain", x)
@@ -320,7 +539,10 @@ function display(d::REPLDisplay, mime::MIME"text/plain", x)
 end
 ```
 
-The generated method corresponds to the `do` block here.  The call to `show` comes from `show(io, mime, x[])`.  This implementation uses a clever trick, wrapping `x` in a `Ref{Any}(x)`, to prevent specialization of the method defined by the `do` block on the specific type of `x`.  This trick is designed to limit the number of MethodInstances inferred for this `display` method.
+The generated method corresponds to the `do` block here.
+The call to `show` comes from `show(io, mime, x[])`.
+This implementation uses a clever trick, wrapping `x` in a `Ref{Any}(x)`, to prevent specialization of the method defined by the `do` block on the specific type of `x`.
+This trick is designed to limit the number of MethodInstances inferred for this `display` method.
 
 Unfortunately, from the standpoint of precompilation we have something of a conundrum.
 It turns out that this trigger corresponds to the first of the big red flames in the flame graph.
@@ -330,7 +552,7 @@ If these were all packages, you might request its developers to add a `precompil
 In this situation, Julia's `Base` module doesn't know about `OptimizeMe.Container{Any}`, so we're stuck.
 
 There are a couple of ways one might go about improving matters.
-First, one option is that this should be changed in Julia itself: since the caller, `display`, has gone to some lengths to reduce specialization, perhaps so too should `show(io::IO, ::MIME"text/plain", X::AbstractArray)`, which is what gets called by that `show` call in `display`.
+First, one option is that this should be changed in Julia itself: since the caller, `display`, has gone to some lengths to reduce specialization, it would be worth contemplating whether `show(io::IO, ::MIME"text/plain", X::AbstractArray)` should have a `@nospecialize` around `X`.
 Here, we'll pursue a simple "cheat," one that allows us to directly precompile this method.
 The trick is to link it, via a chain of backedges, to a method that our package owns:
 
@@ -354,117 +576,126 @@ precompile(warmup, ())
 ```
 
 We handled not just `Vector{Container{Any}}` but also `Vector{Object}`, since that turns out to correspond to the other wide block of red bars.
-If you make this change, start a fresh session, and recreate the flame graph, you'll see that the wide red flames are gone.
+If you make this change, start a fresh session, and recreate the flame graph, you'll see that the wide red flames are gone:
+
+![flamegraph-OptimizeMeFixed](assets/flamegraph-OptimizeMeFixed.png)
+
 
 !!! info
     It's worth noting that this `warmup` method needed to be carefully written to succeed in its mission. `stdout` is not inferrable (it's a global that can be replaced by `redirect_stdout`), so we needed to annotate its type. We also might have been tempted to use a loop, `for io in (stdout, IOContext(stdout)) ... end`, but inference needs a dedicated call-site where it knows all the types. ([Union-splitting](https://julialang.org/blog/2018/08/union-splitting/) can sometimes come to the rescue, but not if the list is long or elements non-inferrable.) The safest option is to make each call from a separate site in the code.
 
-The next trigger, a call to `sprint` from inside `Base.alignment(io::IO, x::Any)`, could also be handled using this `warmup` trick, but the flamegraph says this isn't an expensive method to infer.  In such cases, it's fine to choose to leave it be.
-
-### Defining `show` methods for custom types
-
-Our next trigger is for `show(::IOContext{IOBuffer}, x::Any)`, a method that has been `@nospecialize`d on `x`.
-This is the fallback `show` method.
-Most custom types should probably have `show` methods defined for them, but it's quite easy to forget to add them.
-Even though the inference time is fairly short, this can be a good reminder that you should get around to writing nice `show` methods that help your users work with your data types.
-In this case, `Container` is so simple there's little advantage in having a dedicated method, so you could just use the fallback and allow this inference trigger to continue to exist.
-Just to illustrate the concept, though, let's add
-
-```julia
-Base.show(io::IO, o::Object) = print(io, "Object x: ", o.x)
-```
-
-to the module definition.
-
-When you do define a custom `show` method, you own it, so of course it will be precompilable.
+The next trigger, a call to `sprint` from inside `Base.alignment(io::IO, x::Any)`, could also be handled using this `warmup` trick, but the flamegraph says this call (also marked in red) isn't an expensive method to infer.  In such cases, it's fine to choose to leave it be.
 
 ### Implementing or requesting `precompile` directives in upstream packages
 
-Jumping a bit ahead, we get to
+Of the remaining triggers (now numbering 14), the flamegraph indicates that the most expensive inference run is
 
 ```
 Inference triggered to call MethodInstance for show(::IOContext{IOBuffer}, ::Float32) from _show_default (./show.jl:412) with specialization MethodInstance for _show_default(::IOContext{IOBuffer}, ::Any)
 ```
 
-Looking at the flame graph, this looks like an expensive method to infer.
 You can check that by listing the children of `ROOT` in order of `inclusive` time:
 
 ```julia
 julia> nodes = sort(tinf.children; by=inclusive)
-17-element Vector{SnoopCompileCore.InferenceTimingNode}:
- InferenceTimingNode: 4.1511e-5/4.1511e-5 on InferenceFrameInfo for ==(::Type, nothing::Nothing) with 0 direct children
- InferenceTimingNode: 5.4704e-5/5.4704e-5 on InferenceFrameInfo for Base.typeinfo_eltype(::Type) with 0 direct children
- InferenceTimingNode: 8.6196e-5/8.6196e-5 on InferenceFrameInfo for sizeof(::Main.OptimizeMeFixed.Container{Any}) with 0 direct children
- InferenceTimingNode: 9.8028e-5/0.0004209 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Any) with 1 direct children
- InferenceTimingNode: 0.00042543/0.00042543 on InferenceFrameInfo for Pair{Symbol, DataType}(::Any, ::Any) with 0 direct children
- InferenceTimingNode: 0.000117212/0.0006026919999999999 on InferenceFrameInfo for Base.cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64}) with 1 direct children
- InferenceTimingNode: 0.000697067/0.000697067 on InferenceFrameInfo for print(::IOContext{Base.TTY}, ::String, ::String, ::Vararg{String, N} where N) with 0 direct children
- InferenceTimingNode: 0.000481464/0.0011528530000000001 on InferenceFrameInfo for Pair(::Symbol, ::Type) with 1 direct children
- InferenceTimingNode: 0.000660858/0.0012205710000000002 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Object) with 4 direct children
- InferenceTimingNode: 0.000727268/0.001424646 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Container{Any}) with 4 direct children
- InferenceTimingNode: 0.000420439/0.00216088 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::UInt16) with 4 direct children
- InferenceTimingNode: 9.0528e-5/0.009614315 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Tuple{String, Int64}) with 1 direct children
- InferenceTimingNode: 0.000560133/0.011189684999999998 on InferenceFrameInfo for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 2 direct children
- InferenceTimingNode: 0.000185424/0.011345562999999998 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Vector{Int64}) with 3 direct children
- InferenceTimingNode: 0.002579144/0.016026644 on InferenceFrameInfo for Base.__cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) with 12 direct children
- InferenceTimingNode: 0.018577433/0.05070554099999999 on InferenceFrameInfo for Base.Ryu.writeshortest(::Vector{UInt8}, ::Int64, ::Float32, ::Bool, ::Bool, ::Bool, ::Int64, ::UInt8, ::Bool, ::UInt8, ::Bool, ::Bool) with 29 direct children
- InferenceTimingNode: 0.000114463/0.12183530599999999 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
+14-element Vector{SnoopCompileCore.InferenceTimingNode}:
+ InferenceTimingNode: 0.000053/0.000053 on InferenceFrameInfo for ==(::Type, nothing::Nothing) with 0 direct children
+ InferenceTimingNode: 0.000054/0.000054 on InferenceFrameInfo for sizeof(::Main.OptimizeMeFixed.Container{Any}) with 0 direct children
+ InferenceTimingNode: 0.000061/0.000061 on InferenceFrameInfo for Base.typeinfo_eltype(::Type) with 0 direct children
+ InferenceTimingNode: 0.000075/0.000380 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Any) with 1 direct children
+ InferenceTimingNode: 0.000445/0.000445 on InferenceFrameInfo for Pair{Symbol, DataType}(::Any, ::Any) with 0 direct children
+ InferenceTimingNode: 0.000663/0.000663 on InferenceFrameInfo for print(::IOContext{Base.TTY}, ::String, ::String, ::Vararg{String, N} where N) with 0 direct children
+ InferenceTimingNode: 0.000560/0.001049 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Object) with 4 direct children
+ InferenceTimingNode: 0.000441/0.001051 on InferenceFrameInfo for Pair(::Symbol, ::Type) with 1 direct children
+ InferenceTimingNode: 0.000627/0.001140 on InferenceFrameInfo for Base.var"#sprint#386"(::IOContext{Base.TTY}, ::Int64, sprint::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Container{Any}) with 4 direct children
+ InferenceTimingNode: 0.000321/0.001598 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::UInt16) with 4 direct children
+ InferenceTimingNode: 0.000190/0.012516 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Vector{Int64}) with 3 direct children
+ InferenceTimingNode: 0.021179/0.033940 on InferenceFrameInfo for Base.Ryu.writeshortest(::Vector{UInt8}, ::Int64, ::Float32, ::Bool, ::Bool, ::Bool, ::Int64, ::UInt8, ::Bool, ::UInt8, ::Bool, ::Bool) with 29 direct children
+ InferenceTimingNode: 0.000083/0.035496 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Tuple{String, Int64}) with 1 direct children
+ InferenceTimingNode: 0.000188/0.092555 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
 ```
 
-You can see it's the most expensive remaining root, weighing in at around 100ms.
+You can see it's the most expensive remaining root, weighing in at nearly 100ms.
 This method is defined in the `Base.Ryu` module,
 
 ```julia
 julia> node = nodes[end]
-InferenceTimingNode: 0.000114463/0.12183530599999999 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
+InferenceTimingNode: 0.000188/0.092555 on InferenceFrameInfo for show(::IOContext{IOBuffer}, ::Float32) with 1 direct children
 
 julia> Method(node)
 show(io::IO, x::T) where T<:Union{Float16, Float32, Float64} in Base.Ryu at ryu/Ryu.jl:111
 ```
 
 Now, we could add this to `warmup` and at least solve the inference problem.
-However, on the flamegraph you might note that this is followed shortly by a couple of calls to `Ryu.writeshortest`, followed by a long gap.
+However, on the flamegraph you might note that this is followed shortly by a couple of calls to `Ryu.writeshortest` (the third-most expensive to infer), followed by a long gap.
 That hints that other steps, like native code generation, may be expensive.
 Since these are base Julia methods, and `Float32` is a common type, it would make sense to file an issue or pull request that Julia should come shipped with these precompiled--that would cache not only the type-inference but also the native code, and thus represents a far more complete solution.
 
 Later, we'll see how `parcel` can generate such precompile directives automatically, so this is not a step you need to implement entirely on your own.
 
-### Vararg homogenization
+Another `show` `MethodInstance`, `show(::IOContext{IOBuffer}, ::Tuple{String, Int64})`, seems too specific to be worth worrying about, so we call it quits here.
 
-Several other triggers come from the `show` pipeline, but in the interests of avoiding redundancy we'll skip ahead to one last "interesting" case:
+### Advanced analysis: `ascend`
 
-```julia
-julia> itrigscat = itrigs[end-4:end-2]
-3-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat (./abstractarray.jl:1630) inlined into MethodInstance for makeobjects() (/pathto/SnoopCompile/examples/OptimizeMeFixed.jl:39)
- Inference triggered to call MethodInstance for cat_similar(::UnitRange{Int64}, ::Type, ::Tuple{Int64}) from _cat_t (./abstractarray.jl:1636) with specialization MethodInstance for _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
- Inference triggered to call MethodInstance for __cat(::Vector{Int64}, ::Tuple{Int64}, ::Tuple{Bool}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat_t (./abstractarray.jl:1640) with specialization MethodInstance for _cat_t(::Val{1}, ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N)
-```
-
-A little inspection of the `bt` fields reveals that all originate from the line
+One thing that hasn't yet been covered is that when you really need more insight, you can use `ascend`:
 
 ```julia
-xs = [1:5; 7]
+julia> itrig = itrigs[5]
+Inference triggered to call MethodInstance for show(::IOContext{IOBuffer}, ::Float32) from _show_default (./show.jl:412) with specialization MethodInstance for _show_default(::IOContext{IOBuffer}, ::Any)
+
+julia> ascend(itrig)
+Choose a call for analysis (q to quit):
+ >   show(::IOContext{IOBuffer}, ::Float32)
+       _show_default(::IOContext{IOBuffer}, ::Any) at ./show.jl:412
+         show_default at ./show.jl:395 => show(::IOContext{IOBuffer}, ::Any) at ./show.jl:390
+           #sprint#386(::IOContext{Base.TTY}, ::Int64, ::typeof(sprint), ::Function, ::Main.OptimizeMeFixed.Container{Any}) at ./strings/io.jl:103
+             sprint##kw at ./strings/io.jl:101 => alignment at ./show.jl:2528 => alignment(::IOContext{Base.TTY}, ::Vector{Main.OptimizeMeFixed.Container{Any}}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::
+               print_matrix(::IOContext{Base.TTY}, ::AbstractVecOrMat{T} where T, ::String, ::String, ::String, ::String, ::String, ::String, ::Int64, ::Int64) at ./arrayshow.jl:197
+                 print_matrix at ./arrayshow.jl:169 => print_array at ./arrayshow.jl:323 => show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMeFixed.Container{Any}}) at ./a
+                   (::REPL.var"#38#39"{REPL.REPLDisplay{REPL.LineEditREPL}, MIME{Symbol("text/plain")}, Base.RefValue{Any}})(::Any) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL
+                     with_repl_linfo(::Any, ::REPL.LineEditREPL) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:462
+v                      display(::REPL.REPLDisplay, ::MIME{Symbol("text/plain")}, ::Any) at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:213
+
 ```
 
-and proceed through `vcat`. Why does this trigger inference? The method of `vcat`,
+`ascend` was covered in much greater detail in [fixing invalidations](@ref invalidations), and you can read about using it on that page.
+Here, one twist is that some lines contain content like
+
+```
+show_default at ./show.jl:395 => show(::IOContext{IOBuffer}, ::Any) at ./show.jl:390
+```
+
+This indicates that `show_default` was inlined into `show`.
+`ascend` needs the full non-inlined `MethodInstance` to descend into, so the tree only includes such nodes.
+However, within Cthulhu you can toggle optimization and thereby descend into some of these inlined method, or see the full consequence of their inlining into the caller.
+
+## A note on analyzing test suites
+
+If you're doing a package analysis, it's convenient to use the package's `runtests.jl` script as a way to cover much of the package's functionality.
+SnoopCompile has a couple of enhancements designed to make it easier to ignore inference triggers that come from the test suite itself.
+First, `suggest.(itrigs)` may show something like this:
+
+```
+ ./broadcast.jl:1315: inlineable (ignore this one)
+ ./broadcast.jl:1315: inlineable (ignore this one)
+ ./broadcast.jl:1315: inlineable (ignore this one)
+ ./broadcast.jl:1315: inlineable (ignore this one)
+```
+
+This indicates a broadcasting operation in the `@testset` itself.
+Second, while it's a little dangerous (because `suggest` cannot entirely be trusted), you can filter these out:
 
 ```julia
-julia> @which vcat(1:5, 7)
-vcat(X...) in Base at abstractarray.jl:1698
+julia> itrigsel = [itrig for itrig in itrigs if !isignorable(suggest(itrig))];
+
+julia> length(itrigs)
+222
+
+julia> length(itrigsel)
+71
 ```
 
-is a `Vararg`s method.  Julia's heuristics often prevent it from specializing varargs calls, as a means to avoid excessive diversity leading to long compile times.
-That's a really good thing, but here it would be even better if we could get that method to precompile and avoid running inference altogether.
-There's an important exception to the heuristics: when all arguments are of the same type, Julia often allows the method to be specialized.
-Consequently, if we change that line to
-
-```julia
-xs = [1:5; 7:7]
-```
-
-we will get the same output, but all the inputs will be `UnitRange{Int}` and inference will succeed.
-This eliminates all three `cat`-related triggers.
+While there is some risk of discarding triggers that provide clues about the origin of other triggers (e.g., they would have shown up in the same branch of the `trigger_tree`), the shorter list may help direct your attention to the "real" issues.
 
 ## Results from the improvements
 
