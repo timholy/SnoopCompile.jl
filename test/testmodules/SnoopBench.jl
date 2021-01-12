@@ -32,7 +32,7 @@ function spell_spec(::Type{T}) where T
     return str
 end
 function spell_unspec(@nospecialize(T))
-    name = Base.unwrap_unionall(T).name.name
+    name = (Base.unwrap_unionall(T)::DataType).name.name
     str = ""
     for c in string(name)
         str *= c

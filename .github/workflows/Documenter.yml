@@ -13,6 +13,8 @@ jobs:
   Documenter:
     name: Documentation
     runs-on: ubuntu-latest
+    env:
+      PYTHON: ""    # for PyPlot
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest

@@ -9,6 +9,13 @@
 @snoopc
 ```
 
+## GUIs
+
+```@docs
+flamegraph
+pgdsgui
+```
+
 ## Analysis of invalidations
 
 ```@docs
@@ -21,11 +28,11 @@ findcaller
 ## Analysis of `@snoopi_deep`
 
 ```@docs
-SnoopCompile.flamegraph
 flatten
 exclusive
 inclusive
 accumulate_by_source
+collect_for
 inference_triggers
 callerinstance
 callingframe
