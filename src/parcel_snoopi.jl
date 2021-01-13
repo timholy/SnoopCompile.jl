@@ -179,7 +179,7 @@ function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check
     return false
 end
 
-function reprcontext(mod::Module, @nospecialize(T::Type))
+function reprcontext(mod::Module, @nospecialize(T))
     # First check whether supplying module context allows evaluation
     rplain = repr(T; context=:module=>mod)
     try

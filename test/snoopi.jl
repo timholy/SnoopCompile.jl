@@ -94,6 +94,12 @@ uncompiled(x) = x + 1
     @test occursin("C.CT", directive)
     @test !occursin("E.ET", directive)
 
+    # Varargs
+    tinf = @snoopi A.myjoin("a", "b", "c")
+    pc = SnoopCompile.parcel(tinf)
+    @test length(pc[:A]) == 1
+    @test occursin("Vararg", pc[:A][1])
+
     # Identify kwfuncs, whose naming depends on the Julia version (issue #46)
     # Also check for kw body functions (also tested below)
     tinf = @snoopi begin
