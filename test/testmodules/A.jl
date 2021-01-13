@@ -10,4 +10,5 @@ module A
         end
     end
     f(a) = 1
+    myjoin(arg::String, args::String...) = arg * " " * join(args, ' ')
 end
