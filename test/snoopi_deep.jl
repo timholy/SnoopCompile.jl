@@ -213,14 +213,29 @@ fdouble(x) = 2x
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test skiphigherorder(itrig) == itrig
+end
+
+@testset "suggest" begin
+    # suggest with runtime-determined function on varargs (_apply_iterate issue)
+    f1va(a...) = 1
+    f2va(a...) = 2
+    function callsomething(args)
+        f = rand() < 0.5 ? f1va : f2va
+        f(args...)
+    end
+    tinf = @snoopi_deep callsomething(Any['a', 2])
+    itrigs = inference_triggers(tinf)
+    s = suggest(itrigs[1])
+    @test SnoopCompile.CalleeVariable ∈ s.categories
 
     # Test one called from toplevel
-    fromtask() = while false end; 1
+    fromtask() = (while false end; 1)
     tinf = @snoopi_deep wait(@async fromtask())
     @test isempty(invalidations(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     itree = trigger_tree(itrigs)
+    io = IOBuffer()
     print_tree(io, itree)
     @test occursin(r"{var\"#fromtask", String(take!(io)))
     s = suggest(itrigs[1])
