@@ -997,7 +997,7 @@ linetable_match(linetable::Vector{Core.LineInfoNode}, sf::StackTraces.StackFrame
 
 ### suggestions
 
-@enum Suggestion CallerVararg CalleeVararg InvokedCalleeVararg ErrorPath UnspecCall UnspecType Invoke Inlineable
+@enum Suggestion CallerVararg CalleeVararg InvokedCalleeVararg ErrorPath UnspecCall UnspecType Invoke Inlineable CalleeVariable
 
 struct Suggested
     itrig::InferenceTrigger
@@ -1034,18 +1034,22 @@ function Base.show(io::IO, s::Suggested)
         end
         if UnspecCall ∈ s.categories
             printstyled(io, "non-inferrable call"; color=:cyan)
-            print(io, ", perhaps annotate ", sf.linfo.def, " with type ", rtcallee)
+            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
             print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
         end
         if UnspecType ∈ s.categories
             printstyled(io, "partial type call"; color=:cyan)
-            print(io, ", perhaps annotate ", sf.linfo.def, " with type ", rtcallee)
+            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
             print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
         end
         if Invoke ∈ s.categories
             printstyled(io, "regular invoke"; color=:cyan)
             print(io, " (perhaps precompile ", sf, ")")
             showcaller = false
+        end
+        if CalleeVariable ∈ s.categories
+            printstyled(io, "variable callee"; color=:cyan)
+            print(io, ", if possible avoid assigning function to variable;\n  perhaps use `cond ? f(a) : g(a)` rather than `func = cond ? f : g; func(a)`")
         end
         if isempty(s.categories)
             printstyled(io, "I've got nothing to say"; color=:cyan)
@@ -1185,21 +1189,35 @@ function suggest(itrig::InferenceTrigger)
                         if !skipme
                             rtm = rtcallee.def::Method
                             calleef = getfield(callee.mod, callee.name)
+                            isssa = false
                             if calleef === Core._apply_iterate
                                 callee = stmt.args[3]
                                 if isa(callee, GlobalRef)
                                     calleef = getfield(callee.mod, callee.name)
                                 elseif isa(callee, Function)
                                     calleef = callee
+                                elseif isa(callee, Core.SSAValue)
+                                    calleef = ct.ssavaluetypes[callee.id]
+                                    isssa = true
                                 else
-                                    error("unhandled callee ", callee)
+                                    error("unhandled callee ", callee, " for itrig ", itrig)
                                 end
                             end
-                            if rtm ∈ methods(calleef)
+                            meths = methods(calleef)
+                            if rtm ∈ meths
                                 if rtm.isva
                                     push!(s.categories, CalleeVararg)
                                 else
                                     push!(s.categories, UnspecCall)
+                                end
+                            elseif isempty(meths) && isssa
+                                push!(s.categories, CalleeVariable)
+                            elseif isssa
+                                error("unhandled ssa condition on ", itrig)
+                            elseif isempty(meths)
+                                if isa(calleef, Core.Builtin)
+                                else
+                                    error("unhandled meths are empty with calleef ", calleef, " on ", itrig)
                                 end
                             end
                         end
