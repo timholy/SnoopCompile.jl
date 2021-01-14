@@ -191,18 +191,19 @@ function collect_for!(out, target, tinf)
     return out
 end
 
-function invalidations(root::InferenceTimingNode)
-    invs = MethodInstance[]
-    nodes = flatten(root; sortby=nothing)
-    world = Base.get_world_counter()
-    for node in nodes
-        mi = MethodInstance(node)
+invalidations(root::InferenceTimingNode; min_world_exclude = UInt(1)) = invalidations!(InferenceTiming[], root, Base.get_world_counter(), min_world_exclude)
+
+function invalidations!(out, node::InferenceTimingNode, world, min_world_exclude)
+    mi = MethodInstance(node)
+    m = mi.def
+    mod = isa(m, Module) ? m : m.module
+    if Base.parentmodule(mod) !== Core                         # Core runs in an old world
         if isdefined(mi, :cache)
             # Check all CodeInstances
             ci = mi.cache
             while true
-                if ci.max_world < world
-                    push!(invs, mi)
+                if min_world_exclude <= ci.max_world < world   # 0 indicates a CodeInstance loaded from precompile cache
+                    push!(out, node.mi_timing)
                     break
                 end
                 if isdefined(ci, :next)
@@ -213,7 +214,10 @@ function invalidations(root::InferenceTimingNode)
             end
         end
     end
-    return invs
+    for child in node.children
+        invalidations!(out, child, world, min_world_exclude)
+    end
+    return out
 end
 
 ## parcel and supporting infrastructure
