@@ -191,10 +191,37 @@ function collect_for!(out, target, tinf)
     return out
 end
 
-invalidations(root::InferenceTimingNode; min_world_exclude = UInt(1)) = invalidations!(InferenceTiming[], root, Base.get_world_counter(), min_world_exclude)
+"""
+    staleinstances(tinf::InferenceTimingNode)
 
-function invalidations!(out, node::InferenceTimingNode, world, min_world_exclude)
-    mi = MethodInstance(node)
+Return a list of `InferenceTimingNode`s corresponding to `MethodInstance`s that have "stale" code
+(specifically, `CodeInstance`s with outdated `max_world` world ages).
+These may be a hint that invalidation occurred while running the workload provided to `@snoopi_deep`,
+and consequently an important origin of (re)inference.
+
+!!! warning
+    `staleinstances` only looks *retrospectively* for stale code; it does not distinguish whether the code became
+    stale while running `@snoopi_deep` from whether it was already stale before execution commenced.
+
+While `staleinstances` is recommended as a useful "sanity check" to run before performing a detailed analysis of inference,
+any serious examination of invalidation should use [`@snoopr`](@ref).
+
+For more information about world age, see https://docs.julialang.org/en/v1/manual/methods/#Redefining-Methods.
+"""
+staleinstances(root::InferenceTimingNode; min_world_exclude = UInt(1)) = staleinstances!(InferenceTiming[], root, Base.get_world_counter(), UInt(min_world_exclude)::UInt)
+
+function staleinstances!(out, node::InferenceTimingNode, world::UInt, min_world_exclude::UInt)
+    if hasstaleinstance(MethodInstance(node), world, min_world_exclude)
+        push!(out, node.mi_timing)
+    end
+    for child in node.children
+        staleinstances!(out, child, world, min_world_exclude)
+    end
+    return out
+end
+
+# Tip: the following is useful in conjunction with MethodAnalysis.methodinstances() to discover pre-existing stale code
+function hasstaleinstance(mi::MethodInstance, world::UInt = Base.get_world_counter(), min_world_exclude::UInt = UInt(1))
     m = mi.def
     mod = isa(m, Module) ? m : m.module
     if Base.parentmodule(mod) !== Core                         # Core runs in an old world
@@ -203,8 +230,7 @@ function invalidations!(out, node::InferenceTimingNode, world, min_world_exclude
             ci = mi.cache
             while true
                 if min_world_exclude <= ci.max_world < world   # 0 indicates a CodeInstance loaded from precompile cache
-                    push!(out, node.mi_timing)
-                    break
+                    return true
                 end
                 if isdefined(ci, :next)
                     ci = ci.next
@@ -214,10 +240,7 @@ function invalidations!(out, node::InferenceTimingNode, world, min_world_exclude
             end
         end
     end
-    for child in node.children
-        invalidations!(out, child, world, min_world_exclude)
-    end
-    return out
+    return false
 end
 
 ## parcel and supporting infrastructure

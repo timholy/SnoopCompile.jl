@@ -59,36 +59,25 @@ InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compi
 
 This may not look like much, but there's a wealth of information hidden inside `tinf`.
 
-## A quick check for invalidations
+## A quick check for potential invalidations
 
 !!! warning
-    The presence of rampant invalidations in the MethodInstances returned by `tinf` can make some of the other analyses quite confusing. Hence, users of `@snoopi_deep` are advised to check for invalidations before proceeding further.
+    The presence of rampant invalidations in the MethodInstances returned by `tinf` can make some of the other analyses quite confusing. Hence, users of `@snoopi_deep` are advised to check for invalidations before performing detailed analysis or generating precompile directives.
 
-While nowhere near as powerful as [`@snoopr`](@ref), you can also detect invalidations using `tinf`:
-
+After running `@snoopi_deep`, it's generally recommended to check the output of [`staleinstances`](@ref):
 ```julia
-julia> invalidations(tinf)
-Core.MethodInstance[]
+julia> staleinstances(tinf)
+SnoopCompileCore.InferenceTiming[]
 ```
 
-If you see this, all's well. You might alternatively see something like
-
-```julia
-julia> invs = invalidations(tinf)
-4-element Vector{Core.MethodInstance}:
- MethodInstance for (NamedTuple{(:dims,), T} where T<:Tuple)(::Tuple{Int64})
- MethodInstance for (NamedTuple{(:init,), T} where T<:Tuple)(::Tuple{Int64})
- MethodInstance for (NamedTuple{(:init,), T} where T<:Tuple)(::Tuple{Int64})
- MethodInstance for (NamedTuple{(:dims,), T} where T<:Tuple)(::Tuple{Int64})
-```
-
-which may be a consequence of the `@generated` function used for `NamedTuple` creation.
-(Investigations are ongoing.)
-
-However, if you see a large number of invalidations, you should stop here and try to resolve them before proceeding further with `tinf`.
+If you see this, all's well.
+A non-empty list might indicate method invalidations, which can be checked (in a fresh session) by running the identical workload with [`@snoopr`](@ref).
 
 !!! tip
-    If you nevertheless think that proceeding makes sense, consider whether the action you're running inside `@snoopi_deep` might load additional packages. If so, one way to circumvent the invalidation is to load all those packages *before* running the workload inside `@snoopi_deep`. The output of [`invalidation_trees`](@ref) on the same workload can help you determine which packages to load. If you *still* see substantial `invalidations(tinf)`, this may merit additional investigation. One relatively harmless explanation is that your tests may redefine methods used in testing.
+    Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
+    from `staleinstances`.
+    One trick that may cirumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
+    before your workload triggers compilation.
 
 ## Viewing the results
 

@@ -33,6 +33,7 @@ exclusive
 inclusive
 accumulate_by_source
 collect_for
+staleinstances
 inference_triggers
 trigger_tree
 suggest
