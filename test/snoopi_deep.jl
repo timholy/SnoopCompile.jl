@@ -33,7 +33,7 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
     end
     @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
     @test SnoopCompile.isROOT(Method(tinf))
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     frames = flatten(tinf)
     @test length(frames) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
     @test issorted(frames; by=exclusive)
@@ -114,7 +114,7 @@ fdouble(x) = 2x
     end
     g(c) = myplus(f(c[1]), f(c[2]))
     tinf = @snoopi_deep g([0.7, 0.8])
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     @test length(inference_triggers(tinf; exclude_toplevel=false)) == 2
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -156,7 +156,7 @@ fdouble(x) = 2x
     callercaller([Any[1]])
     cc = [Any[0x01]]
     tinf = @snoopi_deep callercaller(cc)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     show(io, itrig)
@@ -172,7 +172,7 @@ fdouble(x) = 2x
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
     tinf = @snoopi_deep map(mysqrt, c)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itree = trigger_tree(itrigs)
     io = IOBuffer()
@@ -198,7 +198,7 @@ fdouble(x) = 2x
     callmymap(Any[1, 2])  # compile all for one set of types
     x = Any[1.0, 2.0]   # fdouble not yet inferred for Float64
     tinf = @snoopi_deep callmymap(x)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test occursin(r"with specialization MethodInstance for .*mymap!.*\(::.*fdouble.*, ::Vector{Any}, ::Vector{Any}\)", string(itrig))
@@ -209,7 +209,7 @@ fdouble(x) = 2x
     callfdouble(Any[1])
     c = Any[Float16(1)]
     tinf = @snoopi_deep callfdouble(c)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test skiphigherorder(itrig) == itrig
@@ -231,7 +231,7 @@ end
     # Test one called from toplevel
     fromtask() = (while false end; 1)
     tinf = @snoopi_deep wait(@async fromtask())
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     itree = trigger_tree(itrigs)
@@ -254,7 +254,7 @@ end
     tinf = @snoopi_deep begin
         M.g(2)
     end
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     frames = flatten(tinf; sortby=inclusive)
 
     fg = SnoopCompile.flamegraph(tinf)
@@ -288,7 +288,7 @@ end
         M.g(2)
         M.g(true)
     end
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     fg = SnoopCompile.flamegraph(tinf)
     @test endswith(string(fg.child.data.sf.func), "M.g")
     counter = Dict{Method,Int}()
@@ -316,7 +316,7 @@ include("testmodules/SnoopBench.jl")
 @testset "parcel" begin
     a = SnoopBench.A()
     tinf = @snoopi_deep SnoopBench.f1(a)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
     @test mod === SnoopBench
@@ -329,7 +329,7 @@ include("testmodules/SnoopBench.jl")
 
     A = [a]
     tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
     @test mod === SnoopBench
@@ -343,7 +343,7 @@ include("testmodules/SnoopBench.jl")
 
     list = Any[1, 1.0, Float16(1.0), a]
     tinf = @snoopi_deep SnoopBench.mappushes(isequal(Int8(1)), list)
-    @test isempty(invalidations(tinf))
+    @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     @test length(prs) == 2
     _, (tmodBase, tmis) = prs[findfirst(pr->pr.first === Base, prs)]
