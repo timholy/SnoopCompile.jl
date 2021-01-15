@@ -61,8 +61,6 @@ This may not look like much, but there's a wealth of information hidden inside `
 
 ## A quick check for potential invalidations
 
-!!! warning
-    The presence of rampant invalidations in the MethodInstances returned by `tinf` can make some of the other analyses quite confusing. Hence, users of `@snoopi_deep` are advised to check for invalidations before performing detailed analysis or generating precompile directives.
 
 After running `@snoopi_deep`, it's generally recommended to check the output of [`staleinstances`](@ref):
 ```julia
@@ -72,6 +70,9 @@ SnoopCompileCore.InferenceTiming[]
 
 If you see this, all's well.
 A non-empty list might indicate method invalidations, which can be checked (in a fresh session) by running the identical workload with [`@snoopr`](@ref).
+
+!!! warning
+    Rampant invalidation can make the process of analyzing `tinf` more confusing: "why am I getting reinference of this `MethodInstance` when I `precompile`d it?" Routine use of `staleinstances` at the beginning can save you some head-scratching later.
 
 !!! tip
     Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
