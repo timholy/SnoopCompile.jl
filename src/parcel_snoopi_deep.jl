@@ -1225,6 +1225,11 @@ function suggest(itrig::InferenceTrigger)
                                     calleef = callee
                                 elseif isa(callee, Core.SSAValue)
                                     calleef = ct.ssavaluetypes[callee.id]
+                                    if isa(calleef, Core.Compiler.Const)
+                                        calleef = calleef.val
+                                    elseif isa(calleef, Core.Compiler.PartialStruct)
+                                        calleef = calleef.typ
+                                    end
                                     isssa = true
                                 else
                                     error("unhandled callee ", callee, " for itrig ", itrig)
