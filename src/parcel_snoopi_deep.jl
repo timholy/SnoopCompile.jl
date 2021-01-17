@@ -12,6 +12,8 @@ const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNo
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
 
+const testrex = r"stdlib.*Test\.jl$"       # for detecting calls from a @testset
+
 Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
 Core.MethodInstance(t::InferenceTiming) = MethodInstance(t.mi_info)
 Core.MethodInstance(t::InferenceTimingNode) = MethodInstance(t.mi_timing)
@@ -739,6 +741,13 @@ function maybe_internal(itrig::InferenceTrigger)
         end
         match(rextest, string(sf.file)) !== nothing && return false
     end
+    # Did this call come directly from a `@testset`?
+    ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodonly=false)
+    if ret !== nothing
+        sfs, idx = ret
+        findfirst(sf -> match(testrex, String(sf.file)) !== nothing, sfs) !== nothing && return false
+    end
+
     return true
 end
 
@@ -1032,8 +1041,6 @@ struct Suggested
 end
 Suggested(itrig::InferenceTrigger) = Suggested(itrig, Suggestion[])
 
-const testrex = r"stdlib.*Test\.jl$"
-
 function Base.show(io::IO, s::Suggested)
     if !isempty(s.itrig.callerframes)
         sf = s.itrig.callerframes[1]
@@ -1051,7 +1058,12 @@ function Base.show(io::IO, s::Suggested)
     else
         if CallerVararg ∈ s.categories
             printstyled(io, "caller is varargs"; color=:cyan)
-            print(io, " (ignore this one, specialize the caller ", sf, ", or improve inferrability of its caller)")
+            if Inlineable ∈ s.categories
+                print(io, " (ignore; inlineable and called from @testset)")
+                showcaller = false
+            else
+                print(io, " (ignore this one, specialize the caller ", sf, ", or improve inferrability of its caller)")
+            end
         elseif InvokedCalleeVararg ∈ s.categories
             printstyled(io, "invoked callee is varargs"; color=:cyan)
             print(io, " (ignore this one, homogenize the arguments, declare an umbrella type, or force-specialize the callee ", rtcallee, ")")
@@ -1176,6 +1188,7 @@ function suggest(itrig::InferenceTrigger)
     tt = Base.unwrap_unionall(sf.linfo.specTypes)::DataType
     if Base.isvarargtype(tt.parameters[end])
         push!(s.categories, CallerVararg)
+        inlineable && push!(s.categories, Inlineable)
         return s
     end
 
