@@ -741,12 +741,6 @@ function maybe_internal(itrig::InferenceTrigger)
         end
         match(rextest, string(sf.file)) !== nothing && return false
     end
-    # Did this call come directly from a `@testset`?
-    ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodonly=false)
-    if ret !== nothing
-        sfs, idx = ret
-        findfirst(sf -> match(rextest, String(sf.file)) !== nothing, sfs) !== nothing && return false
-    end
 
     return true
 end
