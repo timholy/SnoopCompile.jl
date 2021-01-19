@@ -115,7 +115,13 @@ fdouble(x) = 2x
     g(c) = myplus(f(c[1]), f(c[2]))
     tinf = @snoopi_deep g([0.7, 0.8])
     @test isempty(staleinstances(tinf))
-    @test length(inference_triggers(tinf; exclude_toplevel=false)) == 2
+    itrigs = inference_triggers(tinf; exclude_toplevel=false)
+    @test length(itrigs) == 2
+    @test suggest(itrigs[1]).categories == [SnoopCompile.FromTestDirect]
+    s = suggest(itrigs[2])
+    @test SnoopCompile.FromTestCallee ∈ s.categories
+    @test SnoopCompile.UnspecCall ∈ s.categories
+    @test occursin("myplus", string(MethodInstance(itrigs[2].node).def.name))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     io = IOBuffer()
@@ -165,9 +171,9 @@ fdouble(x) = 2x
     @test occursin("from caller", str)
     @test occursin(r"inlined into MethodInstance for .*callercaller.*\(::Vector{Vector{Any}}\)", str)
     s = suggest(itrig)
-    @test isignorable(s)
+    @test !isignorable(s)
     print(io, s)
-    @test occursin(r"snoopi_deep\.jl:\d+: inlineable \(ignore this one\)", String(take!(io)))
+    @test occursin(r"snoopi_deep\.jl:\d+: non-inferrable or unspecialized call.*::UInt8", String(take!(io)))
 
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
@@ -216,17 +222,214 @@ fdouble(x) = 2x
 end
 
 @testset "suggest" begin
-    # suggest with runtime-determined function on varargs (_apply_iterate issue)
-    f1va(a...) = 1
-    f2va(a...) = 2
-    function callsomething(args)
-        f = rand() < 0.5 ? f1va : f2va
-        f(args...)
+    categories(tinf) = suggest(only(inference_triggers(tinf))).categories
+
+    io = IOBuffer()
+
+    # UnspecCall and relation to Test
+    @eval module M
+        callee(x) = 2x
+        caller(c) = callee(c[1])
     end
-    tinf = @snoopi_deep callsomething(Any['a', 2])
-    itrigs = inference_triggers(tinf)
+    tinf = @snoopi_deep M.caller(Any[1])
+    itrigs = inference_triggers(tinf; exclude_toplevel=false)
+    @test length(itrigs) == 2
     s = suggest(itrigs[1])
-    @test SnoopCompile.CalleeVariable ∈ s.categories
+    @test s.categories == [SnoopCompile.FromTestDirect]
+    show(io, s)
+    @test occursin(r"called by Test.*ignore", String(take!(io)))
+    s = suggest(itrigs[2])
+    @test s.categories == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecCall]
+    show(io, s)
+    @test occursin(r"non-inferrable or unspecialized call.*annotate caller\(c::Vector\{Any\}\) at snoopi_deep.*callee\(::Int", String(take!(io)))
+
+    # Same test, but check the test harness & inlineable detection
+    @eval module M
+        callee(x) = 2x
+        @inline caller(c) = callee(c[1])
+    end
+    cats = categories(@snoopi_deep M.caller(Any[1]))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.UnspecCall]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin("non-inferrable or unspecialized call", String(take!(io)))
+
+    # UnspecType(
+    @eval module M
+        struct Container{L,T} x::T end
+        Container(x::T) where {T} = Container{length(x),T}(x)
+    end
+    cats = categories(@snoopi_deep M.Container([1,2,3]))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin("partial type call", String(take!(io)))
+    @eval module M
+        struct Typ end
+        struct Container{N,T} x::T end
+        Container{N}(x::T) where {N,T} = Container{N,T}(x)
+        typeconstruct(c) = Container{3}(c[])
+    end
+    c = Ref{Any}(M.Typ())
+    cats = categories(@snoopi_deep M.typeconstruct(c))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    # println(String(take!(io)))
+    @test occursin("partial type call", String(take!(io)))
+
+    # Invoke
+    @eval module M
+        @noinline callf(@nospecialize(f::Function), x) = f(x)
+        g(x) = callf(sqrt, x)
+    end
+    cats = categories(@snoopi_deep M.g(3))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.Invoke]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"invoked callee.*may fail to precompile", String(take!(io)))
+
+    # CalleeVariable
+    mysin(x) = 1
+    mycos(x) = 2
+    docall(ref, x) = ref[](x)
+    function callvar(x)
+        fref = Ref{Any}(rand() < 0.5 ? mysin : mycos)
+        return docall(fref, x)
+    end
+    cats = categories(@snoopi_deep callvar(0.2))
+    @test cats == [SnoopCompile.CalleeVariable]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"variable callee.*avoid assigning function to variable", String(take!(io)))
+    # CalleeVariable as an Argument
+    @eval module M
+        mysin(x) = 1
+        mycos(x) = 2
+        mytan(x) = 3
+        mycsc(x) = 4
+        getfunc(::Int) = mysin
+        getfunc(::Float64) = mycos
+        getfunc(::Char) = mytan
+        getfunc(::String) = mycsc
+        docall(@nospecialize(f), x) = f(x)
+        function callvar(ref, f=nothing)
+            x = ref[]
+            if f === nothing
+                f = getfunc(x)
+            end
+            return docall(f, x)
+        end
+    end
+    tinf = @snoopi_deep M.callvar(Ref{Any}(0.2))
+    cats = suggest(inference_triggers(tinf)[end]).categories
+    @test cats == [SnoopCompile.CalleeVariable]
+    # CalleeVariable & varargs
+    @eval module M
+        f1va(a...) = 1
+        f2va(a...) = 2
+        docallva(ref, x) = ref[](x...)
+        function callsomething(args)
+            fref = Ref{Any}(rand() < 0.5 ? f1va : f2va)
+            docallva(fref, args)
+        end
+    end
+    cats = categories(@snoopi_deep M.callsomething(Any['a', 2]))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.CalleeVariable]
+    @eval module M
+        f1va(a...) = 1
+        f2va(a...) = 2
+        @noinline docallva(ref, x) = ref[](x...)
+        function callsomething(args)
+            fref = Ref{Any}(rand() < 0.5 ? f1va : f2va)
+            docallva(fref, args)
+        end
+    end
+    cats = categories(@snoopi_deep M.callsomething(Any['a', 2]))
+    @test cats == [SnoopCompile.CalleeVariable]
+
+    # CallerVararg
+    @eval module M
+        f1(x) = 2x
+        c1(x...) = f1(x[2])
+    end
+    c = Any['c', 1]
+    cats = categories(@snoopi_deep M.c1(c...))
+    @test SnoopCompile.CalleeVararg ∉ cats
+    @test SnoopCompile.CallerVararg ∈ cats
+    @test SnoopCompile.UnspecCall ∈ cats
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"non-inferrable or unspecialized call with vararg caller.*annotate", String(take!(io)))
+
+    # CalleeVararg
+    @eval module M
+        f2(x...) = 2*x[2]
+        c2(x) = f2(x...)
+    end
+    cats = categories(@snoopi_deep M.c2(c))
+    @test SnoopCompile.CallerVararg ∉ cats
+    @test SnoopCompile.CalleeVararg ∈ cats
+    @test SnoopCompile.UnspecCall ∈ cats
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"non-inferrable or unspecialized call with vararg callee.*annotate", String(take!(io)))
+
+    # InvokeCalleeVararg
+    @eval module M
+        struct AType end
+        struct BType end
+        Base.show(io::IO, ::AType) = print(io, "A")
+        Base.show(io::IO, ::BType) = print(io, "B")
+        @noinline doprint(ref) = print(IOBuffer(), "a", ref[], 3.2)
+    end
+    cats = categories(@snoopi_deep M.doprint(Ref{Union{M.AType,M.BType}}(M.AType())))
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.InvokedCalleeVararg]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"invoked callee is varargs.*homogenize", String(take!(io)))
+
+    # Vararg that resolves to a UnionAll
+    @eval module M
+        struct ArrayWrapper{T,N,A,Args} <: AbstractArray{T,N}
+            data::A
+            args::Args
+        end
+        ArrayWrapper{T}(data, args...) where T = ArrayWrapper{T,ndims(data),typeof(data),typeof(args)}(data, args)
+        @noinline makewrapper(data::AbstractArray{T}, args) where T = ArrayWrapper{T}(data, args...)
+    end
+    # run and redefine for reproducible results
+    M.makewrapper(rand(2,2), ["a", 'b', 5])
+    @eval module M
+        struct ArrayWrapper{T,N,A,Args} <: AbstractArray{T,N}
+            data::A
+            args::Args
+        end
+        ArrayWrapper{T}(data, args...) where T = ArrayWrapper{T,ndims(data),typeof(data),typeof(args)}(data, args)
+        @noinline makewrapper(data::AbstractArray{T}, args) where T = ArrayWrapper{T}(data, args...)
+    end
+    tinf = @snoopi_deep M.makewrapper(rand(2,2), ["a", 'b', 5])
+    itrigs = inference_triggers(tinf)
+    @test length(itrigs) == 2
+    s = suggest(itrigs[1])
+    @test s.categories == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
+    print(io, s)
+    @test occursin("partial type call", String(take!(io)))
+    s = suggest(itrigs[2])
+    @test s.categories == [SnoopCompile.CallerVararg, SnoopCompile.UnspecType]
+    print(io, s)
+    @test occursin(r"partial type call with vararg caller.*ignore.*annotate", String(take!(io)))
+
+    # ErrorPath
+    @eval module M
+        struct MyType end
+        struct MyException <: Exception
+            info::Vector{MyType}
+        end
+        MyException(obj::MyType) = MyException([obj])
+        @noinline function checkstatus(b::Bool, info)
+            if !b
+                throw(MyException(info))
+            end
+            return nothing
+        end
+    end
+    cats = categories(@snoopi_deep try M.checkstatus(false, M.MyType()) catch end)
+    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.ErrorPath]
+    SnoopCompile.show_suggest(io, cats, nothing, nothing)
+    @test occursin(r"error path.*ignore", String(take!(io)))
 
     # Test one called from toplevel
     fromtask() = (while false end; 1)
@@ -234,14 +437,32 @@ end
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
+    s = suggest(itrig)
+    @test s.categories == [SnoopCompile.NoCaller]
     itree = trigger_tree(itrigs)
-    io = IOBuffer()
     print_tree(io, itree)
     @test occursin(r"{var\"#fromtask", String(take!(io)))
-    s = suggest(itrigs[1])
-    @test isempty(s.categories)
     print(io, s)
-    @test occursin("nothing to say", String(take!(io)))
+    occursin(r"unknown caller.*Task", String(take!(io)))
+
+    # Empty
+    SnoopCompile.show_suggest(io, SnoopCompile.Suggestion[], nothing, nothing)
+    @test occursin("Unspecialized or unknown for", String(take!(io)))
+
+    # Printing says *something* for any set of categories
+    annots = instances(SnoopCompile.Suggestion)
+    iter = [1:2 for _ in 1:length(annots)]
+    cats = SnoopCompile.Suggestion[]
+    for state in Iterators.product(iter...)
+        empty!(cats)
+        for (i, s) in enumerate(state)
+            if s == 2
+                push!(cats, annots[i])
+            end
+        end
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test !isempty(String(take!(io)))
+    end
 end
 
 @testset "flamegraph_export" begin

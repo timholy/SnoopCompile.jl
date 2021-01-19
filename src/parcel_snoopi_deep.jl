@@ -12,6 +12,8 @@ const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNo
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
 
+const rextest = r"Test\.jl$"       # for detecting calls from a @testset
+
 Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
 Core.MethodInstance(t::InferenceTiming) = MethodInstance(t.mi_info)
 Core.MethodInstance(t::InferenceTimingNode) = MethodInstance(t.mi_timing)
@@ -643,19 +645,20 @@ Return the MethodInstance `mi` of the caller in the selected stackframe in `itri
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
-function next_julia_frame(bt, idx, Δ=1; methodonly::Bool=true)
+function next_julia_frame(bt, idx, Δ=1; methodinstanceonly::Bool=true, methodonly::Bool=true)
     while 1 <= idx+Δ <= length(bt)
         ip = lookups_key(bt[idx+=Δ])
         sfs = get!(()->Base.StackTraces.lookup(ip), lookups, ip)
         sf = sfs[end]
         sf.from_c && continue
-        methodonly || return sfs, idx
         mi = sf.linfo
-        isa(mi, Core.MethodInstance) || continue
-        m = mi.def
-        isa(m, Method) || continue
-        # Exclude frames that are in Core.Compiler
-        m.module === Core.Compiler && continue
+        methodinstanceonly && (isa(mi, Core.MethodInstance) || continue)
+        if isa(mi, MethodInstance)
+            m = mi.def
+            methodonly && (isa(m, Method) || continue)
+            # Exclude frames that are in Core.Compiler
+            isa(m, Method) && m.module === Core.Compiler && continue
+        end
         return sfs, idx
     end
     return nothing
@@ -722,7 +725,6 @@ function inference_triggers(tinf::InferenceTimingNode; exclude_toplevel::Bool=tr
     return itrigs
 end
 
-const rextest = r"stdlib.*Test.jl$"
 function maybe_internal(itrig::InferenceTrigger)
     for sf in itrig.callerframes
         linfo = sf.linfo
@@ -739,6 +741,13 @@ function maybe_internal(itrig::InferenceTrigger)
         end
         match(rextest, string(sf.file)) !== nothing && return false
     end
+    # Did this call come directly from a `@testset`?
+    ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodonly=false)
+    if ret !== nothing
+        sfs, idx = ret
+        findfirst(sf -> match(rextest, String(sf.file)) !== nothing, sfs) !== nothing && return false
+    end
+
     return true
 end
 
@@ -1024,15 +1033,29 @@ linetable_match(linetable::Vector{Core.LineInfoNode}, sf::StackTraces.StackFrame
 
 ### suggestions
 
-@enum Suggestion CallerVararg CalleeVararg InvokedCalleeVararg ErrorPath UnspecCall UnspecType Invoke Inlineable CalleeVariable
+@enum Suggestion begin
+    UnspecCall     # a call with unspecified argtypes
+    UnspecType     # type-call (constructor) that is not fully specified
+    Invoke         # an "invoked" call, i.e., what should normally be an inferrable call
+    CalleeVariable # for f(args...) when f is a runtime variable
+    CallerVararg   # the caller is a varargs function
+    CalleeVararg   # the callee is a varargs function
+    InvokedCalleeVararg  # callee is varargs and it was an invoked call
+    ErrorPath      # inference aborted because this is on a path guaranteed to throw an exception
+    FromTestDirect # directly called from a @testset
+    FromTestCallee # one step removed from @testset
+    CallerInlineable  # the caller is inlineworthy
+    NoCaller       # no caller could be determined (e.g., @async)
+    FromInvokeLatest   # called via `Base.invokelatest`
+    FromInvoke     # called via `invoke`
+    MaybeFromC     # no plausible Julia caller could be identified, but possibly due to a @ccall (e.g., finalizers)
+end
 
 struct Suggested
     itrig::InferenceTrigger
     categories::Vector{Suggestion}
 end
 Suggested(itrig::InferenceTrigger) = Suggested(itrig, Suggestion[])
-
-const testrex = r"stdlib.*Test\.jl$"
 
 function Base.show(io::IO, s::Suggested)
     if !isempty(s.itrig.callerframes)
@@ -1043,74 +1066,134 @@ function Base.show(io::IO, s::Suggested)
         sf = "<none>"
     end
     rtcallee = MethodInstance(s.itrig.node)
+    show_suggest(io, s.categories, rtcallee, sf)
+end
+
+function show_suggest(io::IO, categories, rtcallee, sf)
     showcaller = true
-    if ErrorPath ∈ s.categories
+    showvahint = showannotate = false
+    handled = false
+    if categories == [FromTestDirect]
+        printstyled(io, "called by Test"; color=:cyan)
+        print(io, " (ignore)")
+        return nothing
+    end
+    if ErrorPath ∈ categories
         printstyled(io, "error path"; color=:cyan)
-        print(io, " (deliberately uninferred, ignore this one)")
+        print(io, " (deliberately uninferred, ignore)")
+        showcaller = false
+    elseif NoCaller ∈ categories
+        printstyled(io, "unknown caller"; color=:cyan)
+        print(io, ", possibly from a Task")
+        showcaller = false
+    elseif FromInvokeLatest ∈ categories
+        printstyled(io, "called by invokelatest"; color=:cyan)
+        print(io, " (ignore)")
+        showcaller = false
+    elseif FromInvoke ∈ categories
+        printstyled(io, "called by invoke"; color=:cyan)
+        print(io, " (ignore)")
+        showcaller = false
+    elseif MaybeFromC ∈ categories
+        printstyled(io, "no plausible Julia caller could be identified, but possibly due to a @ccall"; color=:cyan)
+        print(io, " (ignore)")
         showcaller = false
     else
-        if CallerVararg ∈ s.categories
-            printstyled(io, "caller is varargs"; color=:cyan)
-            print(io, " (ignore this one, specialize the caller ", sf, ", or improve inferrability of its caller)")
-        elseif InvokedCalleeVararg ∈ s.categories
+        if FromTestCallee ∈ categories && CallerInlineable ∈ categories && CallerVararg ∈ categories && !any(unspec, categories)
+            printstyled(io, "inlineable varargs called from Test"; color=:cyan)
+            print(io, " (ignore, it's likely to be inferred from a function)")
+            showcaller = false
+            handled = true
+        elseif categories == [FromTestCallee, CallerInlineable, UnspecType]
+            printstyled(io, "inlineable type-specialization called from Test"; color=:cyan)
+            print(io, " (ignore, it's likely to be inferred from a function)")
+            showcaller = false
+            handled = true
+        elseif CallerVararg ∈ categories && CalleeVararg ∈ categories
+            printstyled(io, "vararg caller and callee"; color=:cyan)
+            any(unspec, categories) && printstyled(io, " (uninferred)"; color=:cyan)
+            showvahint = true
+            showcaller = false
+            handled = true
+        elseif CallerInlineable ∈ categories && CallerVararg ∈ categories && any(unspec, categories)
+            printstyled(io, "uninferred inlineable vararg caller"; color=:cyan)
+            print(io, " (options: add relevant specialization, ignore)")
+            handled = true
+        elseif InvokedCalleeVararg ∈ categories
             printstyled(io, "invoked callee is varargs"; color=:cyan)
-            print(io, " (ignore this one, homogenize the arguments, declare an umbrella type, or force-specialize the callee ", rtcallee, ")")
-        elseif CalleeVararg ∈ s.categories
-            printstyled(io, "callee is varargs and caller is not specialized"; color=:cyan)
-            print(io, " (ignore this one)")
+            showvahint = true
         end
-        if UnspecCall ∈ s.categories
-            printstyled(io, "non-inferrable call"; color=:cyan)
-            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
-            print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
-        end
-        if UnspecType ∈ s.categories
-            printstyled(io, "partial type call"; color=:cyan)
-            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
-            print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
-        end
-        if Invoke ∈ s.categories
-            printstyled(io, "regular invoke"; color=:cyan)
-            print(io, " (perhaps precompile ", sf, ")")
-            showcaller = false
-        end
-        if CalleeVariable ∈ s.categories
-            printstyled(io, "variable callee"; color=:cyan)
-            print(io, ", if possible avoid assigning function to variable;\n  perhaps use `cond ? f(a) : g(a)` rather than `func = cond ? f : g; func(a)`")
-        end
-        if isempty(s.categories)
-            printstyled(io, "I've got nothing to say"; color=:cyan)
-            print(io, " for ", rtcallee, " consider `stacktrace(itrig)` or `ascend(itrig)`")
-            showcaller = false
+        if !handled
+            if UnspecCall ∈ categories
+                printstyled(io, "non-inferrable or unspecialized call"; color=:cyan)
+                CallerVararg ∈ categories && printstyled(io, " with vararg caller"; color=:cyan)
+                CalleeVararg ∈ categories && printstyled(io, " with vararg callee"; color=:cyan)
+                showannotate = true
+            end
+            if UnspecType ∈ categories
+                printstyled(io, "partial type call"; color=:cyan)
+                CallerVararg ∈ categories && printstyled(io, " with vararg caller"; color=:cyan)
+                CalleeVararg ∈ categories && printstyled(io, " with vararg callee"; color=:cyan)
+                showannotate = true
+            end
+            if Invoke ∈ categories
+                printstyled(io, "invoked callee"; color=:cyan)
+                # if FromTestCallee ∈ categories || FromTestDirect ∈ categories
+                #     print(io, " (consider precompiling ", sf, ")")
+                # else
+                    print(io, " (", sf, " may fail to precompile)")
+                # end
+                showcaller = false
+            end
+            if CalleeVariable ∈ categories
+                printstyled(io, "variable callee"; color=:cyan)
+                print(io, ", if possible avoid assigning function to variable;\n  perhaps use `cond ? f(a) : g(a)` rather than `func = cond ? f : g; func(a)`")
+            end
+            if isempty(categories) || categories ⊆ [FromTestDirect, FromTestCallee, CallerVararg, CalleeVararg, CallerInlineable]
+                printstyled(io, "Unspecialized or unknown"; color=:cyan)
+                print(io, " for ", rtcallee, " consider `stacktrace(itrig)` or `ascend(itrig)` to investigate more deeply")
+                showcaller = false
+            end
         end
     end
-    if showcaller
-        idx = s.itrig.btidx
-        ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
-        if ret !== nothing
-            sfs, idx = ret
-            if s.categories != [Inlineable]
-                println(io, "\nimmediate caller(s):")
-                show(io, MIME("text/plain"), sfs)
-            end
-            if s.categories == [Inlineable]
-                print(io, "inlineable (ignore this one)")
-            elseif (UnspecCall ∈ s.categories || UnspecType ∈ s.categories || CallerVararg ∈ s.categories) && Inlineable ∈ s.categories
-                print(io, "\nNote: all callers were inlineable and this was called from a Test. You should be able to ignore this.")
-            end
-        end
-        # See if we can extract a Test line
-        ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
-        while ret !== nothing
-            sfs, idx = ret
-            itest = findfirst(sf -> match(testrex, String(sf.file)) !== nothing, sfs)
-            if itest !== nothing && itest > 1
-                print(io, "\nFrom test at ", sfs[itest-1])
-                break
-            end
-            ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
-        end
+    if showvahint
+        print(io, " (options: ignore, homogenize the arguments, declare an umbrella type, or force-specialize the callee ", rtcallee, " in the caller)")
     end
+    if showannotate
+        if CallerVararg ∈ categories
+            print(io, ", ignore or perhaps annotate ", sf, " with type ", rtcallee)
+        else
+            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
+        end
+        print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
+    end
+    # if showcaller
+    #     idx = s.itrig.btidx
+    #     ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+    #     if ret !== nothing
+    #         sfs, idx = ret
+    #         # if categories != [Inlineable]
+    #         #     println(io, "\nimmediate caller(s):")
+    #         #     show(io, MIME("text/plain"), sfs)
+    #         # end
+    #         # if categories == [Inlineable]
+    #         #     print(io, "inlineable (ignore this one)")
+    #         # if (UnspecCall ∈ categories || UnspecType ∈ categories || CallerVararg ∈ categories) && Inlineable ∈ categories
+    #         #     print(io, "\nNote: all callers were inlineable and this was called from a Test. You should be able to ignore this.")
+    #         # end
+    #     end
+    #     # See if we can extract a Test line
+    #     ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+    #     while ret !== nothing
+    #         sfs, idx = ret
+    #         itest = findfirst(sf -> match(rextest, String(sf.file)) !== nothing, sfs)
+    #         if itest !== nothing && itest > 1
+    #             print(io, "\nFrom test at ", sfs[itest-1])
+    #             break
+    #         end
+    #         ret = next_julia_frame(s.itrig.node.bt, idx; methodonly=false)
+    #     end
+    # end
 end
 
 """
@@ -1118,11 +1201,15 @@ end
 
 Returns `true` if `s` is unlikely to be an inference problem in need of fixing.
 """
-isignorable(s::Suggestion) = s ∈ (CallerVararg, InvokedCalleeVararg, CalleeVararg, Invoke, Inlineable)
-isignorable(s::Suggested) = any(isignorable, s.categories)
+isignorable(s::Suggestion) = !unspec(s)
+isignorable(s::Suggested) = all(isignorable, s.categories)
+
+unspec(s::Suggestion) = s ∈ (UnspecCall, UnspecType, CalleeVariable)
+unspec(s::Suggested)  = any(unspec, s.categories)
 
 Base.stacktrace(s::Suggested) = stacktrace(s.itrig)
 Cthulhu.ascend(s::Suggested) = ascend(s.itrig)
+InteractiveUtils.edit(s::Suggested) = edit(s.itrig)
 
 """
     suggest(itrig::InferenceTrigger)
@@ -1151,38 +1238,53 @@ julia> sugs_important = filter(!isignorable, sugs)    # discard the ones that pr
 """
 function suggest(itrig::InferenceTrigger)
     s = Suggested(itrig)
-    inlineable = false
 
-    # Did this call come from a `@testset`? If so, and everything in between is inlineable, we should mark it so
-    ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodonly=false)
+    # Did this call come from a `@testset`?
+    fromtest = false
+    ret = next_julia_frame(itrig.node.bt, 1; methodinstanceonly=false, methodonly=false)
     if ret !== nothing
         sfs, idx = ret
-        itest = findfirst(sf -> match(testrex, String(sf.file)) !== nothing, sfs)
+        itest = findfirst(sf -> match(rextest, String(sf.file)) !== nothing, sfs)
         if itest !== nothing && itest > 1
-            tt = Base.unwrap_unionall(MethodInstance(itrig.node).specTypes)::DataType
-            cts = Base.code_typed_by_type(tt; debuginfo=:source)
-            if length(cts) == 1 && cts[1][1].inlineable
-                inlineable = true
+            fromtest = true
+            push!(s.categories, FromTestDirect)
+        end
+    end
+    if !fromtest
+        # Also keep track of inline-worthy caller from Test---these would have been OK had they been called from a function
+        ret = next_julia_frame(itrig.node.bt, itrig.btidx; methodinstanceonly=false, methodonly=false)
+        if ret !== nothing
+            sfs, idx = ret
+            itest = findfirst(sf -> match(rextest, String(sf.file)) !== nothing, sfs)
+            if itest !== nothing && itest > 1
+                push!(s.categories, FromTestCallee)
+                # It's not clear that the following is useful
+                tt = Base.unwrap_unionall(itrig.callerframes[end].linfo.specTypes)::DataType
+                cts = Base.code_typed_by_type(tt; debuginfo=:source)
+                if length(cts) == 1 && cts[1][1].inlineable
+                    push!(s.categories, CallerInlineable)
+                end
             end
         end
     end
 
     if isempty(itrig.callerframes)
-        inlineable && push!(s.categories, Inlineable)
+        push!(s.categories, NoCaller)
         return s
     end
-
+    if any(frame -> frame.func === :invokelatest, itrig.callerframes)
+        push!(s.categories, FromInvokeLatest)
+    end
     sf = itrig.callerframes[end]
     tt = Base.unwrap_unionall(sf.linfo.specTypes)::DataType
+    cts = Base.code_typed_by_type(tt; debuginfo=:source)
+    rtcallee = MethodInstance(itrig.node)
+
     if Base.isvarargtype(tt.parameters[end])
         push!(s.categories, CallerVararg)
-        return s
     end
-
-    rtcallee = MethodInstance(itrig.node)
-    cts = Base.code_typed_by_type(tt; debuginfo=:source)
+    maybec = false
     for (ct, rt) in cts
-        inlineable |= ct.inlineable
         ltidxs = linetable_match(ct.linetable, itrig.callerframes[1])
         stmtidxs = findall(∈(ltidxs), ct.codelocs)
         rtcalleename = isa(rtcallee.def, Method) ? (rtcallee.def::Method).name : nothing
@@ -1201,68 +1303,113 @@ function suggest(itrig::InferenceTrigger)
                 elseif stmt.head === :call
                     callee = stmt.args[1]
                     if isa(callee, Core.SSAValue)
-                        callee = ct.ssavaluetypes[callee.id]
+                        callee = unwrapconst(ct.ssavaluetypes[callee.id])
+                        if callee === Any
+                            push!(s.categories, CalleeVariable)
+                            # return s
+                        end
+                    elseif isa(callee, Core.Argument)
+                        callee = unwrapconst(ct.slottypes[callee.n])
+                        if callee === Any
+                            push!(s.categories, CalleeVariable)
+                            # return s
+                        end
                     end
+                    # argtyps = stmt.args[2]
+                    # First, check if this is an error path
+                    skipme = false
+                    if stmtidx + 2 <= length(ct.code)
+                        chkstmt = ct.code[stmtidx + 2]
+                        if isa(chkstmt, Core.ReturnNode) && !isdefined(chkstmt, :val)
+                            push!(s.categories, ErrorPath)
+                            unique!(s.categories)
+                            return s
+                        end
+                    end
+                    calleef = nothing
+                    rtm = rtcallee.def::Method
+                    isssa = false
                     if isa(callee, GlobalRef) && isa(rtcallee.def, Method)
-                        # First, check if this is an error path
-                        skipme = false
-                        if stmtidx + 2 <= length(ct.code)
-                            chkstmt = ct.code[stmtidx + 2]
-                            if isa(chkstmt, Core.ReturnNode) && !isdefined(chkstmt, :val)
-                                push!(s.categories, ErrorPath)
-                                skipme = true
+                        calleef = getfield(callee.mod, callee.name)
+                        if calleef === Core._apply_iterate
+                            callee = stmt.args[3]
+                            calleef, isssa = getcalleef(callee, ct)
+                            # argtyps = stmt.args[4]
+                        elseif calleef === Base.invoke
+                            push!(s.categories, FromInvoke)
+                            callee = stmt.args[2]
+                            calleef, isssa = getcalleef(callee, ct)
+                        end
+                    elseif isa(callee, Function) || isa(callee, UnionAll)
+                        calleef = callee
+                    end
+                    if calleef === Any
+                        push!(s.categories, CalleeVariable)
+                    end
+                    if isa(calleef, Function)
+                        # if isa(argtyps, Core.Argument)
+                        #     argtyps = unwrapconst(ct.slottypes[argtyps.n])
+                        # elseif isa(argtyps, Core.SSAValue)
+                        #     argtyps = unwrapconst(ct.ssavaluetypes[argtyps.id])
+                        # end
+                        meths = methods(calleef)
+                        if rtm ∈ meths
+                            if rtm.isva
+                                push!(s.categories, CalleeVararg)
+                            end
+                            push!(s.categories, UnspecCall)
+                        elseif isempty(meths) && isssa
+                            push!(s.categories, CalleeVariable)
+                        elseif isssa
+                            error("unhandled ssa condition on ", itrig)
+                        elseif isempty(meths)
+                            if isa(calleef, Core.Builtin)
+                            else
+                                error("unhandled meths are empty with calleef ", calleef, " on ", itrig)
                             end
                         end
-                        if !skipme
-                            rtm = rtcallee.def::Method
-                            calleef = getfield(callee.mod, callee.name)
-                            isssa = false
-                            if calleef === Core._apply_iterate
-                                callee = stmt.args[3]
-                                if isa(callee, GlobalRef)
-                                    calleef = getfield(callee.mod, callee.name)
-                                elseif isa(callee, Function)
-                                    calleef = callee
-                                elseif isa(callee, Core.SSAValue)
-                                    calleef = ct.ssavaluetypes[callee.id]
-                                    isssa = true
-                                else
-                                    error("unhandled callee ", callee, " for itrig ", itrig)
-                                end
-                            end
-                            meths = methods(calleef)
-                            if rtm ∈ meths
-                                if rtm.isva
-                                    push!(s.categories, CalleeVararg)
-                                else
-                                    push!(s.categories, UnspecCall)
-                                end
-                            elseif isempty(meths) && isssa
-                                push!(s.categories, CalleeVariable)
-                            elseif isssa
-                                error("unhandled ssa condition on ", itrig)
-                            elseif isempty(meths)
-                                if isa(calleef, Core.Builtin)
-                                else
-                                    error("unhandled meths are empty with calleef ", calleef, " on ", itrig)
-                                end
-                            end
-                        end
-                    elseif isa(callee, UnionAll)
-                        tt = Base.unwrap_unionall(callee)
+                    elseif isa(calleef, UnionAll)
+                        tt = Base.unwrap_unionall(calleef)
                         if tt <: Type
                             T = tt.parameters[1]
-                            if (Base.unwrap_unionall(T)::DataType).name.name === rtcalleename
-                                push!(s.categories, UnspecType)
-                            end
+                        else
+                            T = tt
+                        end
+                        if (Base.unwrap_unionall(T)::DataType).name.name === rtcalleename
+                            push!(s.categories, UnspecType)
                         end
                     end
+                elseif stmt.head === :foreigncall
+                    maybec = true
                 end
             end
         end
     end
-    inlineable && push!(s.categories, Inlineable)
+    if isempty(s.categories) && maybec
+        push!(s.categories, MaybeFromC)
+    end
+    unique!(s.categories)
     return s
+end
+
+function unwrapconst(arg)
+    if isa(arg, Core.Const)
+        return arg.val
+    elseif isa(arg, Core.PartialStruct)
+        return arg.typ
+    end
+    return arg
+end
+
+function getcalleef(callee, ct)
+    if isa(callee, GlobalRef)
+        return getfield(callee.mod, callee.name), false
+    elseif isa(callee, Function) || isa(callee, Type)
+        return callee, false
+    elseif isa(callee, Core.SSAValue)
+        return unwrapconst(ct.ssavaluetypes[callee.id]), true
+    end
+    error("unhandled callee ", callee, " with type ", typeof(callee))
 end
 
 const SuggestNode = AbstractTrees.AnnotationNode{Union{Nothing,Suggested}}
