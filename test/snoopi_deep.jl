@@ -431,6 +431,27 @@ end
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin(r"error path.*ignore", String(take!(io)))
 
+    # Core.Box
+    @eval module M
+        struct MyInt <: Integer end
+        Base.:(*)(::MyInt, r::Int) = 7*r
+        function abmult(r::Int, z)  # from https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
+            if r < 0
+                r = -r
+            end
+            f = x -> x * r
+            return f(z)
+        end
+    end
+    z = M.MyInt()
+    tinf = @snoopi_deep M.abmult(3, z)
+    itrigs = inference_triggers(tinf)
+    itrig = only(itrigs)
+    s = suggest(itrig)
+    @test SnoopCompile.HasCoreBox ∈ s.categories
+    print(io, s)
+    @test occursin(r"Core\.Box.*fix this.*http", String(take!(io)))
+
     # Test one called from toplevel
     fromtask() = (while false end; 1)
     tinf = @snoopi_deep wait(@async fromtask())

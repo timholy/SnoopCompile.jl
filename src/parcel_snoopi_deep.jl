@@ -1043,6 +1043,7 @@ linetable_match(linetable::Vector{Core.LineInfoNode}, sf::StackTraces.StackFrame
     FromInvokeLatest   # called via `Base.invokelatest`
     FromInvoke     # called via `invoke`
     MaybeFromC     # no plausible Julia caller could be identified, but possibly due to a @ccall (e.g., finalizers)
+    HasCoreBox     # has a Core.Box slot or ssavalue
 end
 
 struct Suggested
@@ -1067,6 +1068,11 @@ function show_suggest(io::IO, categories, rtcallee, sf)
     showcaller = true
     showvahint = showannotate = false
     handled = false
+    if HasCoreBox ∈ categories
+        printstyled(io, "has Core.Box"; color=:red)
+        print(io, " (fix this before tackling other problems, see https://timholy.github.io/SnoopCompile.jl/stable/snoopr/#Fixing-Core.Box)")
+        return nothing
+    end
     if categories == [FromTestDirect]
         printstyled(io, "called by Test"; color=:cyan)
         print(io, " (ignore)")
@@ -1279,6 +1285,15 @@ function suggest(itrig::InferenceTrigger)
     end
     maybec = false
     for (ct, rt) in cts
+        # Check for Core.Box
+        for typlist in (ct.slottypes, ct.ssavaluetypes)
+            for typ in typlist
+                if hascorebox(typ)
+                    push!(s.categories, HasCoreBox)
+                    break
+                end
+            end
+        end
         ltidxs = linetable_match(ct.linetable, itrig.callerframes[1])
         stmtidxs = findall(∈(ltidxs), ct.codelocs)
         rtcalleename = isa(rtcallee.def, Method) ? (rtcallee.def::Method).name : nothing
@@ -1386,16 +1401,18 @@ function suggest(itrig::InferenceTrigger)
     return s
 end
 
-function unwrapconst(arg)
+function unwrapconst(@nospecialize(arg))
     if isa(arg, Core.Const)
         return arg.val
     elseif isa(arg, Core.PartialStruct)
+        return arg.typ
+    elseif isa(arg, Core.Compiler.MaybeUndef)
         return arg.typ
     end
     return arg
 end
 
-function getcalleef(callee, ct)
+function getcalleef(@nospecialize(callee), ct)
     if isa(callee, GlobalRef)
         return getfield(callee.mod, callee.name), false
     elseif isa(callee, Function) || isa(callee, Type)
@@ -1404,6 +1421,21 @@ function getcalleef(callee, ct)
         return unwrapconst(ct.ssavaluetypes[callee.id]), true
     end
     error("unhandled callee ", callee, " with type ", typeof(callee))
+end
+
+function hascorebox(@nospecialize(typ))
+    typ = unwrapconst(typ)
+    isa(typ, Type) || return false
+    typ === Core.Box && return true
+    if isa(typ, Union)
+        return hascorebox(typ.a) | hascorebox(typ.b)
+    end
+    typ = Base.unwrap_unionall(typ)
+    typ === Union{} && return false
+    for p in typ.parameters
+        hascorebox(p) && return true
+    end
+    return false
 end
 
 const SuggestNode = AbstractTrees.AnnotationNode{Union{Nothing,Suggested}}
