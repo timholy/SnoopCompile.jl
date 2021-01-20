@@ -192,6 +192,17 @@ fdouble(x) = 2x
     show(io, loctrigs)
     @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
 
+    # Multiple callees on the same line
+    fline(x) = 2*x[]
+    gline(x) = x[]
+    fg(x) = fline(gline(x[]))
+    cc = Ref{Any}(Ref{Base.RefValue}(Ref(3)))
+    tinf = @snoopi_deep fg(cc)
+    itrigs = inference_triggers(tinf)
+    loctrigs = accumulate_by_source(itrigs)
+    @test length(loctrigs) == 2
+    loctrigs[1].loc == loctrigs[2].loc
+
     # Higher order function attribution
     @noinline function mymap!(f, dst, src)
         for i in eachindex(dst, src)
