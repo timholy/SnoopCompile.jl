@@ -283,7 +283,9 @@ trees = invalidation_trees(@snoopr using PkgB)
 ftrees = filtermod(PkgA, trees)
 ```
 
-`filtermod` only selects trees where the root method was defined in the specified module.
+By default, `filtermod` only selects trees where the root method was defined in the specified module.
+`filtermod(PkgA, trees; recursive=true)` will return all trees that lead to any method defined
+in `PkgA`.
 
 A more selective yet exhaustive tool is [`findcaller`](@ref), which allows you to find the path through the trees to a particular method:
 
