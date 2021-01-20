@@ -997,13 +997,17 @@ julia> accumulate_by_source(itrigs)
 ```
 """
 function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
-    cs = Dict{Location,Vector{InferenceTrigger}}()
+    cs = IdDict{Tuple{Location,Any},Vector{InferenceTrigger}}()
     for itrig in itrigs
+        # Identify a trigger by both its location and what it calls, since some lines can have multiple callees
         loc = Location(itrig)
-        itrigs_loc = get!(Vector{InferenceTrigger}, cs, loc)
+        callee = MethodInstance(itrig.node)
+        ft = Base.unwrap_unionall(callee.specTypes).parameters[1]
+        f = ft <: Type ? ft.parameters[1] : ft.instance
+        itrigs_loc = get!(Vector{InferenceTrigger}, cs, (loc, f))
         push!(itrigs_loc, itrig)
     end
-    return sort([LocationTrigger(loc, itrigs_loc) for (loc, itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
+    return sort([LocationTrigger(loc, itrigs_loc) for ((loc, _), itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
 end
 
 function linetable_match(linetable::Vector{Core.LineInfoNode}, sffile::String, sffunc::String, sfline::Int)
