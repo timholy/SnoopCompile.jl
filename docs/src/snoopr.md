@@ -493,7 +493,14 @@ Indeed, searching for and eliminating invalidations can help you improve the qua
 #### Fixing `Core.Box`
 
 [Julia issue 15276](https://github.com/JuliaLang/julia/issues/15276) is one of the more surprising forms of inference failure; it is the most common cause of a `Core.Box` annotation.
+If other variables depend on the `Box`ed variable, then a single `Core.Box` can lead to widespread inference problems.
+For this reason, these are also among the first inference problems you should tackle.
+
 Read [this explanation of why this happens and what you can do to fix it](https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured).
+If you are directed to find `Core.Box` inference triggers via [`suggest`](@ref), you may need to explore around the call site a bit--
+the inference trigger may be in the closure itself, but the fix needs to go in the method that creates the closure.
+
+Use of `ascend` is highly recommended for fixing `Core.Box` inference failures.
 
 #### Adding type annotations
 
