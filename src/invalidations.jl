@@ -68,6 +68,10 @@ mutable struct InstanceNode
         push!(parent.children, child)
         return child
     end
+    # Creating a tree, starting with the leaves (omits `parent`)
+    function InstanceNode(node::InstanceNode, newchildren::Vector{InstanceNode})
+        return new(node.mi, node.depth, newchildren)
+    end
 end
 
 function getroot(node::InstanceNode)
@@ -108,6 +112,15 @@ function Base.show(io::IO, node::InstanceNode; methods=false, maxdepth::Int=5, m
     end
 end
 Base.show(node::InstanceNode; kwargs...) = show(stdout, node; kwargs...)
+
+function copybranch(node::InstanceNode)
+    children = InstanceNode[copybranch(child) for child in node.children]
+    newnode = InstanceNode(node, children)
+    for child in children
+        child.parent = newnode
+    end
+    return newnode
+end
 
 function countchildren(node::InstanceNode)
     n = length(node.children)
@@ -338,26 +351,69 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 end
 
 """
-    thinned = filtermod(module, trees::AbstractVector{MethodInvalidations})
+    thinned = filtermod(module, trees::AbstractVector{MethodInvalidations}; recursive=false)
 
 Select just the cases of invalidating a method defined in `module`.
+
+If `recursive` is false, only the roots of trees are examined (i.e., the proximal source of
+the invalidation must be in `module`). If `recursive` is true, then `thinned` contains
+all routes to a method in `module`.
 """
-function filtermod(mod::Module, trees::AbstractVector{MethodInvalidations})
+function filtermod(mod::Module, trees::AbstractVector{MethodInvalidations}; kwargs...)
     # We don't just broadcast because we want to filter at all levels
     thinned = MethodInvalidations[]
     for methinvs in trees
-        _invs = filtermod(mod, methinvs)
+        _invs = filtermod(mod, methinvs; kwargs...)
         isempty(_invs) || push!(thinned, _invs)
     end
     return sort!(thinned; by=countchildren)
 end
 
-function filtermod(mod::Module, methinvs::MethodInvalidations)
-    hasmod(mod, node::InstanceNode) = node.mi.def.module === mod
+hasmod(mod::Module, node::InstanceNode) = node.mi.def.module === mod
 
+function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=false)
+    if recursive
+        out = MethodInvalidations(methinvs.method, methinvs.reason)
+        for (sig, node) in methinvs.mt_backedges
+            newnode = filtermod(mod, node)
+            if newnode !== nothing
+                push!(out.mt_backedges, sig => newnode)
+            end
+        end
+        for node in methinvs.backedges
+            newnode = filtermod(mod, node)
+            if newnode !== nothing
+                push!(out.backedges, newnode)
+            end
+        end
+        return out
+    end
     mt_backedges = filter(pr->hasmod(mod, pr.second), methinvs.mt_backedges)
     backedges = filter(root->hasmod(mod, root), methinvs.backedges)
     return MethodInvalidations(methinvs.method, methinvs.reason, mt_backedges, backedges, copy(methinvs.mt_cache))
+end
+
+function filtermod(mod::Module, node::InstanceNode)
+    if !isempty(node.children)
+        newchildren = InstanceNode[]
+        for child in node.children
+            newchild = filtermod(mod, child)
+            if newchild !== nothing
+                push!(newchildren, newchild)
+            end
+        end
+        if !isempty(newchildren)
+            newnode = InstanceNode(node, newchildren)
+            for child in newchildren
+                child.parent = newnode
+            end
+            return newnode
+        end
+    end
+    if hasmod(mod, node)
+        return copybranch(node)
+    end
+    return nothing
 end
 
 """

@@ -29,6 +29,22 @@ end
 
 end
 
+# For recursive filtermod
+module Inner
+    op(a, b) = a + b
+end
+module Outer
+    using ..Inner
+    function runop(list)
+        acc = 0
+        for item in list
+            acc = Inner.op(acc, item)
+        end
+        return acc
+    end
+end
+
+
 @testset "@snoopr" begin
     prefix = qualify_mi ? "$(@__MODULE__).SnooprTests." : ""
 
@@ -151,4 +167,14 @@ end
     umis1 = uinvalidated(invs)
     umis2 = uinvalidated(invs; exclude_corecompiler=false)
     @test length(umis2) > length(umis1) + 20
+
+    # recursive filtermod
+    list = Union{Int,String}[1,2]
+    Outer.runop(list)
+    invs = @snoopr Inner.op(a, b::String) = a + length(b)
+    trees = invalidation_trees(invs)
+    @test length(trees) == 1
+    @test length(filtermod(Inner, trees)) == 1
+    @test isempty(filtermod(Outer, trees))
+    @test length(filtermod(Outer, trees; recursive=true)) == 1
 end
