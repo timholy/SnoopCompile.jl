@@ -644,6 +644,14 @@ Return the MethodInstance `mi` of the caller in the selected stackframe in `itri
 """
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
+function callermodule(itrig::InferenceTrigger)
+    if !isempty(itrig.callerframes)
+        m = callerinstance(itrig).def
+        return isa(m, Module) ? m : m.module
+    end
+    return nothing
+end
+
 # Select the next (caller) frame that's a Julia (as opposed to C) frame; returns the stackframe and its index in bt, or nothing
 function next_julia_frame(bt, idx, Δ=1; methodinstanceonly::Bool=true, methodonly::Bool=true)
     while 1 <= idx+Δ <= length(bt)
@@ -856,6 +864,8 @@ Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(Cthulhu.instance(
 Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
 Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
+filtermod(mod::Module, itrigs::AbstractVector{InferenceTrigger}) = filter(==(mod) ∘ callermodule, itrigs)
+
 ### inference trigger trees
 # good for organizing into "events"
 
@@ -1008,6 +1018,10 @@ function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
         push!(itrigs_loc, itrig)
     end
     return sort([LocationTrigger(loc, itrigs_loc) for ((loc, _), itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
+end
+
+filtermod(mod::Module, loctrigs::AbstractVector{LocationTrigger}) = filter(loctrigs) do loctrig
+    any(==(mod) ∘ callermodule, loctrig.itrigs)
 end
 
 function linetable_match(linetable::Vector{Core.LineInfoNode}, sffile::String, sffunc::String, sfline::Int)

@@ -124,6 +124,8 @@ fdouble(x) = 2x
     @test occursin("myplus", string(MethodInstance(itrigs[2].node).def.name))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
+    @test filtermod(@__MODULE__, itrigs) == [itrig]
+    @test isempty(filtermod(Base, itrigs))
     io = IOBuffer()
     show(io, itrig)
     str = String(take!(io))
@@ -191,6 +193,8 @@ fdouble(x) = 2x
     loctrigs = accumulate_by_source(itrigs)
     show(io, loctrigs)
     @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
+    @test filtermod(Base, loctrigs) == loctrigs
+    @test isempty(filtermod(@__MODULE__, loctrigs))
 
     # Multiple callees on the same line
     fline(x) = 2*x[]
