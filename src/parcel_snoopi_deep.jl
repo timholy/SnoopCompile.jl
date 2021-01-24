@@ -644,6 +644,14 @@ Return the MethodInstance `mi` of the caller in the selected stackframe in `itri
 """
 callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
 
+function callerinstances(itrigs::AbstractVector{InferenceTrigger})
+    callers = Set{MethodInstance}()
+    for itrig in itrigs
+        !isempty(itrig.callerframes) && push!(callers, callerinstance(itrig))
+    end
+    return callers
+end
+
 function callermodule(itrig::InferenceTrigger)
     if !isempty(itrig.callerframes)
         m = callerinstance(itrig).def
@@ -975,6 +983,7 @@ pairs, where `list` is a list of `InferenceTrigger`s.
 function accumulate_by_source(::Type{Method}, itrigs::AbstractVector{InferenceTrigger})
     cs = Dict{Method,Vector{InferenceTrigger}}()
     for itrig in itrigs
+        isempty(itrig.callerframes) && continue
         mi = callerinstance(itrig)
         m = mi.def
         if isa(m, Method)
@@ -982,7 +991,7 @@ function accumulate_by_source(::Type{Method}, itrigs::AbstractVector{InferenceTr
             push!(list, itrig)
         end
     end
-    return sort!([MethodTrigger(m, list) for (m, list) in cs]; by=methtrig->length(methtrig.itrigs))
+    return sort!([MethodTriggers(m, list) for (m, list) in cs]; by=methtrig->length(methtrig.itrigs))
 end
 
 function Base.show(io::IO, methtrigs::MethodTriggers)
@@ -1138,8 +1147,7 @@ function show_suggest(io::IO, categories, rtcallee, sf)
     showvahint = showannotate = false
     handled = false
     if HasCoreBox ∈ categories
-        printstyled(io, "has Core.Box"; color=:red)
-        print(io, " (fix this before tackling other problems, see https://timholy.github.io/SnoopCompile.jl/stable/snoopr/#Fixing-Core.Box)")
+        coreboxmsg(io)
         return nothing
     end
     if categories == [FromTestDirect]
@@ -1265,6 +1273,11 @@ function show_suggest(io::IO, categories, rtcallee, sf)
     # end
 end
 
+function coreboxmsg(io::IO)
+    printstyled(io, "has Core.Box"; color=:red)
+    print(io, " (fix this before tackling other problems, see https://timholy.github.io/SnoopCompile.jl/stable/snoopr/#Fixing-Core.Box)")
+end
+
 """
     isignorable(s::Suggested)
 
@@ -1355,13 +1368,8 @@ function suggest(itrig::InferenceTrigger)
     maybec = false
     for (ct::CodeInfo, _) in cts
         # Check for Core.Box
-        for typlist in (ct.slottypes, ct.ssavaluetypes)
-            for typ in typlist
-                if hascorebox(typ)
-                    push!(s.categories, HasCoreBox)
-                    break
-                end
-            end
+        if hascorebox(ct)
+            push!(s.categories, HasCoreBox)
         end
         ltidxs = linetable_match(ct.linetable, itrig.callerframes[1])
         stmtidxs = findall(∈(ltidxs), ct.codelocs)
@@ -1493,6 +1501,16 @@ function getcalleef(@nospecialize(callee), ct)
 end
 
 function hascorebox(@nospecialize(typ))
+    if isa(typ, CodeInfo)
+        ct = typ
+        for typlist in (ct.slottypes, ct.ssavaluetypes)
+            for typ in typlist
+                if hascorebox(typ)
+                    return true
+                end
+            end
+        end
+    end
     typ = unwrapconst(typ)
     isa(typ, Type) || return false
     typ === Core.Box && return true
@@ -1506,6 +1524,92 @@ function hascorebox(@nospecialize(typ))
     end
     return false
 end
+
+function Base.summary(io::IO, mtrigs::MethodTriggers)
+    callers = callerinstances(mtrigs.itrigs)
+    m = mtrigs.tag
+    println(io, m, " had ", length(callers), " specializations")
+    hascb = false
+    for mi in callers
+        tt = Base.unwrap_unionall(mi.specTypes)::DataType
+        mlist = Base._methods_by_ftype(tt, -1, typemax(UInt))
+        if length(mlist) < 10
+            cts = Base.code_typed_by_type(tt; debuginfo=:source)
+            for (ct::CodeInfo, _) in cts
+                if hascorebox(ct)
+                    hascb = true
+                    print(io, mi, " ")
+                    coreboxmsg(io)
+                    println(io)
+                    break
+                end
+            end
+        else
+            @warn "not checking $mi for Core.Box, too many methods"
+        end
+        hascb && break
+    end
+    loctrigs = accumulate_by_source(mtrigs.itrigs)
+    sort!(loctrigs; by=loctrig->loctrig.tag.line)
+    println(io, "Triggering calls:")
+    for loctrig in loctrigs
+        itrig = loctrig.itrigs[1]
+        ft = (Base.unwrap_unionall(MethodInstance(itrig.node).specTypes)::DataType).parameters[1]
+        loc = loctrig.tag
+        if loc.func == m.name
+            print(io, "Line ", loctrig.tag.line)
+        else
+            print(io, "Inlined ", loc)
+        end
+        println(io, ": calling ", ft2f(ft), " (", length(loctrig.itrigs), " instances)")
+    end
+end
+Base.summary(mtrigs::MethodTriggers) = summary(stdout, mtrigs)
+
+struct ClosureF
+    ft
+end
+function Base.show(io::IO, cf::ClosureF)
+    lnns = [LineNumberNode(Int(m.line), m.file) for m in Base.MethodList(cf.ft.name.mt)]
+    print(io, "closure ", cf.ft, " at ")
+    if length(lnns) == 1
+        print(io, lnns[1])
+    else
+        sort!(lnns; by=lnn->(lnn.file, lnn.line))
+        # avoid the repr with #= =#
+        print(io, '[')
+        for (i, lnn) in enumerate(lnns)
+            print(io, lnn.file, ':', lnn.line)
+            i < length(lnns) && print(io, ", ")
+        end
+        print(io, ']')
+    end
+end
+
+function ft2f(@nospecialize(ft))
+    if isa(ft, DataType)
+        return ft <: Type ? #= Type{T} =# ft.parameters[1] :
+               isdefined(ft, :instance) ? #= Function =# ft.instance : #= closure =# ClosureF(ft)
+    end
+    error("unhandled: ", ft)
+end
+
+function Base.summary(io::IO, loctrig::LocationTriggers)
+    ncallees, ncallers = diversity(loctrig)
+    if ncallees > ncallers
+        callees = unique([Method(itrig.node) for itrig in loctrig.itrigs])
+        println(io, ncallees, " callees from ", ncallers, " callers, consider despecializing the callee(s):")
+        show(io, MIME("text/plain"), callees)
+        println(io, "\nor improving inferrability of the callers")
+    else
+        cats_callee_sfs = unique(first, [(suggest(itrig).categories, MethodInstance(itrig.node), itrig.callerframes) for itrig in loctrig.itrigs])
+        println(io, ncallees, " callees from ", ncallers, " callers, consider improving inference in the caller(s). Recommendations:")
+        for (catg, callee, sfs) in cats_callee_sfs
+            show_suggest(io, catg, callee, isempty(sfs) ? "<none>" : sfs[end])
+        end
+    end
+end
+Base.summary(loctrig::LocationTriggers) = summary(stdout, loctrig)
 
 const SuggestNode = AbstractTrees.AnnotationNode{Union{Nothing,Suggested}}
 SuggestNode(s::Union{Nothing,Suggested}) = SuggestNode(s, SuggestNode[])
