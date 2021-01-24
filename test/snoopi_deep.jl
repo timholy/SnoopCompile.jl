@@ -205,7 +205,7 @@ fdouble(x) = 2x
     itrigs = inference_triggers(tinf)
     loctrigs = accumulate_by_source(itrigs)
     @test length(loctrigs) == 2
-    loctrigs[1].loc == loctrigs[2].loc
+    loctrigs[1].tag == loctrigs[2].tag
 
     # Higher order function attribution
     @noinline function mymap!(f, dst, src)

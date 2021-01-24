@@ -853,6 +853,26 @@ function hasparameter(@nospecialize(typ), @nospecialize(ft), exact::Bool)
     return false
 end
 
+"""
+    ncallees, ncallers = diversity(itrigs::AbstractVector{InferenceTrigger})
+
+Count the number of distinct MethodInstances among the callees and callers, respectively, among the triggers in `itrigs`.
+"""
+function diversity(itrigs)
+    # Analyze caller => callee argument type diversity
+    callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
+    for itrig in itrigs
+        push!(callees, MethodInstance(itrig.node))
+        caller = itrig.callerframes[end].linfo
+        if isa(caller, MethodInstance)
+            push!(callers, caller)
+        else
+            ncextra += 1
+        end
+    end
+    return length(callees), length(callers) + ncextra
+end
+
 # Integrations
 AbstractTrees.children(tinf::InferenceTimingNode) = tinf.children
 
@@ -936,6 +956,51 @@ InteractiveUtils.edit(node::TriggerNode) = edit(node.itrig)
 Base.stacktrace(node::TriggerNode) = stacktrace(node.itrig)
 Cthulhu.ascend(node::TriggerNode) = ascend(node.itrig)
 
+### tagged trigger lists
+# good for organizing a collection of related triggers
+
+struct TaggedTriggers{TT}
+    tag::TT
+    itrigs::Vector{InferenceTrigger}
+end
+
+const MethodTriggers = TaggedTriggers{Method}
+
+"""
+    mtrigs = accumulate_by_source(Method, itrigs::AbstractVector{InferenceTrigger})
+
+Consolidate inference triggers via their caller method. `mtrigs` is a vector of `Method=>list`
+pairs, where `list` is a list of `InferenceTrigger`s.
+"""
+function accumulate_by_source(::Type{Method}, itrigs::AbstractVector{InferenceTrigger})
+    cs = Dict{Method,Vector{InferenceTrigger}}()
+    for itrig in itrigs
+        mi = callerinstance(itrig)
+        m = mi.def
+        if isa(m, Method)
+            list = get!(Vector{InferenceTrigger}, cs, m)
+            push!(list, itrig)
+        end
+    end
+    return sort!([MethodTrigger(m, list) for (m, list) in cs]; by=methtrig->length(methtrig.itrigs))
+end
+
+function Base.show(io::IO, methtrigs::MethodTriggers)
+    ncallees, ncallers = diversity(methtrigs.itrigs)
+    print(io, methtrigs.tag, " (", ncallees, " callees from ", ncallers, " callers)")
+end
+
+function parcel(mtrigs::AbstractVector{MethodTriggers})
+    bymod = Dict{Module,Vector{MethodTriggers}}()
+    for mtrig in mtrigs
+        m = mtrig.tag
+        modlist = get!(valtype(bymod), bymod, m.module)
+        push!(modlist, mtrig)
+    end
+    sort!(collect(bymod); by=pr->length(pr.second))
+end
+
+InteractiveUtils.edit(mtrigs::MethodTriggers) = edit(mtrigs.tag)
 
 ### inference trigger locations
 # useful for analyzing patterns at the level of Methods rather than MethodInstances
@@ -954,37 +1019,16 @@ end
 Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
 InteractiveUtils.edit(loc::Location) = edit(string(loc.file), loc.line)
 
-struct LocationTrigger
-    loc::Location
-    itrigs::Vector{InferenceTrigger}
-end
+const LocationTriggers = TaggedTriggers{Location}
 
-"""
-    ncallees, ncallers = diversity(loctrigs::LocationTriggers)
+diversity(loctrigs::LocationTriggers) = diversity(loctrigs.itrigs)
 
-Count the number of distinct MethodInstances among the callees and callers, respectively, at a particular code location.
-"""
-function diversity(loctrigs::LocationTrigger)
-    # Analyze caller => callee argument type diversity
-    callees, callers, ncextra = Set{MethodInstance}(), Set{MethodInstance}(), 0
-    for itrig in loctrigs.itrigs
-        push!(callees, MethodInstance(itrig.node))
-        caller = itrig.callerframes[end].linfo
-        if isa(caller, MethodInstance)
-            push!(callers, caller)
-        else
-            ncextra += 1
-        end
-    end
-    return length(callees), length(callers) + ncextra
-end
-
-function Base.show(io::IO, loctrigs::LocationTrigger)
+function Base.show(io::IO, loctrigs::LocationTriggers)
     ncallees, ncallers = diversity(loctrigs)
-    print(io, loctrigs.loc, " (", ncallees, " callees from ", ncallers, " callers)")
+    print(io, loctrigs.tag, " (", ncallees, " callees from ", ncallers, " callers)")
 end
 
-InteractiveUtils.edit(loctrig::LocationTrigger) = edit(loctrig.loc)
+InteractiveUtils.edit(loctrig::LocationTriggers) = edit(loctrig.tag)
 
 """
     loctrigs = accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
@@ -1002,7 +1046,7 @@ julia> itrigs = inference_triggers(SnoopCompile.itrigs_demo())
  Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
 
 julia> accumulate_by_source(itrigs)
-1-element Vector{SnoopCompile.LocationTrigger}:
+1-element Vector{SnoopCompile.LocationTriggers}:
     calldouble1 at /pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762 (2 callees from 1 callers)
 ```
 """
@@ -1013,7 +1057,7 @@ function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger}; bycallee
         itrigs_loc = get!(Vector{InferenceTrigger}, cs, lockey)
         push!(itrigs_loc, itrig)
     end
-    loctrigs = [LocationTrigger(lockey isa Location ? lockey : lockey[1], itrigs_loc) for (lockey, itrigs_loc) in cs]
+    loctrigs = [LocationTriggers(lockey isa Location ? lockey : lockey[1], itrigs_loc) for (lockey, itrigs_loc) in cs]
     return sort!(loctrigs; by=loctrig->length(loctrig.itrigs))
 end
 
@@ -1027,7 +1071,7 @@ function location_key(itrig::InferenceTrigger)
     return loc, ft
 end
 
-filtermod(mod::Module, loctrigs::AbstractVector{LocationTrigger}) = filter(loctrigs) do loctrig
+filtermod(mod::Module, loctrigs::AbstractVector{LocationTriggers}) = filter(loctrigs) do loctrig
     any(==(mod) ∘ callermodule, loctrig.itrigs)
 end
 
@@ -1642,7 +1686,7 @@ function max_end_time(node::InferenceTimingNode, recursive::Bool=false, tmax=-on
 end
 
 for IO in (IOContext{Base.TTY}, IOContext{IOBuffer}, IOBuffer)
-    for T = (InferenceTimingNode, InferenceTrigger, Precompiles, MethodLoc, Location, LocationTrigger)
+    for T = (InferenceTimingNode, InferenceTrigger, Precompiles, MethodLoc, MethodTriggers, Location, LocationTriggers)
         @assert precompile(show, (IO, T))
     end
 end
