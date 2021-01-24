@@ -1265,7 +1265,7 @@ function suggest(itrig::InferenceTrigger)
                 # It's not clear that the following is useful
                 tt = Base.unwrap_unionall(itrig.callerframes[end].linfo.specTypes)::DataType
                 cts = Base.code_typed_by_type(tt; debuginfo=:source)
-                if length(cts) == 1 && cts[1][1].inlineable
+                if length(cts) == 1 && (cts[1][1]::CodeInfo).inlineable
                     push!(s.categories, CallerInlineable)
                 end
             end
@@ -1288,7 +1288,7 @@ function suggest(itrig::InferenceTrigger)
         push!(s.categories, CallerVararg)
     end
     maybec = false
-    for (ct, rt) in cts
+    for (ct::CodeInfo, _) in cts
         # Check for Core.Box
         for typlist in (ct.slottypes, ct.ssavaluetypes)
             for typ in typlist
@@ -1305,7 +1305,7 @@ function suggest(itrig::InferenceTrigger)
             stmt = ct.code[stmtidx]
             if isa(stmt, Expr)
                 if stmt.head === :invoke
-                    mi = stmt.args[1]
+                    mi = stmt.args[1]::MethodInstance
                     if mi == MethodInstance(itrig.node)
                         if mi.def.isva
                             push!(s.categories, InvokedCalleeVararg)
