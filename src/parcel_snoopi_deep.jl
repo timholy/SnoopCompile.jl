@@ -1006,18 +1006,25 @@ julia> accumulate_by_source(itrigs)
     calldouble1 at /pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762 (2 callees from 1 callers)
 ```
 """
-function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger})
-    cs = IdDict{Tuple{Location,Any},Vector{InferenceTrigger}}()
+function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger}; bycallee::Bool=true)
+    cs = IdDict{Any,Vector{InferenceTrigger}}()
     for itrig in itrigs
-        # Identify a trigger by both its location and what it calls, since some lines can have multiple callees
-        loc = Location(itrig)
-        callee = MethodInstance(itrig.node)
-        ft = Base.unwrap_unionall(callee.specTypes).parameters[1]
-        f = ft <: Type ? ft.parameters[1] : ft.instance
-        itrigs_loc = get!(Vector{InferenceTrigger}, cs, (loc, f))
+        lockey = bycallee ? location_key(itrig) : Location(itrig)
+        itrigs_loc = get!(Vector{InferenceTrigger}, cs, lockey)
         push!(itrigs_loc, itrig)
     end
-    return sort([LocationTrigger(loc, itrigs_loc) for ((loc, _), itrigs_loc) in cs]; by=loctrig->length(loctrig.itrigs))
+    loctrigs = [LocationTrigger(lockey isa Location ? lockey : lockey[1], itrigs_loc) for (lockey, itrigs_loc) in cs]
+    return sort!(loctrigs; by=loctrig->length(loctrig.itrigs))
+end
+
+function location_key(itrig::InferenceTrigger)
+    # Identify a trigger by both its location and what it calls, since some lines can have multiple callees
+    loc = Location(itrig)
+    callee = MethodInstance(itrig.node)
+    tt = Base.unwrap_unionall(callee.specTypes)
+    isempty(tt.parameters) && return loc, callee.def  # MethodInstance thunk
+    ft = tt.parameters[1]
+    return loc, ft
 end
 
 filtermod(mod::Module, loctrigs::AbstractVector{LocationTrigger}) = filter(loctrigs) do loctrig
