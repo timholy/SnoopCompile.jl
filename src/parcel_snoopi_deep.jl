@@ -999,6 +999,19 @@ function Base.show(io::IO, methtrigs::MethodTriggers)
     print(io, methtrigs.tag, " (", ncallees, " callees from ", ncallers, " callers)")
 end
 
+"""
+    modtrigs = filtermod(mod::Module, mtrigs::AbstractVector{MethodTriggers})
+
+Select just the method-based triggers arising from a particular module.
+"""
+filtermod(mod::Module, mtrigs::AbstractVector{MethodTriggers}) = filter(mtrig -> mtrig.tag.module === mod, mtrigs)
+
+"""
+    modtrigs = SnoopCompile.parcel(mtrigs::AbstractVector{MethodTriggers})
+
+Split method-based triggers into collections organized by the module in which the methods were defined.
+Returns a `module => list` vector, with the module having the most `MethodTriggers` last.
+"""
 function parcel(mtrigs::AbstractVector{MethodTriggers})
     bymod = Dict{Module,Vector{MethodTriggers}}()
     for mtrig in mtrigs

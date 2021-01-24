@@ -220,6 +220,8 @@ fdouble(x) = 2x
     @test occursin("calling mysqrt (3 instances)", str)
     modtrigs = SnoopCompile.parcel(mtrigs)
     @test only(modtrigs).first === Base
+    @test filtermod(Base, mtrigs) == mtrigs
+    @test isempty(filtermod(M, mtrigs))
 
     # Multiple callees on the same line
     fline(x) = 2*x[]
