@@ -195,6 +195,31 @@ fdouble(x) = 2x
     @test any(str->occursin("4 callees from 2 callers", str), split(String(take!(io)), '\n'))
     @test filtermod(Base, loctrigs) == loctrigs
     @test isempty(filtermod(@__MODULE__, loctrigs))
+    # This actually tests the suggest framework a bit, but...
+    for loctrig in loctrigs
+        summary(io, loctrig)
+    end
+    str = String(take!(io))
+    @test occursin("1 callees from 1 callers, consider improving inference", str)
+    @test occursin("4 callees from 2 callers, consider despecializing the callee", str)
+    @test occursin("non-inferrable or unspecialized call", str)
+    @test occursin("partial type call", str)
+    mtrigs = accumulate_by_source(Method, itrigs)
+    for mtrig in mtrigs
+        show(io, mtrig)
+    end
+    str = String(take!(io))
+    @test occursin("map(f, A::AbstractArray) in Base", str)
+    @test occursin("2 callees from 1 caller", str)
+    for mtrig in mtrigs
+        summary(io, mtrig)
+    end
+    str = String(take!(io))
+    @test occursin(r"map.*had 1 specialization", str)
+    @test occursin(r"calling Base\.Generator", str)
+    @test occursin("calling mysqrt (3 instances)", str)
+    modtrigs = SnoopCompile.parcel(mtrigs)
+    @test only(modtrigs).first === Base
 
     # Multiple callees on the same line
     fline(x) = 2*x[]
@@ -205,7 +230,7 @@ fdouble(x) = 2x
     itrigs = inference_triggers(tinf)
     loctrigs = accumulate_by_source(itrigs)
     @test length(loctrigs) == 2
-    loctrigs[1].loc == loctrigs[2].loc
+    loctrigs[1].tag == loctrigs[2].tag
 
     # Higher order function attribution
     @noinline function mymap!(f, dst, src)
@@ -234,6 +259,30 @@ fdouble(x) = 2x
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     @test skiphigherorder(itrig) == itrig
+
+    # With a closure
+    @eval module M
+        function f(c, name)
+            stringx(x) = string(x) * name
+            stringx(x::Int) = string(x) * name
+            stringx(x::Float64) = string(x) * name
+            stringx(x::Bool) = string(x) * name
+
+            n = 0
+            for x in c
+                n += length(stringx(x))
+            end
+            return n
+        end
+    end
+    c = Any["hey", 7]
+    tinf = @snoopi_deep M.f(c, " there")
+    itrigs = inference_triggers(tinf)
+    @test length(itrigs) > 1
+    mtrigs = accumulate_by_source(Method, itrigs)
+    summary(io, only(mtrigs))
+    str = String(take!(io))
+    @test occursin(r"closure.*stringx.*\{String\} at", str)
 end
 
 @testset "suggest" begin
@@ -268,7 +317,7 @@ end
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
 
-    # UnspecType(
+    # UnspecType
     @eval module M
         struct Container{L,T} x::T end
         Container(x::T) where {T} = Container{length(x),T}(x)
@@ -426,6 +475,14 @@ end
     @test s.categories == [SnoopCompile.CallerVararg, SnoopCompile.UnspecType]
     print(io, s)
     @test occursin(r"partial type call with vararg caller.*ignore.*annotate", String(take!(io)))
+    mtrigs = accumulate_by_source(Method, itrigs)
+    for mtrig in mtrigs
+        summary(io, mtrig)
+    end
+    str = String(take!(io))
+    @test occursin("makewrapper(data", str)
+    @test occursin("ArrayWrapper{Float64", str)
+    @test occursin("Tuple{String", str)
 
     # ErrorPath
     @eval module M
@@ -466,6 +523,9 @@ end
     @test SnoopCompile.HasCoreBox ∈ s.categories
     print(io, s)
     @test occursin(r"Core\.Box.*fix this.*http", String(take!(io)))
+    mtrigs = accumulate_by_source(Method, itrigs)
+    summary(io, only(mtrigs))
+    @test occursin(r"Core\.Box.*fix this.*http", String(take!(io)))
 
     # Test one called from toplevel
     fromtask() = (while false end; 1)
@@ -480,6 +540,8 @@ end
     @test occursin(r"{var\"#fromtask", String(take!(io)))
     print(io, s)
     occursin(r"unknown caller.*Task", String(take!(io)))
+    mtrigs = accumulate_by_source(Method, itrigs)
+    @test isempty(mtrigs)
 
     # Empty
     SnoopCompile.show_suggest(io, SnoopCompile.Suggestion[], nothing, nothing)
