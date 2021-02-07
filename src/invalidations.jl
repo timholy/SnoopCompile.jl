@@ -10,7 +10,7 @@ function from_corecompiler(mi::MethodInstance)
 end
 
 """
-   umis = uinvalidated(invlist)
+    umis = uinvalidated(invlist)
 
 Return the unique invalidated MethodInstances. `invlist` is obtained from [`SnoopCompileCore.@snoopr`](@ref).
 This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that it discards any tagged
