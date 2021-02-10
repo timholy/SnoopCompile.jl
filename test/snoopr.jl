@@ -84,6 +84,9 @@ end
 
     cf = Any[1.0f0]
     @test SnooprTests.callapplyf(cf) == 3
+    mi1 = instance(SnooprTests.applyf, (Vector{Any},))
+    mi2 = instance(SnooprTests.callapplyf, (Vector{Any},))
+    @test mi1.backedges == [mi2]
     mi3 = instance(SnooprTests.f, (AbstractFloat,))
     invs = @snoopr SnooprTests.f(::Float32) = 4
     @test !isempty(invs)
@@ -102,10 +105,20 @@ end
     @test child.mi == mi1
     @test SnoopCompile.getroot(child) === root
     @test child.depth == 1
-    cchild = only(child.children)
+    if isempty(child.children)
+        # the mt_backedges got invalidated first
+        sig, root = only(methinvs.mt_backedges)
+        @test sig === Tuple{typeof(Main.SnooprTests.f), Any}
+        @test root.mi == mi1
+        cchild = only(root.children)
+        targetdepth = 1
+    else
+        cchild = only(child.children)
+        targetdepth = 2
+    end
     @test cchild.mi == mi2
     @test SnoopCompile.getroot(cchild) === root
-    @test cchild.depth == 2
+    @test cchild.depth == targetdepth
     @test isempty(cchild.children)
 
     @test  any(nd->nd.mi == mi1, root)
@@ -115,19 +128,24 @@ end
     str = String(take!(io))
     @test startswith(str, "inserting f(::Float32)")
     @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
-    @test occursin("with MethodInstance for $(prefix)f(::AbstractFloat) (2 children)", str)
+    @test occursin("with MethodInstance for $(prefix)f(::AbstractFloat) ($targetdepth children)", str)
 
     show(io, root; minchildren=1)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
-    @test length(lines) == 3
-    @test lines[1] == "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)"
-    @test lines[2] == " MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)"
+    @test length(lines) == 1+targetdepth
+    if targetdepth == 2
+        @test lines[1] == "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)"
+        @test lines[2] == " MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)"
+    else
+        @test lines[1] == "MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)"
+    end
     show(io, root; minchildren=2)
     str = String(take!(io))
     lines = split(chomp(str), '\n')
     @test length(lines) == 2
-    @test lines[1] == "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)"
+    @test lines[1] == (targetdepth == 2 ? "MethodInstance for $(prefix)f(::AbstractFloat) (2 children)" :
+                                          "MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)")
     @test lines[2] == "⋮"
 
     ftrees = filtermod(@__MODULE__, trees)
