@@ -10,6 +10,11 @@ using Core: MethodInstance
 
 using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
 
+# Constant-prop works differently on different Julia versions.
+# This utility lets you strip frames that const-prop a number.
+hasconstpropnumber(f::SnoopCompileCore.InferenceTiming) = hasconstpropnumber(f.mi_info)
+hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t -> isa(t, Core.Const) && isa(t.val, Number), mi_info.slottypes)
+
 @testset "@snoopi_deep" begin
     # WARMUP (to compile all the small, reachable methods)
     @eval module M  # Example with some functions that include type instability
@@ -34,7 +39,7 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
     @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
     @test SnoopCompile.isROOT(Method(tinf))
     @test isempty(staleinstances(tinf))
-    frames = flatten(tinf)
+    frames = filter(!hasconstpropnumber, flatten(tinf))
     @test length(frames) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
     @test issorted(frames; by=exclusive)
     names = [Method(frame).name for frame in frames]
@@ -52,7 +57,7 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
     longest_frame_time = exclusive(frames[end])
     @test length(flatten(tinf, tmin=longest_frame_time)) == 1
 
-    frames_unsorted = flatten(tinf; sortby=nothing)
+    frames_unsorted = filter(!hasconstpropnumber, flatten(tinf; sortby=nothing))
     ifi = frames_unsorted[1].mi_info
     @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
     @test SnoopCompile.isROOT(Method(ifi))
