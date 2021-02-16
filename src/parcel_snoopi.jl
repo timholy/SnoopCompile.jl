@@ -241,8 +241,9 @@ end
 
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
-    if !isdefined(m.module, nameparent)   # TODO: replace debugging with error-handling
-        @show m m.name
+    if !isdefined(m.module, nameparent)
+        @debug "Module $topmod: skipping $m due to inability to look up kwbody parent" # see example related to issue #237
+        return nothing
     end
     fparent = getfield(m.module, nameparent)
     pttstr = tuplestring(paramrepr[m.nkw+2:end])
