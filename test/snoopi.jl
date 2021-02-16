@@ -71,6 +71,21 @@ end
     @test !SnoopCompile.known_type(KnownType, which(OtherModule.q, ()).sig)
 end
 
+abstract type Vtree end
+struct VTree <: Vtree end
+(::Type{V})(nv::Int; isordered::Bool=false) where V<:Vtree = V()
+@testset "issue 237" begin
+    VTree(3; isordered=true)
+    m = @which VTree(3; isordered=true)
+    fb = Base.bodyfunction(m)
+    mb = methods(fb).ms[1]
+    @test occursin("#_#", String(mb.name))
+    mi = mb.specializations[1]
+    modgens = Dict{Module, Vector{Method}}()
+    tmp = String[]
+    SnoopCompile.add_repr!(tmp, modgens, mi; check_eval=true)  # no error
+end
+
 uncompiled(x) = x + 1
 
 @testset "snoopi" begin
