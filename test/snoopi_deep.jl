@@ -511,6 +511,7 @@ end
     @test occursin(r"error path.*ignore", String(take!(io)))
 
     # Core.Box
+    @test !SnoopCompile.hascorebox(AbstractVecOrMat{T} where T)   # test Union handling
     @eval module M
         struct MyInt <: Integer end
         Base.:(*)(::MyInt, r::Int) = 7*r
