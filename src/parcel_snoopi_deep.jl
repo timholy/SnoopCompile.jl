@@ -1527,11 +1527,11 @@ function hascorebox(@nospecialize(typ))
     typ = unwrapconst(typ)
     isa(typ, Type) || return false
     typ === Core.Box && return true
+    typ = Base.unwrap_unionall(typ)
+    typ === Union{} && return false
     if isa(typ, Union)
         return hascorebox(typ.a) | hascorebox(typ.b)
     end
-    typ = Base.unwrap_unionall(typ)
-    typ === Union{} && return false
     for p in typ.parameters
         hascorebox(p) && return true
     end
