@@ -356,6 +356,15 @@ end
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin(r"invoked callee.*may fail to precompile", String(take!(io)))
 
+    # FromInvokeLatest
+    @eval module M
+        f(::Int) = 1
+        g(x) = Base.invokelatest(f, x)
+    end
+    cats = categories(@snoopi_deep M.g(3))
+    @test SnoopCompile.FromInvokeLatest ∈ cats
+    @test isignorable(cats[1])
+
     # CalleeVariable
     mysin(x) = 1
     mycos(x) = 2
