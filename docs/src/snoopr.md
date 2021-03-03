@@ -40,7 +40,9 @@ end
 ```
 
 To record the invalidations caused by defining new methods, use `@snoopr`.
-`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis:
+`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis.
+**Remember** to run julia with the `--startup-file="no"` flag set, if you load packages such as [Revise](https://github.com/timholy/Revise.jl) in your startup file.
+Otherwise invalidations relating to those packages will also show up.
 
 ```julia
 using SnoopCompileCore
