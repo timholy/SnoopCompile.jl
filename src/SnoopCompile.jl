@@ -64,6 +64,21 @@ const kwbodyrex = r"^##(\w[^#]*)#\d+"         # detect keyword body methods
 const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
 const innerrex = r"^#[^#]+#\d+"               # detect inner functions
 
+# This is for SnoopCompile's own directives. You don't want to call this from packages because then
+# SnoopCompile becomes a dependency of your package. Instead, make sure that `writewarnpcfail` is set to `true`
+# in `SnoopCompile.write` and a copy of this macro will be placed at the top
+# of your precompile files.
+macro warnpcfail(ex::Expr)
+    modl = __module__
+    file = __source__.file === nothing ? "?" : String(__source__.file)
+    line = __source__.line
+    quote
+        $(esc(ex)) || @warn """precompile directive
+     $($(Expr(:quote, ex)))
+ failed. Please report an issue in $($modl) (after checking for duplicates) or remove this directive.""" _file=$file _line=$line
+    end
+end
+
 # Parcel
 include("parcel_snoopc.jl")
 

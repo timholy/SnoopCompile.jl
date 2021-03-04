@@ -91,11 +91,11 @@ function __init__()
     # We do this in __init__ to make sure it gets compiled to native code
     # (the *.ji file stores only the inferred code)
     if isdefined(Core.Compiler, :Params)
-        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, Core.Compiler.Params))
-        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+        precompile(typeinf_ext_timed, (Core.MethodInstance, Core.Compiler.Params)) || error("precompilation of typeinf modifiers is not allowed to fail")
+        precompile(typeinf_ext_timed, (Core.MethodInstance, UInt)) || error("precompilation of typeinf modifiers is not allowed to fail")
     else
-        @assert precompile(typeinf_ext_timed, (Core.Compiler.NativeInterpreter, Core.MethodInstance))
-        @assert precompile(typeinf_ext_timed, (Core.MethodInstance, UInt))
+        precompile(typeinf_ext_timed, (Core.Compiler.NativeInterpreter, Core.MethodInstance)) || error("precompilation of typeinf modifiers is not allowed to fail")
+        precompile(typeinf_ext_timed, (Core.MethodInstance, UInt)) || error("precompilation of typeinf modifiers is not allowed to fail")
     end
     precompile(start_timing, ())
     precompile(stop_timing, ())
