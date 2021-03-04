@@ -1804,12 +1804,12 @@ end
 
 for IO in (IOContext{Base.TTY}, IOContext{IOBuffer}, IOBuffer)
     for T = (InferenceTimingNode, InferenceTrigger, Precompiles, MethodLoc, MethodTriggers, Location, LocationTriggers)
-        @assert precompile(show, (IO, T))
+        @warnpcfail precompile(show, (IO, T))
     end
 end
-@assert precompile(flamegraph, (InferenceTimingNode,))
-@assert precompile(inference_triggers, (InferenceTimingNode,))
-@assert precompile(flatten, (InferenceTimingNode,))
-@assert precompile(accumulate_by_source, (Vector{InferenceTiming},))
-@assert precompile(isprecompilable, (MethodInstance,))
-@assert precompile(parcel, (InferenceTimingNode,))
+@warnpcfail precompile(flamegraph, (InferenceTimingNode,))
+@warnpcfail precompile(inference_triggers, (InferenceTimingNode,))
+@warnpcfail precompile(flatten, (InferenceTimingNode,))
+@warnpcfail precompile(accumulate_by_source, (Vector{InferenceTiming},))
+@warnpcfail precompile(isprecompilable, (MethodInstance,))
+@warnpcfail precompile(parcel, (InferenceTimingNode,))

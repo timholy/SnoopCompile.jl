@@ -1,20 +1,35 @@
 # Write precompiles for userimg.jl
-function write(io::IO, pc::Vector{<:AbstractString})
+const warnpcfail_str = """
+# Use
+#    @warnpcfail precompile(args...)
+# if you want to be warned when a precompile directive fails
+macro warnpcfail(ex::Expr)
+    modl = __module__
+    file = __source__.file === nothing ? "?" : String(__source__.file)
+    line = __source__.line
+    quote
+        \$(esc(ex)) || @warn \"\"\"precompile directive
+     \$(\$(Expr(:quote, ex)))
+ failed. Please report an issue in \$(\$modl) (after checking for duplicates) or remove this directive.\"\"\" _file=\$file _line=\$line
+    end
+end
+"""
+
+function write(io::IO, pc::Vector{<:AbstractString}; writewarnpcfail::Bool=true)
+    writewarnpcfail && println(io, warnpcfail_str, '\n')
     for ln in pc
         println(io, ln)
     end
 end
 
-function write(filename::AbstractString, pc::Vector)
+function write(filename::AbstractString, pc::Vector; kwargs...)
     path, fn = splitdir(filename)
     if !isdir(path)
         mkpath(path)
     end
-    ret = nothing
-    open(filename, "w") do io
-        ret = write(io, pc)
+    return open(filename, "w") do io
+        write(io, pc)
     end
-    return ret
 end
 
 """
@@ -31,6 +46,7 @@ function write(prefix::AbstractString, pc::Dict; always::Bool = false)
     end
     for (k, v) in pc
         open(joinpath(prefix, "precompile_$k.jl"), "w") do io
+            println(io, warnpcfail_str, '\n')
             if any(str->occursin("__lookup", str), v)
                 println(io, lookup_kwbody_str)
             end

@@ -184,15 +184,18 @@ inference on those methods, because it used the inference results from the cache
     methods that appear in your `"precompile.jl"` file.
     This will *not* result in an error; by default `precompile` fails silently.
     If you want to be certain that your precompile directives don't go stale,
-    preface each with an `@assert`.
-    Note that this forces you to update your precompile directives as you modify your package,
-    which may or may not be desirable.
+    you can check that `precompile` returns `true` and otherwise issue a warning.
+    By default, [`SnoopCompile.write`](@ref) generates
+    a macro, `@warnpcfail`, and you can use it by
+    changing `precompile(args...)` to `@warnpcfail precompile(args...)`.
+
 
 If you find that some precompile directives are
 ineffective (they appear in a new `@snoopi` despite being precompiled) and their
 inference time is substantial, sometimes a bit of manual investigation of the callees
 can lead to insights. For example, you might be able to introduce a precompile in a
 dependent package that can mitigate the total time.
+(`@snoopi_deep` makes the analysis and resolution of these issues more straightforward.)
 
 ## Producing precompile directives manually
 
@@ -278,8 +281,7 @@ This will cause Julia to infer this method for the given argument types. If you 
 
 !!! note
     The `true` indicates that Julia was successfully able to find a method supporting this signature and precompile it.
-    Some people put `@assert` in front of their package's `precompile` statements--this way, if you delete or modify methods, "stale"
-    `precompile` directives will trigger an error, thus notifying you that they need to be updated.
+    See the note about `@warnpcfail` above for ways to exploit this in your package.
 
 
 But if you execute these lines in the REPL, and then check how well it worked, you might see something like the following:

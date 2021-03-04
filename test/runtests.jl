@@ -18,6 +18,7 @@ end
 
 using SnoopCompile
 
+@testset "Miscellaneous" begin
 # issue #26
 logfile = joinpath(tempdir(), "anon.log")
 @snoopc logfile begin
@@ -45,6 +46,22 @@ end
 data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test any(startswith.(pc[:IsDef], "isdefined"))
+
+@testset "Warning for failures to precompile" begin
+    pcs = ["@warnpcfail precompile(fsimple, (Char,))",
+           "@warnpcfail precompile(fsimple, (Char, Char))",
+           "@warnpcfail precompile(fsimple, (Char, Char, Char))",
+    ]
+    fn = tempname() * ".jl"
+    open(fn, "w") do io
+        println(io, "fsimple(x, y) = 1")
+        SnoopCompile.write(io, pcs; writewarnpcfail=true)
+    end
+    @test_logs (:warn, r"precompile\(fsimple, \(Char,\)\)") (:warn, r"precompile\(fsimple, \(Char, Char, Char\)\)") include(fn)
+    rm(fn)
+end
+
+end
 
 #=
 # Simple call
