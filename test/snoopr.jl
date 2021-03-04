@@ -50,8 +50,8 @@ end
 
     c = Any[1]
     @test SnooprTests.callapplyf(c) == 1
-    mi1 = instance(SnooprTests.applyf, (Vector{Any},))
-    mi2 = instance(SnooprTests.callapplyf, (Vector{Any},))
+    mi1 = methodinstance(SnooprTests.applyf, (Vector{Any},))
+    mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
 
     invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)
@@ -84,10 +84,10 @@ end
 
     cf = Any[1.0f0]
     @test SnooprTests.callapplyf(cf) == 3
-    mi1 = instance(SnooprTests.applyf, (Vector{Any},))
-    mi2 = instance(SnooprTests.callapplyf, (Vector{Any},))
+    mi1 = methodinstance(SnooprTests.applyf, (Vector{Any},))
+    mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
     @test mi1.backedges == [mi2]
-    mi3 = instance(SnooprTests.f, (AbstractFloat,))
+    mi3 = methodinstance(SnooprTests.f, (AbstractFloat,))
     invs = @snoopr SnooprTests.f(::Float32) = 4
     @test !isempty(invs)
     trees = invalidation_trees(invs)
