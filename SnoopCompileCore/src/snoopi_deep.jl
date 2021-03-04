@@ -96,7 +96,6 @@ end
 
 # These are okay to come at the top-level because we're only measuring inference, and
 # inference results will be cached in a `.ji` file.
-@warnpcfail precompile(Core.Compiler.Timings.reset_timings, ())
-@warnpcfail precompile(start_deep_timing, ())
-@warnpcfail precompile(stop_deep_timing, ())
-@warnpcfail precompile(finish_snoopi_deep, ())
+precompile(start_deep_timing, ())
+precompile(stop_deep_timing, ())
+precompile(finish_snoopi_deep, ())
