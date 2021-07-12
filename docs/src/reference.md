@@ -7,6 +7,7 @@
 @snoopi_deep
 @snoopi
 @snoopc
+@snoopl
 ```
 
 ## GUIs
@@ -51,6 +52,7 @@ SnoopCompile.write
 
 ```@docs
 SnoopCompile.read
+SnoopCompile.read_snoopl
 SnoopCompile.format_userimg
 ```
 
