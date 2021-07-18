@@ -1446,6 +1446,7 @@ function suggest(itrig::InferenceTrigger)
                         push!(s.categories, CalleeVariable)
                     end
                     if isa(calleef, Function)
+                        nameof(calleef) == rtcalleename || continue
                         # if isa(argtyps, Core.Argument)
                         #     argtyps = unwrapconst(ct.slottypes[argtyps.n])
                         # elseif isa(argtyps, Core.SSAValue)
