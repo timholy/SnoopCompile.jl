@@ -594,8 +594,7 @@ end
     frames = flatten(tinf; sortby=inclusive)
 
     fg = SnoopCompile.flamegraph(tinf)
-    print_tree(tinf; maxdepth=100)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg))) ∈ (5, 14)  # depends on constant-prop
+    @test length(collect(AbstractTrees.PreOrderDFS(fg))) ∈ (5, 6, 14)  # depends on constant-prop
     # Test that the span covers the whole tree.
     for leaf in AbstractTrees.PreOrderDFS(fg)
         @test leaf.data.span.start in fg.data.span
