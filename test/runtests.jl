@@ -47,18 +47,20 @@ data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test any(startswith.(pc[:IsDef], "isdefined"))
 
-@testset "Warning for failures to precompile" begin
-    pcs = ["@warnpcfail precompile(fsimple, (Char,))",
-           "@warnpcfail precompile(fsimple, (Char, Char))",
-           "@warnpcfail precompile(fsimple, (Char, Char, Char))",
-    ]
-    fn = tempname() * ".jl"
-    open(fn, "w") do io
-        println(io, "fsimple(x, y) = 1")
-        SnoopCompile.write(io, pcs; writewarnpcfail=true)
+if Base.VERSION < v"1.7.0-DEV.694"
+    @testset "Warning for failures to precompile" begin
+        pcs = ["@warnpcfail precompile(fsimple, (Char,))",
+            "@warnpcfail precompile(fsimple, (Char, Char))",
+            "@warnpcfail precompile(fsimple, (Char, Char, Char))",
+        ]
+        fn = tempname() * ".jl"
+        open(fn, "w") do io
+            println(io, "fsimple(x, y) = 1")
+            SnoopCompile.write(io, pcs; writewarnpcfail=true)
+        end
+        @test_logs (:warn, r"precompile\(fsimple, \(Char,\)\)") (:warn, r"precompile\(fsimple, \(Char, Char, Char\)\)") include(fn)
+        rm(fn)
     end
-    @test_logs (:warn, r"precompile\(fsimple, \(Char,\)\)") (:warn, r"precompile\(fsimple, \(Char, Char, Char\)\)") include(fn)
-    rm(fn)
 end
 
 end
