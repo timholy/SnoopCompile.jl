@@ -354,7 +354,7 @@ See also: [`SnoopCompile.write`](@ref).
 
 We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest parceltree; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module ItrigDemo\\.\\n|UInt8|Float64)"
+```jldoctest parceltree; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module ItrigDemo\\.\\n|UInt8|Float64|SnoopCompile\.ItrigDemo\.)"
 julia> tinf = SnoopCompile.itrigs_demo()
 InferenceTimingNode: 0.004490576/0.004711168 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 2 direct children
 

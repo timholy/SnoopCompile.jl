@@ -114,7 +114,7 @@ the `getproperty(::MyType{Int64}, x::Symbol)` (note `x::Symbol` instead of just 
 
 You can extract the `MethodInstance` with
 
-```jldoctest flatten-demo
+```jldoctest flatten-demo; filter=["Core.Compiler.Timings.", "FlattenDemo."]
 julia> Core.MethodInstance(tinf)
 MethodInstance for ROOT()
 
