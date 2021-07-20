@@ -147,7 +147,7 @@ julia> tinf = SnoopCompile.flatten_demo()
 InferenceTimingNode: 0.002148974/0.002767166 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 
 julia> accumulate_by_source(flatten(tinf))
-7-element Vector{Tuple{Float64, Method}}:
+7-element Vector{Tuple{Float64, Union{Method, Core.MethodInstance}}}:
  (6.0012999999999996e-5, getproperty(x, f::Symbol) in Base at Base.jl:33)
  (6.7714e-5, extract(y::SnoopCompile.FlattenDemo.MyType) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:35)
  (9.421e-5, dostuff(y) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:44)
@@ -939,6 +939,14 @@ function findparent(node::TriggerNode, bt)
     return findparent(node.parent, bt)
 end
 
+"""
+    root = trigger_tree(itrigs)
+
+Organize inference triggers `itrigs` in tree format, grouping items via the call tree.
+
+It is a tree rather than a more general graph due to the fact that caching inference results means that each node gets
+visited only once.
+"""
 function trigger_tree(itrigs::AbstractVector{InferenceTrigger})
     root = node = TriggerNode()
     for itrig in itrigs

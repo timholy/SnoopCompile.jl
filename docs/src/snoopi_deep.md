@@ -135,7 +135,7 @@ As you will quickly discover, inference takes much more time on more complicated
 
 We can also display this tree as a flame graph, using the [ProfileView](https://github.com/timholy/ProfileView.jl) package:
 
-```jldoctest flatten-demo; filter=r"0:\d+"
+```jldoctest flatten-demo; filter=r":\d+"
 julia> fg = flamegraph(tinf)
 Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:10080857))
 ```
