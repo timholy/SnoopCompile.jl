@@ -1,6 +1,5 @@
 using Documenter
 using SnoopCompile
-using SnoopCompile.SnoopCompileCore
 import PyPlot   # so that the visualizations.jl file is loaded
 
 makedocs(

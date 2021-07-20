@@ -20,7 +20,7 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: nightly
-      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
+      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore"))])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@releases/v1
         env:
