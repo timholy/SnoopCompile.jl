@@ -82,7 +82,7 @@ See also:  `flamegraph`, `flatten`, `inference_triggers`, `SnoopCompile.parcel`,
 `runtime_inferencetime`.
 
 # Example
-```jldoctest; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+/[0-9\\.e-]+|\\d direct)"
+```jldoctest; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|\\d direct)"
 julia> tinf = @snoopi_deep begin
            sort(rand(100))  # Evaluate some code and profile julia's type inference
        end

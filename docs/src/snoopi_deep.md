@@ -47,7 +47,7 @@ FlattenDemo
 The main call, `packintype`, stores the input in a `struct`, and then calls functions that extract the field value and performs arithmetic on the result.
 To profile inference on this call, we simply do the following:
 
-```jldoctest flatten-demo; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+|WARNING: replacing module FlattenDemo\.\n)"
+```jldoctest flatten-demo; setup=:(using SnoopCompile), filter=r"([0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\.\n)"
 julia> tinf = @snoopi_deep FlattenDemo.packintype(1)
 InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 ```
@@ -90,7 +90,7 @@ You may have noticed that this `ROOT` node prints with two numbers.
 It will be easier to understand their meaning if we first display the whole tree.
 We can do that with the [AbstractTrees](https://github.com/JuliaCollections/AbstractTrees.jl) package:
 
-```jldoctest flatten-demo; filter=r"[0-9\\.e-]+"
+```jldoctest flatten-demo; filter=r"[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?"
 julia> using AbstractTrees
 
 julia> print_tree(tinf)

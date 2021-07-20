@@ -56,7 +56,7 @@ or `nothing` to obtain them in the order they were inferred (depth-first order).
 
 We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest flatten; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+/[0-9\\.e-]+|WARNING: replacing module FlattenDemo\\.\\n)"
+```jldoctest flatten; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()
 InferenceTimingNode: 0.002148974/0.002767166 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 
@@ -75,7 +75,7 @@ Note the printing of `getproperty(::SnoopCompile.FlattenDemo.MyType{$Int}, x::Sy
 that `getproperty` was inferred with. This reflects constant-propagation in inference.
 
 Then:
-```jldoctest flatten; setup=:(using SnoopCompile), filter=r"[0-9\\.e-]+/[0-9\\.e-]+"
+```jldoctest flatten; setup=:(using SnoopCompile), filter=r"[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
 julia> flatten(tinf; sortby=nothing)
 8-element Vector{SnoopCompileCore.InferenceTiming}:
  InferenceTiming: 0.002423543/0.0030352639999999998 on InferenceFrameInfo for Core.Compiler.Timings.ROOT()
@@ -142,7 +142,7 @@ that it is being inferred for many specializations (which might include speciali
 
 We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest accum1; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+|at .*/deep_demos.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
+```jldoctest accum1; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|at .*/deep_demos.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()
 InferenceTimingNode: 0.002148974/0.002767166 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 
@@ -354,7 +354,7 @@ See also: [`SnoopCompile.write`](@ref).
 
 We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest parceltree; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+|WARNING: replacing module ItrigDemo\\.\\n|UInt8|Float64)"
+```jldoctest parceltree; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module ItrigDemo\\.\\n|UInt8|Float64)"
 julia> tinf = SnoopCompile.itrigs_demo()
 InferenceTimingNode: 0.004490576/0.004711168 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 2 direct children
 
@@ -700,7 +700,7 @@ All the entries in `itrigs` are previously uninferred, or are freshly-inferred f
 
 We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest triggers; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+|.*/deep_demos\\.jl:\\d+|WARNING: replacing module ItrigDemo\\.\\n)"
+```jldoctest triggers; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|.*/deep_demos\\.jl:\\d+|WARNING: replacing module ItrigDemo\\.\\n)"
 julia> tinf = SnoopCompile.itrigs_demo()
 InferenceTimingNode: 0.004490576/0.004711168 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 2 direct children
 
@@ -1676,7 +1676,7 @@ each method will cause the number of specializations to be included in the frame
 
 We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest flamegraph; setup=:(using SnoopCompile), filter=r"([0-9\\.e-]+/[0-9\\.e-]+|at.*typeinfer\\.jl:\\d+|0:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
+```jldoctest flamegraph; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|at.*typeinfer\\.jl:\\d+|0:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()
 InferenceTimingNode: 0.002148974/0.002767166 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
 
