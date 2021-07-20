@@ -44,7 +44,7 @@ To record the invalidations caused by defining new methods, use `@snoopr`.
 **Remember** to run julia with the `--startup-file="no"` flag set, if you load packages such as [Revise](https://github.com/timholy/Revise.jl) in your startup file.
 Otherwise invalidations relating to those packages will also show up.
 
-```julia; setup=(using SnoopCompile.SnoopCompileCore)
+```julia
 using SnoopCompileCore
 invalidations = @snoopr begin
     # package loads and/or method definitions that might invalidate other code
