@@ -255,12 +255,7 @@ function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]
         if can_eval
             params = Base.unwrap_unionall(mi.specTypes)::DataType
             for p in params.parameters
-                if p isa TypeVar
-                    if !known_type(mod, p.ub) || !known_type(mod, p.lb)
-                        can_eval = false
-                        break
-                    end
-                elseif p isa Type
+                if p isa Type
                     if !known_type(mod, p)
                         can_eval = false
                         break
