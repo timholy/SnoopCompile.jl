@@ -63,8 +63,8 @@ function main()
 end
 
 if Base.VERSION >= v"1.4.2"
-    @assert precompile(Tuple{typeof(main)})   # time: 0.4204474
-    @assert precompile(Tuple{typeof(warmup)})
+    precompile(Tuple{typeof(main)})   # time: 0.4204474
+    precompile(Tuple{typeof(warmup)})
 end
 
 end
