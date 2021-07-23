@@ -1513,6 +1513,8 @@ function getcalleef(@nospecialize(callee), ct)
         return callee, false
     elseif isa(callee, Core.SSAValue)
         return unwrapconst(ct.ssavaluetypes[callee.id]), true
+    elseif isa(callee, Core.Argument)
+        return unwrapconst(ct.slottypes[callee.n]), false
     end
     error("unhandled callee ", callee, " with type ", typeof(callee))
 end
