@@ -34,7 +34,7 @@ lookups_key(ip::Ptr{Nothing}) = UInt(ip)
 Base.show(io::IO, t::InferenceTiming) = (print(io, "InferenceTiming: "); _show(io, t))
 function _show(io::IO, t::InferenceTiming)
     print(io, @sprintf("%8.6f", exclusive(t)), "/", @sprintf("%8.6f", inclusive(t)), " on ")
-    print(io, t.mi_info)
+    print(io, stripifi(t.mi_info))
 end
 
 function Base.show(io::IO, node::InferenceTimingNode)
@@ -610,7 +610,7 @@ end
 
 function Base.show(io::IO, itrig::InferenceTrigger)
     print(io, "Inference triggered to call ")
-    printstyled(io, MethodInstance(itrig.node); color=:yellow)
+    printstyled(io, stripmi(MethodInstance(itrig.node)); color=:yellow)
     if !isempty(itrig.callerframes)
         sf = first(itrig.callerframes)
         print(io, " from ")
@@ -619,7 +619,7 @@ function Base.show(io::IO, itrig::InferenceTrigger)
         caller = itrig.callerframes[end].linfo
         if isa(caller, MethodInstance)
             length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
-            printstyled(io, caller; color=:blue)
+            printstyled(io, stripmi(caller); color=:blue)
             if length(itrig.callerframes) > 1
                 sf = itrig.callerframes[end]
                 print(io, " (",  sf.file, ':', sf.line, ')')
@@ -912,7 +912,7 @@ function AbstractTrees.printnode(io::IO, node::TriggerNode)
     if node.itrig === nothing
         print(io, "root")
     else
-        print(io, MethodInstance(node.itrig.node))
+        print(io, stripmi(MethodInstance(node.itrig.node)))
     end
 end
 
@@ -1244,7 +1244,7 @@ function show_suggest(io::IO, categories, rtcallee, sf)
             end
             if isempty(categories) || categories ⊆ [FromTestDirect, FromTestCallee, CallerVararg, CalleeVararg, CallerInlineable]
                 printstyled(io, "Unspecialized or unknown"; color=:cyan)
-                print(io, " for ", rtcallee, " consider `stacktrace(itrig)` or `ascend(itrig)` to investigate more deeply")
+                print(io, " for ", stripmi(rtcallee), " consider `stacktrace(itrig)` or `ascend(itrig)` to investigate more deeply")
                 showcaller = false
             end
         end
@@ -1254,9 +1254,9 @@ function show_suggest(io::IO, categories, rtcallee, sf)
     end
     if showannotate
         if CallerVararg ∈ categories
-            print(io, ", ignore or perhaps annotate ", sf, " with type ", rtcallee)
+            print(io, ", ignore or perhaps annotate ", sf, " with result type of ", stripmi(rtcallee))
         else
-            print(io, ", perhaps annotate ", sf, " with type ", rtcallee)
+            print(io, ", perhaps annotate ", sf, " with result type of ", stripmi(rtcallee))
         end
         print(io, "\nIf a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.")
     end
@@ -1645,6 +1645,16 @@ function suggest!(stree, node)
 end
 
 Base.show(io::IO, node::SuggestNode) = print_tree(io, node)
+
+function strip_prefix(io::IO, obj, prefix)
+    print(io, obj)
+    str = String(take!(io))
+    return startswith(str, prefix) ? str[length(prefix)+1:end] : str
+end
+strip_prefix(obj, prefix) = strip_prefix(IOBuffer(), obj, prefix)
+
+stripmi(args...) = strip_prefix(args..., "MethodInstance for ")
+stripifi(args...) = strip_prefix(args..., "InferenceFrameInfo for ")
 
 ## Flamegraph creation
 
