@@ -25,7 +25,7 @@ that method.
 !!! compat
     `pgdsgui` depends on PyPlot via the Requires.jl package. You must load both SnoopCompile and PyPlot for this function to be defined.
 """
-function pgdsgui(ax::PyCall.PyObject, ridata; bystr, consts, markersz=25, linewidth=0.5, t0 = 0.001, interactive::Bool=true, kwargs...)
+function pgdsgui(ax::PyCall.PyObject, ridata::AbstractVector{Pair{Union{Method,MethodLoc},PGDSData}}; bystr, consts, markersz=25, linewidth=0.5, t0 = 0.001, interactive::Bool=true, kwargs...)
     methodref = Ref{Union{Method,MethodLoc}}()
     function onclick(event)
         xc, yc = event.xdata, event.ydata
@@ -62,16 +62,18 @@ function pgdsgui(ax::PyCall.PyObject, ridata; bystr, consts, markersz=25, linewi
     return methodref
 end
 
-function pgdsgui(ridata; kwargs...)
-    fig, ax = plt.subplots()
-    return pgdsgui(ax, ridata; kwargs...), ax
+function pgdsgui(ax::PyCall.PyObject, args...; consts::Bool=true, by=inclusive, kwargs...)
+    pgdsgui(ax, prep_ri(args...; consts, by, kwargs...); bystr=get_bystr(by), consts, kwargs...)
 end
 
-function pgdsgui(ax::PyCall.PyObject, tinf::InferenceTimingNode; consts::Bool=true, by=inclusive, kwargs...)
-    pgdsgui(ax, runtime_inferencetime(tinf; consts, by); bystr=get_bystr(by), consts, kwargs...)
+function pgdsgui(args...; kwargs...)
+    fig, ax = plt.subplots()
+    pgdsgui(ax, args...; kwargs...), ax
 end
-function pgdsgui(tinf::InferenceTimingNode; consts::Bool=true, by=inclusive, kwargs...)
-    pgdsgui(runtime_inferencetime(tinf; consts, by); bystr=get_bystr(by), consts, kwargs...)
+
+function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookups, consts, by, kwargs...)
+    lookup_firstip!(lookups, pdata)
+    return runtime_inferencetime(tinf, pdata; lidict, consts, by)
 end
 
 @deprecate specialization_plot pgdsgui

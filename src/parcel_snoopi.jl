@@ -194,7 +194,7 @@ end
 
 let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
     global known_type
-    function known_type(mod::Module, @nospecialize(T::Type))
+    function known_type(mod::Module, @nospecialize(T::Union{Type,TypeVar}))
         function startswith(@nospecialize(a::Tuple{Vararg{Symbol}}), @nospecialize(b::Tuple{Vararg{Symbol}}))
             length(b) >= length(a) || return false
             for i = 1:length(a)
@@ -213,6 +213,9 @@ let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
         end
         strippedname(tn::Core.TypeName) = Symbol(string(tn.name)[2:end])
 
+        if isa(T, TypeVar)
+            return known_type(mod, T.ub) && known_type(mod, T.lb)
+        end
         T === Union{} && return true
         T = Base.unwrap_unionall(T)
         if isa(T, Union)

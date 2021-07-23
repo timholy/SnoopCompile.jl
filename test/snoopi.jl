@@ -70,6 +70,8 @@ end
     @test  SnoopCompile.known_type(KnownType, which(KnownType.Exports.j, ()).sig)    # it's reachable if appropriately qualified
     @test  SnoopCompile.known_type(KnownType, which(OtherModule.p, ()).sig)
     @test !SnoopCompile.known_type(KnownType, which(OtherModule.q, ()).sig)
+
+    @test SnoopCompile.known_type(Base, TypeVar(:T, Int))
 end
 
 if Base.VERSION >= v"1.6.0-DEV.736"
