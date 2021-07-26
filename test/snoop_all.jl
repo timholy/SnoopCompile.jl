@@ -6,27 +6,29 @@ f(x) = 2^x + 100
 
 @testset "basic snoop_all" begin
     # First time not empty
-    tinf = SnoopCompileCore.@snoop_all "snoopl.csv" "snoopl.yaml" "snoopc.csv" f(2)
+    tinf, snoopl_csv, snoopl_yaml, snoopc_csv =
+        SnoopCompileCore.@snoop_all "snoop_all-f" f(2)
 
     @test length(collect(flatten(tinf))) > 1
-    @test filesize("snoopl.csv") != 0
-    @test filesize("snoopl.yaml") != 0
-    @test filesize("snoopc.csv") != 0
+    @test filesize(snoopl_csv) != 0
+    @test filesize(snoopl_yaml) != 0
+    @test filesize(snoopc_csv) != 0
 
-    rm("snoopl.csv")
-    rm("snoopl.yaml")
-    rm("snoopc.csv")
+    rm(snoopl_csv)
+    rm(snoopl_yaml)
+    rm(snoopc_csv)
 
     # Second run is empty because f(x) is already compiled
-    tinf = SnoopCompileCore.@snoop_all "snoopl.csv" "snoopl.yaml" "snoopc.csv" f(2)
+    tinf, snoopl_csv, snoopl_yaml, snoopc_csv =
+        SnoopCompileCore.@snoop_all "snoop_all-f" f(2)
 
     @test length(collect(flatten(tinf))) == 1
-    @test filesize("snoopl.csv") == 0
-    @test filesize("snoopl.yaml") == 0
-    @test filesize("snoopc.csv") == 0
+    @test filesize(snoopl_csv) == 0
+    @test filesize(snoopl_yaml) == 0
+    @test filesize(snoopc_csv) == 0
 
-    rm("snoopl.csv")
-    rm("snoopl.yaml")
-    rm("snoopc.csv")
+    rm(snoopl_csv)
+    rm(snoopl_yaml)
+    rm(snoopc_csv)
 end
 
