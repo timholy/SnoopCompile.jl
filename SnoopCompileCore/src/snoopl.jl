@@ -38,9 +38,7 @@ function snoopl(func_file, llvm_file, commands, _module; pspawn=true, jlflags=""
     # launch it as a command.
     code_object = """
             using Serialization
-            while !eof(stdin)
-                Core.eval(Main, deserialize(stdin))
-            end
+            Core.eval(Main, deserialize(IOBuffer(read(stdin))))
             """
     record_and_run_quote = quote
         let func_io = open($func_file, "w"), llvm_io = open($llvm_file, "w")
@@ -59,10 +57,11 @@ function snoopl(func_file, llvm_file, commands, _module; pspawn=true, jlflags=""
 
     if pspawn
         process = open(`$(Base.julia_cmd()) $jlflags --eval $code_object`, stdout, write=true)
+        @info process
         serialize(process, quote
             $record_and_run_quote
-            exit()
         end)
+        close(process)
         wait(process)
         println("done.")
     else

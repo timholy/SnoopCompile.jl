@@ -43,13 +43,9 @@ function snoopc(flags, filename, commands, _module=nothing; pspawn=true)
     if pspawn
         println("Launching new julia process to run commands...")
     end
-    # addprocs will run the unmodified version of julia, so we
-    # launch it as a command.
     code_object = """
             using Serialization
-            while !eof(stdin)
-                Core.eval(Main, deserialize(stdin))
-            end
+            Core.eval(Main, deserialize(IOBuffer(read(stdin))))
             """
     record_and_run_quote = quote
         let io = open($filename, "w")
@@ -64,11 +60,13 @@ function snoopc(flags, filename, commands, _module=nothing; pspawn=true)
     end
 
     if pspawn
+        # addprocs will run the unmodified version of julia, so we
+        # launch it as a command.
         process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
         serialize(process, quote
             $record_and_run_quote
-            exit()
         end)
+        close(process)
         wait(process)
         println("done.")
     else
