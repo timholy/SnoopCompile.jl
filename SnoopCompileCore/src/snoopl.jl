@@ -5,7 +5,7 @@ using Serialization
 """
 ```
 @snoopl [jlflags="..."] [pspawn=true] "func_names.csv" "llvm_timings.yaml" begin
-    # Commands to execute, in a new process
+    # Commands to execute, either in a new process if pspawn==true, or via eval if false.
 end
 ```
 causes the julia compiler to log timing information for LLVM optimization during the
@@ -16,9 +16,9 @@ The logs contain the amount of time spent optimizing each "llvm module", and inf
 about each module, where a module is a collection of functions being optimized together.
 
 If `pspawn=false`, the commands will be run in the same julia process, via `eval()` in
-the current module. This will only report LLVM optimizations for _new_ compilations, that
-haven't already been cached in this process, which can be (carefully) used to pruned down
-the results to only the code you are interested in.
+the current module. This will only report _new_ compilations, that haven't already been
+cached in the current julia process, which can be (carefully) used to prune down the
+results to only the code you are interested in.
 """
 macro snoopl(args...)
     @assert length(args) >= 3 """Usage: @snoopl [args...] "snoopl.csv" "snoopl.yaml" commands"""
