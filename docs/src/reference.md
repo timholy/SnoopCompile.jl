@@ -47,6 +47,9 @@ InferenceTrigger
 runtime_inferencetime
 SnoopCompile.parcel
 SnoopCompile.write
+report_callee
+report_callees
+report_caller
 ```
 
 ## Other utilities

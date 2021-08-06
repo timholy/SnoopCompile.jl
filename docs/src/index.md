@@ -12,6 +12,10 @@ Invalidation can trigger a domino effect, in which all users of invalidated code
 When a source of invalidation can be identified and either eliminated or mitigated,
 you can reduce the amount of work that the compiler needs to repeat and take better advantage of precompilation.
 
+Finally, SnoopCompile interacts with other important diagnostics and debugging tools in the Julia ecosystem.
+For example, the combination of SnoopCompile and [JET](https://github.com/aviatesk/JET.jl) allows you to analyze an entire call-chain for
+potential errors; see the page on [JET integration](@ref JET) for more information.
+
 ## Background
 
 Julia uses
