@@ -77,7 +77,7 @@ A non-empty list might indicate method invalidations, which can be checked (in a
 !!! tip
     Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
     from `staleinstances`.
-    One trick that may cirumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
+    One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
     before your workload triggers compilation.
 
 ## Viewing the results

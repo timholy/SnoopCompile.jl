@@ -597,7 +597,7 @@ Inference triggered to call MethodInstance for show(::IOContext{Base.TTY}, ::MIM
 In this case we see that the method is `#38`.  This is a `gensym`, or generated symbol, indicating that the method was generated during Julia's lowering pass, and might indicate a macro, a `do` block or other anonymous function, the generator for a `@generated` function, etc.
 
 !!! warning
-    It's particularly worth your while to improve inferrability for gensym-methods. The number assiged to a gensymmed-method may change as you or other developers modify the package (possibly due to changes at very difference source-code locations), and so any explicit `precompile` directives involving gensyms may not have a long useful life.
+    It's particularly worthwhile to improve inferrability for gensym-methods. The number assiged to a gensymmed-method may change as you or other developers modify the package (possibly due to changes at very difference source-code locations), and so any explicit `precompile` directives involving gensyms may not have a long useful life.
 
     But not all methods with `#` in their name are problematic: methods ending in `##kw` or that look like `##funcname#39` are *keyword* and *body* methods, respectively, for methods that accept keywords.  They can be obtained from the main method, and so `precompile` directives for such methods will not be outdated by incidental changes to the package.
 

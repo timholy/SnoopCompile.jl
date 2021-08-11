@@ -477,7 +477,7 @@ Julia could not have returned the newly-correct answer without recompiling the c
 
 Aside from cases like these, most invalidations occur whenever new types are introduced,
 and some methods were previously compiled for abstract types.
-In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updateable language.
+In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updatable language.
 (As recommended above, you can often minimize invalidations by loading all your code at the beginning of your session, before triggering the compilation of more methods.)
 However, in many circumstances an invalidation indicates an opportunity to improve code.
 In our first example, note that the call `call2f(c32)` did not get invalidated: this is because the compiler
