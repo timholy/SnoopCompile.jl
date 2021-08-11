@@ -4,7 +4,7 @@ Certain concepts and types will appear repeatedly, so it's worth
 spending a little time to familiarize yourself at the outset.
 You can find a more expansive version of this page in [this blog post](https://julialang.org/blog/2021/01/precompile_tutorial/).
 
-## MethodInstances, type-inference, and backedges
+## `MethodInstance`s, type-inference, and backedges
 
 Our first goal is to understand how code connects together.
 We'll try some experiments using the following:
@@ -181,7 +181,7 @@ julia> mi.def
 
 So even though the method is defined in `Base`, because `SnoopCompileDemo` needed this code it got stashed in `SnoopCompileDemo.ji`.
 
-*The ability to cache MethodInstances from code defined in other packages or libraries is fundamental to latency reduction; however, it has significant limitations.*  Most crucially, `*.ji` files can only hold code they "own," either:
+*The ability to cache `MethodInstance`s from code defined in other packages or libraries is fundamental to latency reduction; however, it has significant limitations.*  Most crucially, `*.ji` files can only hold code they "own," either:
 
 - to a method defined in the package
 - through a chain of backedges to methods owned by the package

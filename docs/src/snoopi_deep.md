@@ -8,7 +8,7 @@ For that reason, efforts at reducing latency should be informed by measuring the
 Moreover, because all code needs to be type-inferred before undergoing later stages of code generation, monitoring this "entry point" can give you an overview of the entire compile chain.
 
 On older versions of Julia, [`@snoopi`](@ref) allows you to make fairly coarse measurements on inference;
-starting with Julia 1.6, the recommended tool is `@snoopi_deep`, which collects a much more detailed picture of type-inference's actions.
+starting with Julia 1.6, the recommended tool is [`@snoopi_deep`](@ref), which collects a much more detailed picture of type-inference's actions.
 
 The rich data collected by `@snoopi_deep` are useful for several different purposes;
 on this page, we'll describe the basic tool and show how it can be used to profile inference.
@@ -16,7 +16,7 @@ On later pages we'll show other ways to use the data to reduce the amount of typ
 
 ## Collecting the data
 
-Like [`@snoopr`](@ref), `@snoopi_deep` is exported by both SnoopCompileCore and SnoopCompile, but in this case there is not as much reason to do the data collection by a very minimal package.  Consequently here we'll just load SnoopCompile at the outset.
+Like [`@snoopr`](@ref), `@snoopi_deep` is exported by both `SnoopCompileCore` and `SnoopCompile`, but in this case there is not as much reason to do the data collection by a very minimal package.  Consequently here we'll just load `SnoopCompile` at the outset.
 
 To see `@snoopi_deep` in action, we'll use the following demo:
 
@@ -55,7 +55,7 @@ InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compi
 !!! tip
     Inference gets called only on the *first* invocation of a method with those specific types. You have to redefine the `FlattenDemo` module (by just re-executing the command we used to define it) if you want to collect data with `@snoopi_deep` on the same code a second time.
 
-    To make it easier to perform these demonstrations and use them for documentation purposes, SnoopCompile includes a function [`SnoopCompile.flatten_demo()`](@ref) that redefines the module and returns `tinf`.
+    To make it easier to perform these demonstrations and use them for documentation purposes, `SnoopCompile` includes a function [`SnoopCompile.flatten_demo()`](@ref) that redefines the module and returns `tinf`.
 
 This may not look like much, but there's a wealth of information hidden inside `tinf`.
 
@@ -77,7 +77,7 @@ A non-empty list might indicate method invalidations, which can be checked (in a
 !!! tip
     Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
     from `staleinstances`.
-    One trick that may cirumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
+    One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
     before your workload triggers compilation.
 
 ## Viewing the results
@@ -123,7 +123,7 @@ MethodInstance for FlattenDemo.packintype(::Int64)
 ```
 
 Each node in this tree is accompanied by a pair of numbers.
-The first number is the *exclusive* inference time (in seconds), meaning the time spent inferring the particular MethodInstance, not including the time spent inferring its callees.
+The first number is the *exclusive* inference time (in seconds), meaning the time spent inferring the particular `MethodInstance`, not including the time spent inferring its callees.
 The second number is the *inclusive* time, which is the exclusive time plus the time spent on the callees.
 Therefore, the inclusive time is always at least as large as the exclusive time.
 
@@ -133,7 +133,7 @@ Almost all of that was code-generation, but it also includes the time needed to 
 Just 0.76ms was needed to run type-inference on this entire series of calls.
 As you will quickly discover, inference takes much more time on more complicated code.
 
-We can also display this tree as a flame graph, using the [ProfileView](https://github.com/timholy/ProfileView.jl) package:
+We can also display this tree as a flame graph, using the [ProfileView.jl](https://github.com/timholy/ProfileView.jl) package:
 
 ```jldoctest flatten-demo; filter=r":\d+"
 julia> fg = flamegraph(tinf)
@@ -154,7 +154,7 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 
 - the horizontal axis is time (wide boxes take longer than narrow ones), the vertical axis is call depth
 - hovering over a box displays the method that was inferred
-- left-clicking on a box causes the full MethodInstance to be printed in your REPL session
+- left-clicking on a box causes the full `MethodInstance` to be printed in your REPL session
 - right-clicking on a box opens the corresponding method in your editor
 - ctrl-click can be used to zoom in
 - empty horizontal spaces correspond to activities other than type-inference
@@ -162,7 +162,7 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 
 You can explore this flamegraph and compare it to the output from `display_tree`.
 
-Finally, [`flatten`](@ref), on its own or together with [`accumulate_by_source`](@ref), allows you to get an sense for the cost of individual MethodInstances or Methods.
+Finally, [`flatten`](@ref), on its own or together with [`accumulate_by_source`](@ref), allows you to get an sense for the cost of individual `MethodInstance`s or `Method`s.
 
 The tools here allow you to get an overview of where inference is spending its time.
 Sometimes, this information alone is enough to show you how to change your code to reduce latency: perhaps your code is spending a lot of time inferring cases that are not needed in practice and could be simplified.

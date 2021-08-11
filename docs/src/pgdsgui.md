@@ -6,7 +6,7 @@ so while specialization often improves runtime performance, that has to be weigh
 There are also cases in which [overspecialization can hurt both run-time and compile-time performance](https://docs.julialang.org/en/v1/manual/performance-tips/#The-dangers-of-abusing-multiple-dispatch-(aka,-more-on-types-with-values-as-parameters)).
 Consequently, an analysis of specialization can be a powerful tool for improving package quality.
 
-SnoopCompile ships with an interactive tool, [`pgdsgui`](@ref), short for "Profile-guided despecialization."
+`SnoopCompile` ships with an interactive tool, [`pgdsgui`](@ref), short for "Profile-guided despecialization."
 The name is a reference to a related technique, [profile-guided optimization](https://en.wikipedia.org/wiki/Profile-guided_optimization) (PGO).
 Both PGO and PGDS use rutime profiling to help guide decisions about code optimization.
 PGO is often used in languages whose default mode is to avoid specialization, whereas PGDS seems more appropriate for
@@ -130,7 +130,7 @@ julia> collect_for(mref[], tinf)
 
 So we can see that one `MethodInstance` for each type in `Ts` was generated.
 
-If you see a list of MethodInstances, and the first is extremely costly in terms of inclusive time, but all the rest are not, then you might not need to worry much about over-specialization:
+If you see a list of `MethodInstance`s, and the first is extremely costly in terms of inclusive time, but all the rest are not, then you might not need to worry much about over-specialization:
 your inference time will be dominated by that one costly method (often, the first time the method was called), and the fact that lots of additional specializations were generated may not be anything to worry about.
 However, in this case, the distribution of time is fairly flat, each contributing a small portion to the overall time.
 In such cases, over-specialization may be a problem.
@@ -229,4 +229,4 @@ julia> methodinstances(m)       # let's see what specializations we have
  MethodInstance for save(::String, ::Array)
 ```
 
-In this case we have 7 MethodInstances (some of which are clearly due to poor inferrability of the caller) when one might suffice.
+In this case we have 7 `MethodInstance`s (some of which are clearly due to poor inferrability of the caller) when one might suffice.

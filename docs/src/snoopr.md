@@ -39,9 +39,9 @@ DocTestSetup = quote
 end
 ```
 
-To record the invalidations caused by defining new methods, use `@snoopr`.
-`@snoopr` is exported by SnoopCompile, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis.
-**Remember** to run julia with the `--startup-file="no"` flag set, if you load packages such as [Revise](https://github.com/timholy/Revise.jl) in your startup file.
+To record the invalidations caused by defining new methods, use [`@snoopr`](@ref).
+`@snoopr` is exported by `SnoopCompile`, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis.
+_**Remember**_ to run julia with the `--startup-file="no"` flag set, if you load packages such as [`Revise`](https://github.com/timholy/Revise.jl) in your startup file.
 Otherwise invalidations relating to those packages will also show up.
 
 ```julia
@@ -54,7 +54,7 @@ using SnoopCompile   # now that we've collected the data, load the complete pack
 
 !!! note
     `SnoopCompileCore` was split out from `SnoopCompile` to reduce the risk of invalidations from loading `SnoopCompile` itself.
-    Once a MethodInstance gets invalidated, it doesn't show up in future `@snoopr` results, so anything that
+    Once a `MethodInstance` gets invalidated, it doesn't show up in future `@snoopr` results, so anything that
     gets invalidated in order to provide `@snoopr` would be omitted from the results.
     `SnoopCompileCore` is a very small package with no dependencies and which avoids extending any of Julia's own functions,
     so it cannot invalidate any other code.
@@ -112,7 +112,7 @@ julia> length(uinvalidated(invalidations))  # collect the unique MethodInstances
 
 The length of this set is your simplest insight into the extent of invalidations triggered by this method definition.
 
-If you want to fix invalidations, it's crucial to know *why* certain MethodInstances were invalidated.
+If you want to fix invalidations, it's crucial to know *why* certain `MethodInstance`s were invalidated.
 For that, it's best to use a tree structure, in which children are invalidated because their parents get invalidated:
 
 ```jldoctest invalidations
@@ -230,7 +230,7 @@ julia> trees = invalidation_trees(invalidations)
 
 Your specific results may differ from this, depending on which version of Julia and of packages you are using.
 In this case, you can see that three methods (one for `all`, one for `any`, and one for `broadcasted`) triggered invalidations.
-Perusing this list, you can see that methods in `Base`, `LoweredCodeUtils`, and `JuliaInterpreter` (the latter two were loaded by `Revise`) got invalidated by methods defined in FillArrays.
+Perusing this list, you can see that methods in `Base`, `LoweredCodeUtils`, and `JuliaInterpreter` (the latter two were loaded by `Revise`) got invalidated by methods defined in `FillArrays`.
 
 The most consequential ones (the ones with the most children) are listed last, and should be where you direct your attention first.
 That last entry looks particularly problematic, so let's extract it:
@@ -310,9 +310,9 @@ of the same package features. The video also walks through a real-world
 example fixing invalidations that stemmed from inference problems in
 some of `Pkg`'s code.
 
-### ascend
+### `ascend`
 
-SnoopCompile, partnering with the remarkable [Cthulhu](https://github.com/JuliaDebug/Cthulhu.jl),
+SnoopCompile, partnering with the remarkable [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl),
 provides a tool called `ascend` to simplify diagnosing and fixing invalidations.
 To demonstrate this tool, let's use it on our test methods defined above.
 For best results, you'll want to copy those method definitions into a file:
@@ -441,7 +441,7 @@ Choose a call for analysis (q to quit):
 
 Unfortunately for our investigations, none of these "top level" callers have defined backedges. (Overall, it's very fortunate that they don't, in that runtime dispatch without backedges avoids any need to invalidate the caller; the alternative would be extremely long chains of completely unnecessary invalidation, which would have many undesirable consequences.)
 
-If you want to fix such "short chains" of invalidation, one strategy is to identify callers by brute force search enabled by the `MethodAnalysis` package.
+If you want to fix such "short chains" of invalidation, one strategy is to identify callers by brute force search enabled by the [MethodAnalysis.jl](https://github.com/timholy/MethodAnalysis.jl) package.
 For example, one can discover the caller of `show(::IOBuffer, ::Sockets.IPAddr)` with
 
 ```julia
@@ -477,7 +477,7 @@ Julia could not have returned the newly-correct answer without recompiling the c
 
 Aside from cases like these, most invalidations occur whenever new types are introduced,
 and some methods were previously compiled for abstract types.
-In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updateable language.
+In some cases, this is inevitable, and the resulting invalidations simply need to be accepted as a consequence of a dynamic, updatable language.
 (As recommended above, you can often minimize invalidations by loading all your code at the beginning of your session, before triggering the compilation of more methods.)
 However, in many circumstances an invalidation indicates an opportunity to improve code.
 In our first example, note that the call `call2f(c32)` did not get invalidated: this is because the compiler
@@ -508,7 +508,7 @@ Use of `ascend` is highly recommended for fixing `Core.Box` inference failures.
 
 In cases where invalidations occur, but you can't use concrete types (there are indeed many valid uses of `Vector{Any}`),
 you can often prevent the invalidation using some additional knowledge.
-One common example is extracting information from an [IOContext](https://docs.julialang.org/en/v1/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
+One common example is extracting information from an [`IOContext`](https://docs.julialang.org/en/v1/manual/networking-and-streams/#IO-Output-Contextual-Properties-1) structure, which is roughly defined as
 
 ```julia
 struct IOContext{IO_t <: IO} <: AbstractPipe
@@ -517,7 +517,7 @@ struct IOContext{IO_t <: IO} <: AbstractPipe
 end
 ```
 
-There are good reasons to use a value-type of `Any`, but that makes it impossible for the compiler to infer the type of any object looked up in an IOContext.
+There are good reasons to use a value-type of `Any`, but that makes it impossible for the compiler to infer the type of any object looked up in an `IOContext`.
 Fortunately, you can help!
 For example, the documentation specifies that the `:color` setting should be a `Bool`, and since it appears in documentation it's something we can safely enforce.
 Changing

@@ -1,4 +1,4 @@
-# Using `@snoopi_deep` results to generate precompile directives
+# Using `@snoopi_deep` results to generate `precompile` directives
 
 Improving inferrability, specialization, and precompilability may sometimes feel like "eating your vegetables": really good for you, but it sometimes feels like work.  (Depending on tastes, of course; I love vegetables.)
 While we've already gotten some payoff, now we're going to collect an additional reward for our hard work: the "dessert" of adding `precompile` directives.

@@ -86,7 +86,7 @@ For developers who can use Julia 1.6+, the recommended sequence is:
 2. Record inference data with [`@snoopi_deep`](@ref). Analyze the data to:
     + adjust method specialization in your package or its dependencies
     + fix problems in type inference
-    + add precompile directives
+    + add `precompile` directives
 
 Under 2, the first two sub-points can often be done at the same time; the last item is best done as a final step, because the specific
 precompile directives needed depend on the state of your code, and a few fixes in specialization
