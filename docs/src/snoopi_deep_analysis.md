@@ -5,16 +5,16 @@ As indicated in the [workflow](@ref), the recommended steps to reduce latency ar
 - check for invalidations
 - adjust method specialization in your package or its dependencies
 - fix problems in type inference
-- add precompile directives
+- add `precompile` directives
 
 The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) results in breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
 
 In practice, it also turns out that opportunities to adjust specialization are often revealed by analyzing inference failures, so this page is complementary to the previous one.
 
-Throughout this page, we'll use the `OptimizeMe` demo, which ships with SnoopCompile.
+Throughout this page, we'll use the `OptimizeMe` demo, which ships with `SnoopCompile`.
 
 !!! note
-    To understand what follows, it's essential to refer to [OptimizeMe source code](https://github.com/timholy/SnoopCompile.jl/blob/master/examples/OptimizeMe.jl) as you follow along.
+    To understand what follows, it's essential to refer to [`OptimizeMe` source code](https://github.com/timholy/SnoopCompile.jl/blob/master/examples/OptimizeMe.jl) as you follow along.
 
 ```julia
 julia> using SnoopCompile
@@ -58,12 +58,12 @@ From the standpoint of precompilation, this has some obvious problems:
 - even though we called a single method, `OptimizeMe.main()`, there are many distinct flames separated by blank spaces. This indicates that many calls are being made by runtime dispatch:  each separate flame is a fresh entrance into inference.
 - several of the flames are marked in red, indicating that they are not precompilable. While SnoopCompile does have the capability to automatically emit `precompile` directives for the non-red bars that sit on top of the red ones, in some cases the red extends to the highest part of the flame. In such cases there is no available precompile directive, and therefore no way to avoid the cost of type-inference.
 
-Our goal will be to improve the design of OptimizeMe to make it more precompilable.
+Our goal will be to improve the design of `OptimizeMe` to make it more precompilable.
 
 ## Analyzing inference triggers
 
 We'll first extract the "triggers" of inference, which is just a repackaging of part of the information contained within `tinf`.
-Specifically an [`InferenceTrigger`](@ref) captures callee/caller relationships that straddle a fresh entrance to type-inference, allowing you to identify which calls were made by runtime dispatch and what MethodInstance they called.
+Specifically an [`InferenceTrigger`](@ref) captures callee/caller relationships that straddle a fresh entrance to type-inference, allowing you to identify which calls were made by runtime dispatch and what `MethodInstance` they called.
 
 ```julia
 julia> itrigs = inference_triggers(tinf)
@@ -78,7 +78,7 @@ This indicates that a whopping 76 calls were (1) made by runtime dispatch and (2
 (There was a 77th call that had to be inferred, the original call to `main()`, but by default [`inference_triggers`](@ref) excludes calls made directly from top-level. You can change that through keyword arguments.)
 
 !!! tip
-    In the REPL, SnoopCompile displays `InferenceTrigger`s with yellow coloration for the callee, red for the caller method, and blue for the caller specialization. This makes it easier to quickly identify the most important information.
+    In the REPL, `SnoopCompile` displays `InferenceTrigger`s with yellow coloration for the callee, red for the caller method, and blue for the caller specialization. This makes it easier to quickly identify the most important information.
 
 In some cases, this might indicate that you'll need to fix 76 separate callers; fortunately, in many cases fixing the origin of inference problems can fix a number of later callees.
 
@@ -155,7 +155,7 @@ Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedT
 ```
 
 This is useful if you want to analyze a method via [`ascend`](@ref ascend-itrig).
-Method-based triggers, which may aggregate many different individual triggers, are particularly useful mostly because tools like Cthulhu show you the inference results for the entire MethodInstance, allowing you to fix many different inference problems at once.
+`Method`-based triggers, which may aggregate many different individual triggers, are particularly useful mostly because tools like [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl) show you the inference results for the entire `MethodInstance`, allowing you to fix many different inference problems at once.
 
 ### Trigger trees
 
@@ -193,7 +193,7 @@ We're going to march through these systematically. Let's start with the first of
 
 ### `suggest` and a fix involving manual `eltype` specification
 
-Because the analysis of inference failures is somewhat complex, SnoopCompile attempts to `suggest` an interpretation and/or remedy for each trigger:
+Because the analysis of inference failures is somewhat complex, `SnoopCompile` attempts to [`suggest`](@ref) an interpretation and/or remedy for each trigger:
 
 ```
 julia> suggest(itree.children[1])
@@ -289,7 +289,7 @@ julia> suggest(itree.children[2])
     lotsa_containers() at OptimizeMe.jl:14
 ```
 
-While this tree is attributed to broadcast, you can see several references here to `OptimizeMe.jl:14`, which contains:
+While this tree is attributed to `broadcast`, you can see several references here to `OptimizeMe.jl:14`, which contains:
 
 ```julia
 cs = Container.(list)
@@ -331,7 +331,7 @@ cs = Container{Any}.(list)
 ```
 
 This 5-character change ends up eliminating 45 of our original 76 triggers.
-Not only did we eliminate the triggers from broadcasting, but we limited the number of different `show(::IO, ::Container{T})` MethodInstances we need from later calls in `main`.
+Not only did we eliminate the triggers from broadcasting, but we limited the number of different `show(::IO, ::Container{T})`-`MethodInstance`s we need from later calls in `main`.
 
 When the `Container` constructor does more complex operations, in some cases you may find that `Container{Any}(args...)` still gets specialized for different types of `args...`.
 In such cases, you can create a special constructor that instructs Julia to avoid specialization in specific instances, e.g.,
@@ -623,12 +623,12 @@ end
 The generated method corresponds to the `do` block here.
 The call to `show` comes from `show(io, mime, x[])`.
 This implementation uses a clever trick, wrapping `x` in a `Ref{Any}(x)`, to prevent specialization of the method defined by the `do` block on the specific type of `x`.
-This trick is designed to limit the number of MethodInstances inferred for this `display` method.
+This trick is designed to limit the number of `MethodInstance`s inferred for this `display` method.
 
 Unfortunately, from the standpoint of precompilation we have something of a conundrum.
 It turns out that this trigger corresponds to the first of the big red flames in the flame graph.
 `show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Container{Any}})` is not precompilable because `Base` owns the `show` method for `Vector`;
-we might own the element type, but we're leveraging the generic machinery in Base and consequently it owns the method.
+we might own the element type, but we're leveraging the generic machinery in `Base` and consequently it owns the method.
 If these were all packages, you might request its developers to add a `precompile` directive, but that will work only if the package that owns the method knows about the relevant type.
 In this situation, Julia's `Base` module doesn't know about `OptimizeMe.Container{Any}`, so we're stuck.
 
