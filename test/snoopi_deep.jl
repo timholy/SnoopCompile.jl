@@ -802,11 +802,26 @@ end
         tree = only(trees)
         @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
         @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
-        if Base.VERSION > v"1.8.0-DEV"   # FIXME
+        if Base.VERSION > v"1.8.0-DEV.368"
             @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
             @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
             @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
         end
+        tinf = @snoopi_deep begin
+            StaleB.useA()
+            StaleC.call_buildstale("hi")
+        end
+        strees = precompile_blockers(invalidations, tinf)
+        tree = only(strees)
+        @test tree.method == which(StaleA.stale, (String,))
+        root, hits = only(tree.backedges)
+        @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
+        @test Core.MethodInstance(only(hits)).def == which(StaleA.use_stale, (Vector{Any},))
+        io = IOBuffer()
+        print(io, strees)
+        str = String(take!(io))
+        @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
+        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
         Pkg.activate(cproj)
     end
 end

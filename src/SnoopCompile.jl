@@ -106,6 +106,11 @@ if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 end
 
+if isdefined(SnoopCompileCore, Symbol("@snoopr")) && isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
+    include("invalidation_and_inference.jl")
+    export precompile_blockers
+end
+
 # Write
 include("write.jl")
 

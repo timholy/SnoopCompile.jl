@@ -137,7 +137,7 @@ end
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
-    mt_backedges::Vector{Pair{Any,Union{InstanceNode,MethodInstance}}}   # sig=>root
+    mt_backedges::Vector{Pair{Any,Union{InstanceNode,MethodInstance}}}   # sig=>root for immediate, calleemi=>callermi for delayed
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
     mt_disable::Vector{MethodInstance}
@@ -172,46 +172,6 @@ end
 # just the top method and the number of children it has
 function Base.show(io::IO, methinvs::MethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
-    method = methinvs.method
-
-    function showlist(io::IO, treelist, indent::Int=0)
-        nc = map(countchildren, treelist)
-        n = length(treelist)
-        nd = ndigits(n)
-        for i = 1:n
-            print(io, lpad(i, nd), ": ")
-            root = treelist[i]
-            sig = nothing
-            if isa(root, Pair)
-                print(io, "signature ")
-                sig = root.first
-                if isa(sig, MethodInstance)
-                    # "insert_backedges_callee"/"insert_backedges" (delayed) invalidations
-                    printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
-                    print(io, " (formerly ", sig.def, ')')
-                else
-                    # `sig` (immediate) invalidations
-                    printstyled(io, sig, color = :light_cyan)
-                end
-                print(io, " triggered ")
-                sig = root.first
-                root = root.second
-            else
-                print(io, "superseding ")
-                printstyled(io, root.mi.def , color = :light_cyan)
-                print(io, " with ")
-                sig = root.mi.def.sig
-            end
-            printstyled(io, convert(MethodInstance, root), color = :light_yellow)
-            print(io, " (", countchildren(root), " children)")
-            if iscompact
-                i < n && print(io, ", ")
-            else
-                print(io, '\n')
-                i < n && print(io, " "^indent)
-            end
-        end
-    end
 
     print(io, methinvs.reason, " ")
     printstyled(io, methinvs.method, color = :light_magenta)
@@ -236,6 +196,53 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
         println(io, indent, length(methinvs.mt_cache), " mt_cache")
     end
     iscompact && print(io, ';')
+end
+
+function showlist(io::IO, treelist, indent::Int=0)
+    iscompact = get(io, :compact, false)::Bool
+
+    n = length(treelist)
+    nd = ndigits(n)
+    for i = 1:n
+        print(io, lpad(i, nd), ": ")
+        root = treelist[i]
+        sig = nothing
+        if isa(root, Pair)
+            print(io, "signature ")
+            sig = root.first
+            if isa(sig, MethodInstance)
+                # "insert_backedges_callee"/"insert_backedges" (delayed) invalidations
+                printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
+                print(io, " (formerly ", sig.def, ')')
+            else
+                # `sig` (immediate) invalidations
+                printstyled(io, sig, color = :light_cyan)
+            end
+            print(io, " triggered ")
+            sig = root.first
+            root = root.second
+        elseif isa(root, Tuple)
+            printstyled(io, root[end-1], color = :light_yellow)
+            print(io, " blocked ")
+            show(IOContext(io, :typeinfo=>InferenceTimingNode), root[end])
+            root = nothing
+        else
+            print(io, "superseding ")
+            printstyled(io, convert(MethodInstance, root).def , color = :light_cyan)
+            print(io, " with ")
+            sig = root.mi.def.sig
+        end
+        if root !== nothing
+            printstyled(io, convert(MethodInstance, root), color = :light_yellow)
+            print(io, " (", countchildren(root), " children)")
+        end
+        if iscompact
+            i < n && print(io, ", ")
+        else
+            print(io, '\n')
+            i < n && print(io, " "^indent)
+        end
+    end
 end
 
 """
@@ -488,11 +495,11 @@ function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=f
                                copy(methinvs.mt_cache), copy(methinvs.mt_disable))
 end
 
-function filtermod(mod::Module, node::InstanceNode)
+function filterbranch(f, node::InstanceNode, storage=nothing)
     if !isempty(node.children)
         newchildren = InstanceNode[]
         for child in node.children
-            newchild = filtermod(mod, child)
+            newchild = filterbranch(f, child, storage)
             if newchild !== nothing
                 push!(newchildren, newchild)
             end
@@ -505,11 +512,21 @@ function filtermod(mod::Module, node::InstanceNode)
             return newnode
         end
     end
-    if hasmod(mod, node)
+    if f(node)
+        storage !== nothing && push!(storage, convert(eltype(storage), node))
         return copybranch(node)
     end
     return nothing
 end
+function filterbranch(f, node::MethodInstance, storage=nothing)
+    if f(node)
+        storage !== nothing && push!(storage, convert(eltype(storage), node))
+        return node
+    end
+    return nothing
+end
+
+filtermod(mod::Module, node::InstanceNode) = filterbranch(n -> hasmod(mod, n), node)
 
 function filtermod(mod::Module, mi::MethodInstance)
     m = mi.def
