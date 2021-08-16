@@ -136,8 +136,9 @@ struct MethodInvalidations
     mt_backedges::Vector{Pair{Any,InstanceNode}}   # sig=>root
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
+    mt_disable::Vector{MethodInstance}
 end
-methinv_storage() = Pair{Any,InstanceNode}[], InstanceNode[], MethodInstance[]
+methinv_storage() = Pair{Any,InstanceNode}[], InstanceNode[], MethodInstance[], MethodInstance[]
 function MethodInvalidations(method::Method, reason::Symbol)
     MethodInvalidations(method, reason, methinv_storage()...)
 end
@@ -211,6 +212,13 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
         print(io, indent, "backedges: ")
         showlist(io, methinvs.backedges, length(indent)+length("backedges")+2)
     end
+    if !isempty(methinvs.mt_disable)
+        print(io, indent, "mt_disable: ")
+        println(io, first(methinvs.mt_disable))
+        if length(methinvs.mt_disable) > 1
+            println(io, indent + " "^12, "+", length(methinvs.mt_disable)-1, " more")
+        end
+    end
     if !isempty(methinvs.mt_cache)
         println(io, indent, length(methinvs.mt_cache), " mt_cache")
     end
@@ -269,7 +277,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     methodinvs = MethodInvalidations[]
     leaf = nothing
-    mt_backedges, backedges, mt_cache = methinv_storage()
+    mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
     i = 0
     while i < length(list)
@@ -302,12 +310,16 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     end
                     leaf = nothing
                 elseif loctag == "jl_method_table_disable"
-                    root = getroot(leaf)
-                    root.mi = mi
-                    if !exclude_corecompiler || !from_corecompiler(mi)
-                        push!(backedges, root)
+                    if leaf === nothing
+                        push!(mt_disable, mi)
+                    else
+                        root = getroot(leaf)
+                        root.mi = mi
+                        if !exclude_corecompiler || !from_corecompiler(mi)
+                            push!(backedges, root)
+                        end
+                        leaf = nothing
                     end
-                    leaf = nothing
                 elseif loctag == "insert_backedges"
                     println("insert_backedges for ", mi)
                 else
@@ -322,8 +334,8 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             item = list[i+=1]
             if isa(item, String)
                 reason = checkreason(reason, item)
-                push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache)))
-                mt_backedges, backedges, mt_cache = methinv_storage()
+                push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
+                mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
                 leaf = nothing
                 reason = nothing
             else
@@ -390,7 +402,7 @@ function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=f
     end
     mt_backedges = filter(pr->hasmod(mod, pr.second), methinvs.mt_backedges)
     backedges = filter(root->hasmod(mod, root), methinvs.backedges)
-    return MethodInvalidations(methinvs.method, methinvs.reason, mt_backedges, backedges, copy(methinvs.mt_cache))
+    return MethodInvalidations(methinvs.method, methinvs.reason, mt_backedges, backedges, copy(methinvs.mt_cache), copy(methinvs.mt_disable))
 end
 
 function filtermod(mod::Module, node::InstanceNode)
@@ -479,12 +491,12 @@ function findcaller(meth::Method, methinvs::MethodInvalidations)
     for (sig, node) in methinvs.mt_backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, [Pair{Any,InstanceNode}(sig, newtree(ret))], InstanceNode[], copy(methinvs.mt_cache))
+        return MethodInvalidations(methinvs.method, methinvs.reason, [Pair{Any,InstanceNode}(sig, newtree(ret))], InstanceNode[], copy(methinvs.mt_cache), copy(methinvs.mt_disable))
     end
     for node in methinvs.backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, Pair{Any,InstanceNode}[], [newtree(ret)], copy(methinvs.mt_cache))
+        return MethodInvalidations(methinvs.method, methinvs.reason, Pair{Any,InstanceNode}[], [newtree(ret)], copy(methinvs.mt_cache), copy(methinvs.mt_disable))
     end
     return nothing
 end

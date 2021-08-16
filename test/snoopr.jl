@@ -180,6 +180,22 @@ end
     @test tree.reason === :deleting
     @test tree.method == m
 
+    # Method overwriting
+    invs = @snoopr begin
+        @eval Module() begin
+            Base.@irrational twoπ 6.2831853071795864769 2*big(π)
+            Base.@irrational twoπ 6.2831853071795864769 2*big(π)
+        end
+    end
+    trees = invalidation_trees(invs)
+    @test length(trees) == 3
+    io = IOBuffer()
+    show(io, trees)
+    str = String(take!(io))
+    @test occursin(r"deleting Float64\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float64\(::Irrational{:twoπ}\)", str)
+    @test occursin(r"deleting Float32\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float32\(::Irrational{:twoπ}\)", str)
+    @test occursin(r"deleting BigFloat\(::Irrational{:twoπ}; precision\).*invalidated:\n.*backedges: 1: .*with MethodInstance for BigFloat\(::Irrational{:twoπ}\) \(1 children\)", str)
+
     # Exclusion of Core.Compiler methods
     invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
     umis1 = uinvalidated(invs)
