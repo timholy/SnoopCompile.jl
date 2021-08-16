@@ -5,6 +5,7 @@ using SnoopCompile, Test, Pkg
     @test success
     @test modsym == :ColorTypes
 
+    @info "Beginning @snoopc test on ColorTypes. Note failures in ColorTypes' tests do not count as failures here."
     mktempdir() do tmpdir
         tmpfile = joinpath(tmpdir, "colortypes_compiles.csv")
         tmpdir2 = joinpath(tmpdir, "precompile")
