@@ -1,0 +1,8 @@
+name = "StaleB"
+uuid = "af730a9e-e668-4d07-a0f0-de54196c2067"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+StaleA = "daf834c3-b832-4a67-a95b-01ec1ffe9b4d"
+StaleC = "f6b5ece7-60fa-49fc-ba7e-b783050e37f1"

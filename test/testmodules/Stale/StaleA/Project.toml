@@ -1,0 +1,4 @@
+name = "StaleA"
+uuid = "daf834c3-b832-4a67-a95b-01ec1ffe9b4d"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
