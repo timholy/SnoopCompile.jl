@@ -21,7 +21,7 @@ Cthulhu = "1.5, 2"
 FlameGraphs = "0.2"
 OrderedCollections = "1"
 Requires = "1"
-SnoopCompileCore = "~2.7.1"
+SnoopCompileCore = "~2.7.1, 2"
 YAML = "0.4"
 julia = "1"
 
