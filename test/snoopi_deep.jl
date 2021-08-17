@@ -40,7 +40,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test SnoopCompile.isROOT(Method(tinf))
     child = tinf.children[1]
     @test SnoopCompile.getroot(child.children[1]) == child
-    @test SnoopCompile.getroot(child.children[1].children[1].children[1]) == child
+    @test SnoopCompile.getroot(child.children[1].children[1]) == child
     @test isempty(staleinstances(tinf))
     frames = filter(!hasconstpropnumber, flatten(tinf))
     @test length(frames) == 7  # ROOT, g(::Int), g(::Bool), h(...), i(::Integer), i(::Int), i(::Bool)
