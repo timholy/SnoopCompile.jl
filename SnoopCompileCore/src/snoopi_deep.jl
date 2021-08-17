@@ -21,16 +21,53 @@ struct InferenceTimingNode
     start_time::Float64
     children::Vector{InferenceTimingNode}
     bt
+    parent::InferenceTimingNode
+
+    # Root constructor
+    InferenceTimingNode(mi_timing::InferenceTiming, start_time, @nospecialize(bt)) =
+        new(mi_timing, start_time, InferenceTimingNode[], bt)
+    # Child constructor
+    function InferenceTimingNode(mi_timing::InferenceTiming, start_time, @nospecialize(bt), parent::InferenceTimingNode)
+        child = new(mi_timing, start_time, InferenceTimingNode[], bt, parent)
+        push!(parent.children, child)
+        return child
+    end
 end
 inclusive(node::InferenceTimingNode) = inclusive(node.mi_timing)
 exclusive(node::InferenceTimingNode) = exclusive(node.mi_timing)
 InferenceTiming(node::InferenceTimingNode) = node.mi_timing
 
 function InferenceTimingNode(t::Core.Compiler.Timings.Timing)
-    children = [InferenceTimingNode(child) for child in t.children]
+    ttree = timingtree(t)
+    it, start_time, ttree_children = ttree::Tuple{InferenceTiming, Float64, Vector{Any}}
+    root = InferenceTimingNode(it, start_time, t.bt)
+    addchildren!(root, t, ttree_children)
+    return root
+end
+
+# Compute inclusive times and store as a temporary tree.
+# To allow InferenceTimingNode to be both bidirectional and immutable, we need to create parent node before the child nodes.
+# However, each node stores its inclusive time, which can only be computed efficiently from the leaves up (children before parents).
+# This performs the inclusive-time computation, storing the result as a "temporary tree" that can be used during
+# InferenceTimingNode creation (see `addchildren!`).
+function timingtree(t::Core.Compiler.Timings.Timing)
     time, start_time = t.time/10^9, t.start_time/10^9
-    incl_time = time + sum(inclusive, children; init=0.0)
-    return InferenceTimingNode(InferenceTiming(t.mi_info, incl_time, time), start_time, children, t.bt)
+    incl_time = time
+    tchildren = []
+    for child in t.children
+        tchild = timingtree(child)
+        push!(tchildren, tchild)
+        incl_time += inclusive(tchild[1])
+    end
+    return (InferenceTiming(t.mi_info, incl_time, time), start_time, tchildren)
+end
+
+function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timing, ttrees)
+    for (child, ttree) in zip(t.children, ttrees)
+        it, start_time, ttree_children = ttree::Tuple{InferenceTiming, Float64, Vector{Any}}
+        node = InferenceTimingNode(it, start_time, child.bt, parent)
+        addchildren!(node, child, ttree_children)
+    end
 end
 
 function start_deep_timing()

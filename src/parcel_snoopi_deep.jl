@@ -25,6 +25,8 @@ isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 isROOT(mi_info::InferenceNode) = isROOT(MethodInstance(mi_info))
 isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
 
+getroot(node::InferenceTimingNode) = isdefined(node.parent, :parent) ? getroot(node.parent) : node
+
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = Dict{Union{UInt, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
 lookups_key(ip) = ip
