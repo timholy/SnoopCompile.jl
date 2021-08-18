@@ -6,6 +6,7 @@ using Random
 using Profile
 using MethodAnalysis
 using Core: MethodInstance
+using Pkg
 # using PyPlot: PyPlot, plt    # uncomment to test visualizations
 
 using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
@@ -779,4 +780,33 @@ end
     dmp = rit[findfirst(pr -> pr.first == mp, rit)].second
     @test dmp.trtd == 0
     # pgdsgui(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
+end
+
+@testset "Stale" begin
+    if Base.VERSION >= v"1.8.0-DEV.368"
+        cproj = Base.active_project()
+        cd(joinpath("testmodules", "Stale")) do
+            Pkg.activate(pwd())
+            Pkg.precompile()
+        end
+        invalidations = @snoopr begin
+            using StaleA, StaleC
+            using StaleB
+        end
+        smis = filter(SnoopCompile.hasstaleinstance, methodinstances(StaleA))
+        @test length(smis) == 2
+        stalenames = [mi.def.name for mi in smis]
+        @test :build_stale ∈ stalenames
+        @test :use_stale ∈ stalenames
+        trees = invalidation_trees(invalidations)
+        tree = only(trees)
+        @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
+        @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
+        if Base.VERSION > v"1.8.0-DEV"   # FIXME
+            @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
+            @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
+            @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
+        end
+        Pkg.activate(cproj)
+    end
 end
