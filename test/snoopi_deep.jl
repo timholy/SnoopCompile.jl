@@ -788,6 +788,7 @@ end
         cd(joinpath("testmodules", "Stale")) do
             @show pwd
             Pkg.activate(pwd())
+            Pkg.status()
             Pkg.precompile()
         end
         invalidations = @snoopr begin
