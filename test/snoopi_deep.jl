@@ -789,6 +789,7 @@ end
             @show pwd()
             Pkg.activate(pwd())
             Pkg.status()
+            Pkg.instantiate()
             Pkg.precompile()
         end
         invalidations = @snoopr begin
