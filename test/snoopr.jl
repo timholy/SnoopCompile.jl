@@ -249,5 +249,13 @@ end
         @test mi1 == callee
         @test mi2 == caller
         @test Core.MethodInstance(tree.backedges[1]) == callee
+        io = IOBuffer()
+        print(io, tree)
+        str = String(take!(io))
+        @test occursin(r"fake1\(x\) in.*formerly fake1\(x\) in", str)
+        Base.delete_method(callee.def)
+        print(io, tree)
+        str = String(take!(io))
+        @test occursin(r"\(unavailable\).*formerly fake1\(x\) in", str)
     end
 end
