@@ -212,3 +212,42 @@ end
     @test isempty(filtermod(Outer, trees))
     @test length(filtermod(Outer, trees; recursive=true)) == 1
 end
+
+@testset "Delayed invalidations" begin
+    if Base.VERSION >= v"1.7.0-DEV.254"   # julia#39132 (redirect to Pipe)
+        # "Natural" tests are performed in the "Stale" testset of "snoopi_deep.jl"
+        # because they are also used for precompile_blockers.
+        # Here we craft them artificially.
+        M = @eval Module() begin
+            fake1(x) = 1
+            fake2(x) = fake1(x)
+            foo() = nothing
+            @__MODULE__
+        end
+        M.fake2('a')
+        callee = methodinstance(M.fake1, (Char,))
+        caller = methodinstance(M.fake2, (Char,))
+        # failed attribution (no invalidations occurred prior to the backedges invalidations)
+        invalidations = Any[callee, "insert_backedges_callee", caller, "insert_backedges"]
+        pipe = Pipe()
+        redirect_stdout(pipe) do
+            @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
+                trees = invalidation_trees(invalidations)
+                @test isempty(trees)
+            end
+        end
+        close(pipe.in)
+        str = read(pipe.out, String)
+        @test occursin(r"fake1\(::Char\).*invalidated.*fake2\(::Char\)", str)
+
+        m = which(M.foo, ())
+        invalidations = Any[Any[caller, Int32(1), callee, "jl_method_table_insert", m, "jl_method_table_insert"]; invalidations]
+        tree = @test_nowarn only(invalidation_trees(invalidations))
+        @test tree.method == m
+        @test tree.reason == :inserting
+        mi1, mi2 = tree.mt_backedges[1]
+        @test mi1 == callee
+        @test mi2 == caller
+        @test Core.MethodInstance(tree.backedges[1]) == callee
+    end
+end

@@ -187,7 +187,7 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
                 sig = root.first
                 if isa(sig, MethodInstance)
                     # "insert_backedges_callee"/"insert_backedges" (delayed) invalidations
-                    printstyled(io, which(sig.specTypes), color = :light_cyan)
+                    printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
                     print(io, " (formerly ", sig.def, ')')
                 else
                     # `sig` (immediate) invalidations
@@ -290,27 +290,24 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     function handle_insert_backedges(list, i, callee)
         ncovered = 0
+        callees = Any[callee]
         while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
-            if isa(callee, Type)
-                newcallee = list[i+1]
-                if isa(newcallee, MethodInstance)
-                    callee = newcallee
-                end
-            end
+            push!(callees, list[i+1])
             i += 2
         end
+        callers = MethodInstance[]
         while length(list) >= i+2 && list[i+2] == "insert_backedges"
-            caller = list[i+=1]
-            i += 1
-            push!(delayed, callee => caller)
+            push!(callers, list[i+1])
+            i += 2
             ncovered += 1
         end
+        push!(delayed, callees => callers)
         @assert ncovered > 0
         return i
     end
 
     methodinvs = MethodInvalidations[]
-    delayed = Pair{Any,MethodInstance}[]   # from "insert_backedges" invalidations
+    delayed = Pair{Vector{Any},Vector{MethodInstance}}[]   # from "insert_backedges" invalidations
     leaf = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
@@ -418,20 +415,31 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             end
         end
     end
-    trouble = similar(delayed, 0)
-    for (callee, caller) in delayed
-        if isa(callee, MethodInstance)
-            idx = get(callee2idx, callee.def, nothing)
-            if idx !== nothing
-                push!(methodinvs[idx].mt_backedges, callee => caller)
-                continue
+    solved = Int[]
+    for (i, (callees, callers)) in enumerate(delayed)
+        for callee in callees
+            if isa(callee, MethodInstance)
+                idx = get(callee2idx, callee.def, nothing)
+                if idx !== nothing
+                    for caller in callers
+                        push!(methodinvs[idx].mt_backedges, callee => caller)
+                    end
+                    push!(solved, i)
+                    break
+                end
             end
         end
-        push!(trouble, callee => caller)
     end
-    if !isempty(trouble)
+    deleteat!(delayed, solved)
+    if !isempty(delayed)
         @warn "Could not attribute the following delayed invalidations:"
-        display(trouble)
+        for (callees, callers) in delayed
+            @assert !isempty(callees)   # this shouldn't ever happen
+            printstyled(length(callees) == 1 ? callees[1] : callees; color = :light_cyan)
+            print(" invalidated ")
+            printstyled(length(callers) == 1 ? callers[1] : callers; color = :light_yellow)
+            println()
+        end
     end
     return sort!(methodinvs; by=countchildren)
 end
