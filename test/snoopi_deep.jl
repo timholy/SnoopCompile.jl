@@ -786,10 +786,7 @@ end
     if Base.VERSION >= v"1.8.0-DEV.368"
         cproj = Base.active_project()
         cd(joinpath("testmodules", "Stale")) do
-            @show pwd()
             Pkg.activate(pwd())
-            Pkg.status()
-            Pkg.instantiate()
             Pkg.precompile()
         end
         invalidations = @snoopr begin

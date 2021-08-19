@@ -221,14 +221,17 @@ end
         M = @eval Module() begin
             fake1(x) = 1
             fake2(x) = fake1(x)
+            fake3() = nothing
             foo() = nothing
             @__MODULE__
         end
         M.fake2('a')
+        M.fake3()
         callee = methodinstance(M.fake1, (Char,))
         caller = methodinstance(M.fake2, (Char,))
+        othercallee = methodinstance(M.fake3, ())
         # failed attribution (no invalidations occurred prior to the backedges invalidations)
-        invalidations = Any[callee, "insert_backedges_callee", caller, "insert_backedges"]
+        invalidations = Any[callee, "insert_backedges_callee", othercallee, "insert_backedges_callee", caller, "insert_backedges"]
         pipe = Pipe()
         redirect_stdout(pipe) do
             @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
