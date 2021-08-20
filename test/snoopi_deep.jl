@@ -18,7 +18,8 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
 
 @testset "@snoopi_deep" begin
     # WARMUP (to compile all the small, reachable methods)
-    @eval module M  # Example with some functions that include type instability
+    M = Module()
+    @eval M begin # Example with some functions that include type instability
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
@@ -27,7 +28,8 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     M.g(true)
 
     # Redefine the module, so the snoop will only show these functions:
-    @eval module M  # Example with some functions that include type instability
+    M = Module()
+    @eval M begin # Example with some functions that include type instability
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
@@ -93,7 +95,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test argtypes == [    Int, Vector{Any}, Integer, Int, Bool, Bool]
 
     # Also check module-level thunks
-    @eval module M  # Example with some functions that include type instability
+    @eval module M # Example with some functions that include type instability
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
@@ -231,7 +233,7 @@ fdouble(x) = 2x
     modtrigs = SnoopCompile.parcel(mtrigs)
     @test only(modtrigs).first === Base
     @test filtermod(Base, mtrigs) == mtrigs
-    @test isempty(filtermod(M, mtrigs))
+    @test isempty(filtermod(@__MODULE__, mtrigs))
 
     # Multiple callees on the same line
     fline(x) = 2*x[]
@@ -273,7 +275,8 @@ fdouble(x) = 2x
     @test skiphigherorder(itrig) == itrig
 
     # With a closure
-    @eval module M
+    M = Module()
+    @eval M begin
         function f(c, name)
             stringx(x) = string(x) * name
             stringx(x::Int) = string(x) * name
@@ -303,7 +306,8 @@ end
     io = IOBuffer()
 
     # UnspecCall and relation to Test
-    @eval module M
+    M = Module()
+    @eval M begin
         callee(x) = 2x
         caller(c) = callee(c[1])
     end
@@ -320,7 +324,8 @@ end
     @test occursin(r"non-inferrable or unspecialized call.*annotate caller\(c::Vector\{Any\}\) at snoopi_deep.*callee\(::Int", String(take!(io)))
 
     # Same test, but check the test harness & inlineable detection
-    @eval module M
+    M = Module()
+    @eval M begin
         callee(x) = 2x
         @inline caller(c) = callee(c[1])
     end
@@ -330,7 +335,8 @@ end
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
 
     # UnspecType
-    @eval module M
+    M = Module()
+    @eval M begin
         struct Container{L,T} x::T end
         Container(x::T) where {T} = Container{length(x),T}(x)
     end
@@ -338,7 +344,8 @@ end
     @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin("partial type call", String(take!(io)))
-    @eval module M
+    M = Module()
+    @eval M begin
         struct Typ end
         struct Container{N,T} x::T end
         Container{N}(x::T) where {N,T} = Container{N,T}(x)
@@ -352,7 +359,8 @@ end
     @test occursin("partial type call", String(take!(io)))
 
     # Invoke
-    @eval module M
+    M = Module()
+    @eval M begin
         @noinline callf(@nospecialize(f::Function), x) = f(x)
         g(x) = callf(sqrt, x)
     end
@@ -362,7 +370,8 @@ end
     @test occursin(r"invoked callee.*may fail to precompile", String(take!(io)))
 
     # FromInvokeLatest
-    @eval module M
+    M = Module()
+    @eval M begin
         f(::Int) = 1
         g(x) = Base.invokelatest(f, x)
     end
@@ -383,7 +392,8 @@ end
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin(r"variable callee.*avoid assigning function to variable", String(take!(io)))
     # CalleeVariable as an Argument
-    @eval module M
+    M = Module()
+    @eval M begin
         mysin(x) = 1
         mycos(x) = 2
         mytan(x) = 3
@@ -405,7 +415,8 @@ end
     cats = suggest(inference_triggers(tinf)[end]).categories
     @test cats == [SnoopCompile.CalleeVariable]
     # CalleeVariable & varargs
-    @eval module M
+    M = Module()
+    @eval M begin
         f1va(a...) = 1
         f2va(a...) = 2
         docallva(ref, x) = ref[](x...)
@@ -416,7 +427,8 @@ end
     end
     cats = categories(@snoopi_deep M.callsomething(Any['a', 2]))
     @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.CalleeVariable]
-    @eval module M
+    M = Module()
+    @eval M begin
         f1va(a...) = 1
         f2va(a...) = 2
         @noinline docallva(ref, x) = ref[](x...)
@@ -429,7 +441,8 @@ end
     @test cats == [SnoopCompile.CalleeVariable]
 
     # CallerVararg
-    @eval module M
+    M = Module()
+    @eval M begin
         f1(x) = 2x
         c1(x...) = f1(x[2])
     end
@@ -442,7 +455,8 @@ end
     @test occursin(r"non-inferrable or unspecialized call with vararg caller.*annotate", String(take!(io)))
 
     # CalleeVararg
-    @eval module M
+    M = Module()
+    @eval M begin
         f2(x...) = 2*x[2]
         c2(x) = f2(x...)
     end
@@ -454,7 +468,8 @@ end
     @test occursin(r"non-inferrable or unspecialized call with vararg callee.*annotate", String(take!(io)))
 
     # InvokeCalleeVararg
-    @eval module M
+    M = Module()
+    @eval M begin
         struct AType end
         struct BType end
         Base.show(io::IO, ::AType) = print(io, "A")
@@ -467,7 +482,8 @@ end
     @test occursin(r"invoked callee is varargs.*homogenize", String(take!(io)))
 
     # Vararg that resolves to a UnionAll
-    @eval module M
+    M = Module()
+    @eval M begin
         struct ArrayWrapper{T,N,A,Args} <: AbstractArray{T,N}
             data::A
             args::Args
@@ -477,7 +493,8 @@ end
     end
     # run and redefine for reproducible results
     M.makewrapper(rand(2,2), ["a", 'b', 5])
-    @eval module M
+    M = Module()
+    @eval M begin
         struct ArrayWrapper{T,N,A,Args} <: AbstractArray{T,N}
             data::A
             args::Args
@@ -506,7 +523,8 @@ end
     @test occursin("Tuple{String", str)
 
     # ErrorPath
-    @eval module M
+    M = Module()
+    @eval M begin
         struct MyType end
         struct MyException <: Exception
             info::Vector{MyType}
@@ -526,7 +544,8 @@ end
 
     # Core.Box
     @test !SnoopCompile.hascorebox(AbstractVecOrMat{T} where T)   # test Union handling
-    @eval module M
+    M = Module()
+    @eval M begin
         struct MyInt <: Integer end
         Base.:(*)(::MyInt, r::Int) = 7*r
         function abmult(r::Int, z)  # from https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
@@ -586,7 +605,8 @@ end
 end
 
 @testset "flamegraph_export" begin
-    @eval module M  # Take another tinf
+    M = Module()
+    @eval M begin # Take another tinf
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
@@ -615,12 +635,13 @@ end
         @test length(collect(AbstractTrees.PreOrderDFS(fg2))) == (length(collect(AbstractTrees.PreOrderDFS(fg))) - 1)
     end
     fg1 = flamegraph(tinf.children[1])
-    @test endswith(string(fg.child.data.sf.func), "M.g") && endswith(string(fg1.child.data.sf.func), "M.h")
+    @test endswith(string(fg.child.data.sf.func), ".g") && endswith(string(fg1.child.data.sf.func), ".h")
     fg2 = flamegraph(tinf.children[2])
-    @test endswith(string(fg2.child.data.sf.func), "M.i")
+    @test endswith(string(fg2.child.data.sf.func), ".i")
 
     # Printing
-    @eval module M
+    M = Module()
+    @eval M begin
         i(x) = x+5
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
@@ -631,9 +652,9 @@ end
     end
     @test isempty(staleinstances(tinf))
     fg = SnoopCompile.flamegraph(tinf)
-    @test endswith(string(fg.child.data.sf.func), "M.g")
+    @test endswith(string(fg.child.data.sf.func), ".g")
     counter = Dict{Method,Int}()
-    visit(getfield(@__MODULE__, :M)) do item
+    visit(M) do item
         if isa(item, Core.MethodInstance)
             m = item.def
             if isa(m, Method)
@@ -644,7 +665,7 @@ end
         return true
     end
     fg = SnoopCompile.flamegraph(tinf; mode=counter)
-    @test endswith(string(fg.child.data.sf.func), "M.g (2)")
+    @test endswith(string(fg.child.data.sf.func), ".g (2)")
 end
 
 @testset "demos" begin
