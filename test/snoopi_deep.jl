@@ -826,8 +826,13 @@ end
         @test root == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         idx = findfirst(isequal("jl_method_table_insert"), invalidations)
-        broken_trees = invalidation_trees(invalidations[idx+1:end])
-        @test isempty(precompile_blockers(broken_trees, tinf))
+        pipe = Pipe()
+        redirect_stdout(pipe) do
+            @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
+                broken_trees = invalidation_trees(invalidations[idx+1:end])
+                @test isempty(precompile_blockers(broken_trees, tinf))
+            end
+        end
         # IO
         io = IOBuffer()
         print(io, trees)
