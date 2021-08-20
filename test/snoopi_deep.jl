@@ -783,36 +783,36 @@ end
 end
 
 @testset "Stale" begin
-    if Base.VERSION >= v"1.8.0-DEV.368"
-        cproj = Base.active_project()
-        cd(joinpath("testmodules", "Stale")) do
-            Pkg.activate(pwd())
-            Pkg.precompile()
-        end
-        invalidations = @snoopr begin
-            using StaleA, StaleC
-            using StaleB
-        end
-        smis = filter(SnoopCompile.hasstaleinstance, methodinstances(StaleA))
-        @test length(smis) == 2
-        stalenames = [mi.def.name for mi in smis]
-        @test :build_stale ∈ stalenames
-        @test :use_stale ∈ stalenames
-        trees = invalidation_trees(invalidations)
-        tree = only(trees)
-        @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
-        @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
-        if Base.VERSION > v"1.8.0-DEV.368"
-            @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
-            @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
-            @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
-        end
+    cproj = Base.active_project()
+    cd(joinpath("testmodules", "Stale")) do
+        Pkg.activate(pwd())
+        Pkg.precompile()
+    end
+    invalidations = @snoopr begin
+        using StaleA, StaleC
+        using StaleB
+    end
+    smis = filter(SnoopCompile.hasstaleinstance, methodinstances(StaleA))
+    @test length(smis) == 2
+    stalenames = [mi.def.name for mi in smis]
+    @test :build_stale ∈ stalenames
+    @test :use_stale ∈ stalenames
+    trees = invalidation_trees(invalidations)
+    tree = only(trees)
+    @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
+    @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
+    if Base.VERSION > v"1.8.0-DEV.368"
+        @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
+        @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
+        @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
         tinf = @snoopi_deep begin
             StaleB.useA()
             StaleC.call_buildstale("hi")
         end
+        @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
         strees = precompile_blockers(invalidations, tinf)
         tree = only(strees)
+        @test inclusive(tree) > 0
         @test tree.method == which(StaleA.stale, (String,))
         root, hits = only(tree.backedges)
         @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
@@ -822,6 +822,6 @@ end
         str = String(take!(io))
         @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
         @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
-        Pkg.activate(cproj)
     end
+    Pkg.activate(cproj)
 end

@@ -7,7 +7,6 @@ struct StaleTree
     backedges::Vector{Tuple{InstanceNode,Vector{InferenceTimingNode}}}
 end
 StaleTree(method::Method, reason) = StaleTree(method, reason, staletree_storage()...)
-StaleTree(tree::MethodInvalidations) = StaleTree(tree.method, tree.reason)
 
 staletree_storage() = (
     Tuple{Any,Union{InstanceNode,MethodInstance},Vector{InferenceTimingNode}}[],
@@ -33,20 +32,13 @@ function Base.show(io::IO, tree::StaleTree)
 end
 
 function printdata(io, tnodes::AbstractVector{InferenceTimingNode})
-    print(io, " (")
     if length(tnodes) == 1
         print(io, tnodes[1])
     else
-        print(io, sum(inclusive, tnodes), " inclusive time")
+        print(io, sum(inclusive, tnodes), " inclusive time for $(length(tnodes)) nodes")
     end
-    print(io, ")")
 end
 
-
-
-
-precompile_blockers(invalidations, tinf::InferenceTimingNode) =
-    precompile_blockers(invalidation_trees(invalidations)::Vector{MethodInvalidations}, tinf)
 
 """
     staletrees = precompile_blockers(invalidations, tinf::InferenceTimingNode)
@@ -95,28 +87,13 @@ function precompile_blockers(trees::Vector{MethodInvalidations}, tinf::Inference
             push!(staletrees, StaleTree(tree.method, tree.reason, mt_backedges, backedges))
         end
     end
-    # # Associate each root with one or more snodes
-    # staletrees = StaleTree[]
-    # for (i, tree) in enumerate(pctrees)
-    #     staletree = StaleTree(tree)
-    #     for (sig, root) in tree.mt_backedges
-    #         for leaf in PreOrderDFS(root)
-    #             mi = MethodInstance(leaf)
-    #             if haskey(smis, mi)
-    #                 push!(staletree.mt_backedges, (sig, root, snodes[smis[mi]]))
-    #             end
-    #         end
-    #     end
-    #     if !isempty(mt_backedges) || !isempty(backedges) || !isempty(pre_invalidated)
-    #         sort!(pre_invalidated; by=inclusive ∘ last)
-    #         sort!(mt_backedges; by=suminclusive)
-    #         sort!(backedges; by=suminclusive)
-    #         push!(staletrees, StaleTree(tree.method, tree.reason, mt_backedges, backedges, pre_invalidated))
-    #     end
-    # end
     sort!(staletrees; by=inclusive)
     return staletrees
 end
+
+precompile_blockers(invalidations, tinf::InferenceTimingNode) =
+    precompile_blockers(invalidation_trees(invalidations)::Vector{MethodInvalidations}, tinf)
+
 
 function nodedict!(d, tinf::InferenceTimingNode)
     for child in tinf.children

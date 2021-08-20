@@ -224,7 +224,7 @@ function showlist(io::IO, treelist, indent::Int=0)
         elseif isa(root, Tuple)
             printstyled(io, root[end-1], color = :light_yellow)
             print(io, " blocked ")
-            show(IOContext(io, :typeinfo=>InferenceTimingNode), root[end])
+            printdata(io, root[end])
             root = nothing
         else
             print(io, "superseding ")
@@ -364,7 +364,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 elseif loctag == "insert_backedges"
                     # pre Julia 1.8
                     println("insert_backedges for ", mi)
-                    Base.VERSION < v"1.8.0-DEV" || error("unexpected failure at ", i)
+                    Base.VERSION < v"1.8.0-DEV.368" || error("unexpected failure at ", i)
                     @assert leaf === nothing
                 else
                     error("unexpected loctag ", loctag, " at ", i)
@@ -470,7 +470,8 @@ function filtermod(mod::Module, trees::AbstractVector{MethodInvalidations}; kwar
     return sort!(thinned; by=countchildren)
 end
 
-hasmod(mod::Module, node::InstanceNode) = node.mi.def.module === mod
+hasmod(mod::Module, node::InstanceNode) = hasmod(mod, MethodInstance(node))
+hasmod(mod::Module, mi::MethodInstance) = mi.def.module === mod
 
 function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=false)
     if recursive
