@@ -59,9 +59,9 @@ end
 staletrees = precompile_blockers(trees, tinf)
 ```
 """
-function precompile_blockers(trees::Vector{MethodInvalidations}, tinf::InferenceTimingNode)
+function precompile_blockers(trees::Vector{MethodInvalidations}, tinf::InferenceTimingNode; kwargs...)
     sig2node = nodedict!(IdDict{Type,InferenceTimingNode}(), tinf)
-    snodes = stalenodes(tinf)
+    snodes = stalenodes(tinf; kwargs...)
     mi2stalenode = Dict(MethodInstance(node) => i for (i, node) in enumerate(snodes))
     # Prepare "thinned trees" focusing just on those invalidations that blocked precompilation
     staletrees = StaleTree[]
@@ -91,8 +91,8 @@ function precompile_blockers(trees::Vector{MethodInvalidations}, tinf::Inference
     return staletrees
 end
 
-precompile_blockers(invalidations, tinf::InferenceTimingNode) =
-    precompile_blockers(invalidation_trees(invalidations)::Vector{MethodInvalidations}, tinf)
+precompile_blockers(invalidations, tinf::InferenceTimingNode; kwargs...) =
+    precompile_blockers(invalidation_trees(invalidations)::Vector{MethodInvalidations}, tinf; kwargs...)
 
 
 function nodedict!(d, tinf::InferenceTimingNode)

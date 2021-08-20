@@ -90,6 +90,7 @@ function Base.any(f, node::InstanceNode)
     return any(f, node.children)
 end
 
+# TODO: deprecate this in favor of `AbstractTrees.print_tree`, and limit it to one layer (e.g., like `:showchildren=>false`)
 function Base.show(io::IO, node::InstanceNode; methods=false, maxdepth::Int=5, minchildren::Int=round(Int, sqrt(countchildren(node))))
     if get(io, :limit, false)
         print(io, node.mi, " at depth ", node.depth, " with ", countchildren(node), " children")
@@ -99,19 +100,21 @@ function Base.show(io::IO, node::InstanceNode; methods=false, maxdepth::Int=5, m
         indent = " "^Int(node.depth)
         print(io, indent, methods ? node.mi.def : node.mi)
         println(io, " (", s, " children)")
-        p = sortperm(nc)
-        skipped = false
-        for i in p
-            child = node.children[i]
-            if child.depth <= maxdepth && nc[i] >= minchildren
-                show(io, child; methods=methods, maxdepth=maxdepth, minchildren=minchildren)
-            else
-                skipped = true
+        if get(io, :showchildren, true)::Bool
+            p = sortperm(nc)
+            skipped = false
+            for i in p
+                child = node.children[i]
+                if child.depth <= maxdepth && nc[i] >= minchildren
+                    show(io, child; methods=methods, maxdepth=maxdepth, minchildren=minchildren)
+                else
+                    skipped = true
+                end
             end
-        end
-        if skipped
-            println(io, indent, "⋮")
-            return nothing
+            if skipped
+                println(io, indent, "⋮")
+                return nothing
+            end
         end
     end
 end
@@ -222,7 +225,7 @@ function showlist(io::IO, treelist, indent::Int=0)
             sig = root.first
             root = root.second
         elseif isa(root, Tuple)
-            printstyled(io, root[end-1], color = :light_yellow)
+            printstyled(IOContext(io, :showchildren=>false), root[end-1], color = :light_yellow)
             print(io, " blocked ")
             printdata(io, root[end])
             root = nothing
