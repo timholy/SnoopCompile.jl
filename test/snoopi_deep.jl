@@ -40,6 +40,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
     @test SnoopCompile.isROOT(Method(tinf))
     child = tinf.children[1]
+    @test convert(SnoopCompile.InferenceTiming, child).inclusive_time > 0
     @test SnoopCompile.getroot(child.children[1]) == child
     @test SnoopCompile.getroot(child.children[1].children[1]) == child
     @test isempty(staleinstances(tinf))
@@ -783,30 +784,71 @@ end
 end
 
 @testset "Stale" begin
-    if Base.VERSION >= v"1.8.0-DEV.368"
-        cproj = Base.active_project()
-        cd(joinpath("testmodules", "Stale")) do
-            Pkg.activate(pwd())
-            Pkg.precompile()
-        end
-        invalidations = @snoopr begin
-            using StaleA, StaleC
-            using StaleB
-        end
-        smis = filter(SnoopCompile.hasstaleinstance, methodinstances(StaleA))
-        @test length(smis) == 2
-        stalenames = [mi.def.name for mi in smis]
-        @test :build_stale ∈ stalenames
-        @test :use_stale ∈ stalenames
-        trees = invalidation_trees(invalidations)
-        tree = only(trees)
-        @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
-        @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
-        if Base.VERSION > v"1.8.0-DEV"   # FIXME
-            @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
-            @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
-            @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
-        end
-        Pkg.activate(cproj)
+    cproj = Base.active_project()
+    cd(joinpath("testmodules", "Stale")) do
+        Pkg.activate(pwd())
+        Pkg.precompile()
     end
+    invalidations = @snoopr begin
+        using StaleA, StaleC
+        using StaleB
+    end
+    smis = filter(SnoopCompile.hasstaleinstance, methodinstances(StaleA))
+    @test length(smis) == 2
+    stalenames = [mi.def.name for mi in smis]
+    @test :build_stale ∈ stalenames
+    @test :use_stale ∈ stalenames
+    trees = invalidation_trees(invalidations)
+    tree = only(trees)
+    @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
+    @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
+    if Base.VERSION > v"1.8.0-DEV.368"
+        @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
+        @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
+        @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
+        tinf = @snoopi_deep begin
+            StaleB.useA()
+            StaleC.call_buildstale("hi")
+        end
+        @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
+        strees = precompile_blockers(invalidations, tinf)
+        tree = only(strees)
+        @test inclusive(tree) > 0
+        @test tree.method == which(StaleA.stale, (String,))
+        root, hits = only(tree.backedges)
+        @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
+        @test Core.MethodInstance(only(hits)).def == which(StaleA.use_stale, (Vector{Any},))
+        # If we don't discount ones left in an invalidated state,
+        # we get mt_backedges with a MethodInstance middle entry too
+        strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
+        sig, root, hits = only(only(strees2).mt_backedges)
+        @test sig == methodinstance(StaleA.stale, (String,))
+        @test root == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
+        # What happens when we can't find it in the tree?
+        idx = findfirst(isequal("jl_method_table_insert"), invalidations)
+        pipe = Pipe()
+        redirect_stdout(pipe) do
+            @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
+                broken_trees = invalidation_trees(invalidations[idx+1:end])
+                @test isempty(precompile_blockers(broken_trees, tinf))
+            end
+        end
+        # IO
+        io = IOBuffer()
+        print(io, trees)
+        @test occursin(r"stale\(x::String\) in StaleC.*formerly stale\(x\) in StaleA", String(take!(io)))
+        print(io, strees)
+        str = String(take!(io))
+        @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
+        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
+        @test endswith(str, "\n]")
+        print(IOContext(io, :compact=>true), strees)
+        str = String(take!(io))
+        @test endswith(str, ";]")
+        SnoopCompile.printdata(io, [hits; hits])
+        @test occursin("inclusive time for 2 nodes", String(take!(io)))
+        print(io, strees2)
+        @test occursin("mt_backedges", String(take!(io)))
+    end
+    Pkg.activate(cproj)
 end

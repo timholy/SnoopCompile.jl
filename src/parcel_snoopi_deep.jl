@@ -14,11 +14,15 @@ const flamegraph = FlameGraphs.flamegraph  # For re-export
 
 const rextest = r"Test\.jl$"       # for detecting calls from a @testset
 
+# While it might be nice to put some of these in SnoopCompileCore,
+# SnoopCompileCore guarantees that it doesn't extend any Base function.
 Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
 Core.MethodInstance(t::InferenceTiming) = MethodInstance(t.mi_info)
 Core.MethodInstance(t::InferenceTimingNode) = MethodInstance(t.mi_timing)
 
 Core.Method(x::InferenceNode) = MethodInstance(x).def::Method   # deliberately throw an error if this is a module
+
+Base.convert(::Type{InferenceTiming}, node::InferenceTimingNode) = node.mi_timing
 
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
@@ -214,9 +218,12 @@ For more information about world age, see https://docs.julialang.org/en/v1/manua
 """
 staleinstances(root::InferenceTimingNode; min_world_exclude = UInt(1)) = staleinstances!(InferenceTiming[], root, Base.get_world_counter(), UInt(min_world_exclude)::UInt)
 
+stalenodes(root::InferenceTimingNode; min_world_exclude = UInt(1)) = staleinstances!(InferenceTimingNode[], root, Base.get_world_counter(), UInt(min_world_exclude)::UInt)
+
 function staleinstances!(out, node::InferenceTimingNode, world::UInt, min_world_exclude::UInt)
     if hasstaleinstance(MethodInstance(node), world, min_world_exclude)
-        push!(out, node.mi_timing)
+        push!(out, node)
+        last(out) == node && return out   # don't check children if we collected the whole branch
     end
     for child in node.children
         staleinstances!(out, child, world, min_world_exclude)
