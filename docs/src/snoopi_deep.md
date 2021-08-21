@@ -160,7 +160,7 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 - empty horizontal spaces correspond to activities other than type-inference
 - any boxes colored red (there are none in this particular example, but you'll see some later) correspond to *non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module.
 
-You can explore this flamegraph and compare it to the output from `display_tree`.
+You can explore this flamegraph and compare it to the output from `print_tree`.
 
 Finally, [`flatten`](@ref), on its own or together with [`accumulate_by_source`](@ref), allows you to get an sense for the cost of individual `MethodInstance`s or `Method`s.
 
