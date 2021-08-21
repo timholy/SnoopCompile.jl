@@ -14,7 +14,7 @@ dependencies, triggers many invalidations, it has several bad effects:
 - any invalidated methods you need for the functionality in your package will have to be recompiled.
   This will lead to a direct (and occasionally large) slowdown for your package.
 - invalidations by your dependencies (packages you rely on) can block precompilation of methods in your package,
-  preventing you from taking advantage of some the other features of SnoopCompile.
+  preventing you from taking advantage of some of the other features of SnoopCompile.
 - even if you don't need the invalidated code for your package, any invalidations triggered by your package
   might harm packages that depend on yours.
 
