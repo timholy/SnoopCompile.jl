@@ -1,8 +1,56 @@
-# Using `@snoopi_deep` results to generate `precompile` directives
+# [Using `@snoopi_deep` results for precompilation](@id precompilation)
 
 Improving inferrability, specialization, and precompilability may sometimes feel like "eating your vegetables": really good for you, but it sometimes feels like work.  (Depending on tastes, of course; I love vegetables.)
 While we've already gotten some payoff, now we're going to collect an additional reward for our hard work: the "dessert" of adding `precompile` directives.
 It's worth emphasing that if we hadn't done the analysis of inference triggers and made improvements to our package, the benefit of adding `precompile` directives would have been substantially smaller.
+
+## Running work
+
+One of the simplest ways to force precompilation is to execute code. This has several advantages:
+
+- It is typically more robust across Julia versions
+- It automatically handles architecture differences like 32- vs 64-bit machines
+- It precompiles even the runtime-dispatch dependencies of a command
+  if the dependent methods are in the same package. This typically
+  results in much shorter precompile files than those that explicitly
+  use `precompile`.
+
+This approach looks like the following:
+
+```
+module MyPkg
+
+# All of your code that defines `MyPkg` goes here
+
+# precompile as the final step of the module definition:
+if ccall(:jl_generating_output, Cint, ()) == 1   # if we're precompiling the package
+    let
+        x = rand(Int, 5)
+        my_function(x)  # this will force precompilation `my_function(::Vector{Int}`)
+    end
+end
+
+end   # module MyPkg
+```
+
+When your module is being precompiled (`[ Info: Precompiling MyPkg [...]`), just before the module "closes" your block of work will be executed. This forces compilation, and these compiled MethodInstances will be cached.
+
+After adding such directives, it's recommended to check the flamegraph again and see if there are any major omissions.  You may need to add similar directives to some of the packages you depend on: precompilation is only effective if performed from the module that owns the method.  (One advantage of `parcel` is that it automatically assigns `precompile` directives to the appropriate package.)
+
+!!! note
+    The work done inside this block is only executed when the package is
+    being precompiled, not when it is loaded with `using
+    MyPkg`. Precompilation essentially takes a "snapshot" of the
+    module; `using` just reloads that snapshot, it does not re-execute
+    all the commands used to produce that snapshot.
+
+    The only role for the `ccall` is to prevent this work from being done
+    if you've started Julia with `--compiled-modules=no`.
+
+!!! warn
+    This style of precompilation may be undesirable or impossible if
+    your statements have side effects like opening new windows. In such
+    cases, you may be able to use it for lower-level calls.
 
 ## Parcel
 
@@ -73,7 +121,7 @@ function _precompile_()
 end
 ```
 
-The first `ccall` line ensures we only pay the cost of running these `precompile` directives if we're building the package; this is relevant mostly if you're running Julia with `--compiled-modules=no` so it is rarely something that matters.
+The first `ccall` line ensures we only pay the cost of running these `precompile` directives if we're building the package; this is relevant mostly if you're running Julia with `--compiled-modules=no`, which can be a convenient way to disable precompilation and examine packages in their "native state."
 (It would also matter if you've set `__precompile__(false)` at the top of your module, but if so why are you reading this?)
 
 This file is ready to be moved into the `OptimizeMe` repository and `include`d into your module definition.

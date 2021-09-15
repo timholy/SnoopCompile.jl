@@ -49,7 +49,7 @@ To profile inference on this call, we simply do the following:
 
 ```jldoctest flatten-demo; setup=:(using SnoopCompile), filter=r"([0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\.\n)"
 julia> tinf = @snoopi_deep FlattenDemo.packintype(1)
-InferenceTimingNode: 0.00932195/0.010080857 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
+InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 direct children
 ```
 
 !!! tip
@@ -80,6 +80,8 @@ A non-empty list might indicate method invalidations, which can be checked (in a
     One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
     before your workload triggers compilation.
 
+If you do have a lot of invalidations, [`precompile_blockers`](@ref) may be an effective way to reveal those invalidations that affect your particular package and workload.
+
 ## Viewing the results
 
 Let's start unpacking the output of `@snoopi_deep` and see how to get more insight.
@@ -94,14 +96,14 @@ We can do that with the [AbstractTrees](https://github.com/JuliaCollections/Abst
 julia> using AbstractTrees
 
 julia> print_tree(tinf)
-InferenceTimingNode: 0.00932195/0.0100809 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 1 direct children
-└─ InferenceTimingNode: 0.00018625/0.000758907 on InferenceFrameInfo for FlattenDemo.packintype(::Int64) with 2 direct children
-   ├─ InferenceTimingNode: 0.000132252/0.000132252 on InferenceFrameInfo for MyType{Int64}(::Int64) with 0 direct children
-   └─ InferenceTimingNode: 0.000116106/0.000440405 on InferenceFrameInfo for FlattenDemo.dostuff(::MyType{Int64}) with 2 direct children
-      ├─ InferenceTimingNode: 8.4173e-5/0.000161672 on InferenceFrameInfo for FlattenDemo.extract(::MyType{Int64}) with 2 direct children
-      │  ├─ InferenceTimingNode: 4.3641e-5/4.3641e-5 on InferenceFrameInfo for getproperty(::MyType{Int64}, ::Symbol) with 0 direct children
-      │  └─ InferenceTimingNode: 3.3858e-5/3.3858e-5 on InferenceFrameInfo for getproperty(::MyType{Int64}, x::Symbol) with 0 direct children
-      └─ InferenceTimingNode: 0.000162627/0.000162627 on InferenceFrameInfo for FlattenDemo.domath(::Int64) with 0 direct children
+InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 direct children
+└─ InferenceTimingNode: 0.000133/0.000566 on FlattenDemo.packintype(::Int64) with 2 direct children
+   ├─ InferenceTimingNode: 0.000094/0.000094 on FlattenDemo.MyType{Int64}(::Int64) with 0 direct children
+   └─ InferenceTimingNode: 0.000089/0.000339 on FlattenDemo.dostuff(::FlattenDemo.MyType{Int64}) with 2 direct children
+      ├─ InferenceTimingNode: 0.000064/0.000122 on FlattenDemo.extract(::FlattenDemo.MyType{Int64}) with 2 direct children
+      │  ├─ InferenceTimingNode: 0.000034/0.000034 on getproperty(::FlattenDemo.MyType{Int64}, ::Symbol) with 0 direct children
+      │  └─ InferenceTimingNode: 0.000024/0.000024 on getproperty(::FlattenDemo.MyType{Int64}, x::Symbol) with 0 direct children
+      └─ InferenceTimingNode: 0.000127/0.000127 on FlattenDemo.domath(::Int64) with 0 direct children
 ```
 
 This tree structure reveals the caller-callee relationships, showing the specific types that were used for each `MethodInstance`.
@@ -116,10 +118,10 @@ You can extract the `MethodInstance` with
 
 ```jldoctest flatten-demo
 julia> Core.MethodInstance(tinf)
-MethodInstance for Core.Compiler.Timings.ROOT()
+MethodInstance for ROOT()
 
 julia> Core.MethodInstance(tinf.children[1])
-MethodInstance for FlattenDemo.packintype(::Int64)
+MethodInstance for packintype(::Int64)
 ```
 
 Each node in this tree is accompanied by a pair of numbers.

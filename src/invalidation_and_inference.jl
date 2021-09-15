@@ -58,6 +58,12 @@ tinf = @snoopi_deep begin
 end
 staletrees = precompile_blockers(trees, tinf)
 ```
+
+In many cases, this reduces the number of invalidations that require analysis by one or more orders of magnitude.
+
+!!! info
+    `precompile_blockers` is experimental and has not yet been thoroughly vetted by real-world use.
+    Users are encouraged to try it and report any "misses" or unnecessary "hits."
 """
 function precompile_blockers(trees::Vector{MethodInvalidations}, tinf::InferenceTimingNode; kwargs...)
     sig2node = nodedict!(IdDict{Type,InferenceTimingNode}(), tinf)
