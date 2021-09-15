@@ -274,6 +274,11 @@ Again, if you're following along, it's possible that you'll see something quite 
 
 ## Filtering invalidations
 
+!!! info
+    The experimental tool [`SnoopCompile.precompile_blockers`](@ref) may be
+    able to help you identify just the invalidations you need to fix
+    for your use-case.
+
 Some method definitions trigger widespread invalidation.
 If you don't have time to fix all of them, you might want to focus on a specific set of invalidations.
 For instance, you might be the author of `PkgA` and you've noted that loading `PkgB` invalidates a lot of `PkgA`'s code.

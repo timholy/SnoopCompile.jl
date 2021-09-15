@@ -101,11 +101,14 @@ time to be discarded.
 
 !!! note
     If you're testing this, you might get different results depending on
-    the speed of your machine. Moreover, if FixedPointNumbers has already precompiled
-    these method and type combinations---perhaps by incorporating a precompile file
-    produced by SnoopCompile---then those methods will be absent.
-    If you want to try this example, `dev FixedPointNumbers` and disable any
-    `_precompile_()` call you find.
+    the speed of your machine. Moreover, if FixedPointNumbers has
+    already precompiled these method and type combinations---perhaps
+    by incorporating a precompile file produced by SnoopCompile---then
+    those methods will be absent.  For packages whose precompile
+    directives are executed only when `ccall(:jl_generating_output,
+    Cint, ()) == 1`, you can start Julia with `--compiled-modules=no`
+    to disable them.  Alternatively, you can `dev` the package and
+    comment them out.
 
 You can inspect these results and write your own precompile file, or use the automated
 tools provided by SnoopCompile.

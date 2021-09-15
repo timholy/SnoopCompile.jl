@@ -22,6 +22,7 @@ pgdsgui
 ```@docs
 uinvalidated
 invalidation_trees
+precompile_blockers
 filtermod
 findcaller
 ```

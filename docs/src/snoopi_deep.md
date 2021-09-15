@@ -80,6 +80,8 @@ A non-empty list might indicate method invalidations, which can be checked (in a
     One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
     before your workload triggers compilation.
 
+If you do have a lot of invalidations, [`precompile_blockers`](@ref) may be an effective way to reveal those invalidations that affect your particular package and workload.
+
 ## Viewing the results
 
 Let's start unpacking the output of `@snoopi_deep` and see how to get more insight.

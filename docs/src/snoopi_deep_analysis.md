@@ -1,4 +1,4 @@
-# Using `@snoopi_deep` results to improve inferrability
+# [Using `@snoopi_deep` results to improve inferrability](@id inferrability)
 
 As indicated in the [workflow](@ref), the recommended steps to reduce latency are:
 
