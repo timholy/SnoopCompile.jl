@@ -37,6 +37,8 @@ function pgdsgui(ax::PyCall.PyObject, ridata::AbstractVector{Pair{Union{Method,M
 
     meths, rts, its, nspecs, ecols = Union{Method,MethodLoc}[], Float64[], Float64[], Int[], Tuple{Float64,Float64,Float64}[]
     for (m, d) in ridata  # (rt, trtd, it, nspec)
+        d.trun == nothing && continue
+        d.tinf == nothing && continue
         push!(meths, m)
         push!(rts, d.trun)
         push!(its, d.tinf)
