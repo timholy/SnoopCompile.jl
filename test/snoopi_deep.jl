@@ -670,6 +670,23 @@ end
     end
     fg = SnoopCompile.flamegraph(tinf; mode=counter)
     @test endswith(string(fg.child.data.sf.func), ".g (2)")
+
+    # Non-precompilability
+    M = Module()
+    @eval M begin
+        struct MyFloat x::Float64 end
+        Base.isless(x::MyFloat, y::Float64) = isless(x.x, y)
+    end
+    tinf = @snoopi_deep begin
+        z = M.MyFloat(2.0)
+        z < 3.0
+    end
+    fg = SnoopCompile.flamegraph(tinf)
+    nonpc = false
+    for leaf in AbstractTrees.PreOrderDFS(fg)
+        nonpc |= leaf.data.sf.func === Symbol("Base.<") && leaf.data.status & FlameGraphs.runtime_dispatch != 0x0
+    end
+    @test nonpc
 end
 
 @testset "demos" begin
