@@ -192,7 +192,7 @@ function Base.show(io::IO, methinvs::MethodInvalidations)
         print(io, indent, "mt_disable: ")
         println(io, first(methinvs.mt_disable))
         if length(methinvs.mt_disable) > 1
-            println(io, indent + " "^12, "+", length(methinvs.mt_disable)-1, " more")
+            println(io, indent, " "^12, "+", length(methinvs.mt_disable)-1, " more")
         end
     end
     if !isempty(methinvs.mt_cache)
