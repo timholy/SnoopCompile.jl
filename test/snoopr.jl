@@ -195,6 +195,20 @@ end
     @test occursin(r"deleting Float64\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float64\(::Irrational{:twoπ}\)", str)
     @test occursin(r"deleting Float32\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float32\(::Irrational{:twoπ}\)", str)
     @test occursin(r"deleting BigFloat\(::Irrational{:twoπ}; precision\).*invalidated:\n.*backedges: 1: .*with MethodInstance for BigFloat\(::Irrational{:twoπ}\) \(1 children\)", str)
+    # #268
+    invs = @snoopr begin
+        @eval Module() begin
+            @noinline Base.throw_boundserror(A, I) = throw(BoundsError(A, I))
+        end
+    end
+    trees = invalidation_trees(invs)
+    show(io, trees)
+    lines = split(String(take!(io)), '\n')
+    idx = findfirst(str -> occursin("mt_disable", str), lines)
+    if idx !== nothing
+        @test occursin("throw_boundserror", lines[idx])
+        @test occursin(r"\+\d+ more", lines[idx+1])
+    end
 
     # Exclusion of Core.Compiler methods
     invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
