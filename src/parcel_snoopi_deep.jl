@@ -1767,12 +1767,18 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
     m = mi.def
     sf = isa(m, Method) ? StackFrame(mistr, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
                           StackFrame(mistr, :unknown, 0, mi, false, false, UInt64(0x0))
+    status = 0x0   # "default" status -- see FlameGraphs.jl
     if check_precompilable
         mod = isa(m, Method) ? m.module : m
         ispc = isprecompilable(mi; excluded_modules)
-        status, check_precompilable = UInt8(!ispc), !ispc
-    else
-        status = 0x0  # "default" status -- see FlameGraphs.jl
+        check_precompilable = !ispc
+        if !ispc
+            status |= FlameGraphs.runtime_dispatch
+        end
+    end
+    # Check for const-propagation
+    if hasconstprop(InferenceTiming(node))
+        status |= FlameGraphs.gc_event
     end
     start = node.start_time - start_secs
     if toplevel
@@ -1785,6 +1791,9 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
     return FlameGraphs.NodeData(sf, status, range), check_precompilable
 end
 
+hasconstprop(f::InferenceTiming) = hasconstprop(f.mi_info)
+hasconstprop(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(isconstant, mi_info.slottypes)
+isconstant(@nospecialize(t)) = isa(t, Core.Const) && !isa(t.val, Union{Type,Function})
 
 function frame_name(io::IO, mi_info::InferenceFrameInfo)
     frame_name(io, mi_info.mi::MethodInstance)
