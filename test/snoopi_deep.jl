@@ -1,5 +1,6 @@
 using SnoopCompile
 using SnoopCompile.SnoopCompileCore
+using SnoopCompile.FlameGraphs
 using Test
 using InteractiveUtils
 using Random
@@ -620,11 +621,14 @@ end
 
     fg = SnoopCompile.flamegraph(tinf)
     @test length(collect(AbstractTrees.PreOrderDFS(fg))) ∈ (5, 6, 14)  # depends on constant-prop
-    # Test that the span covers the whole tree.
+    # Test that the span covers the whole tree, and check for const-prop
+    has_constprop = false
     for leaf in AbstractTrees.PreOrderDFS(fg)
         @test leaf.data.span.start in fg.data.span
         @test leaf.data.span.stop in fg.data.span
+        has_constprop |= leaf.data.status & FlameGraphs.gc_event != 0x0
     end
+    Base.VERSION >= v"1.7" && @test has_constprop
 
     frame1, frame2 = frames[1], frames[2]
     t1, t2 = inclusive(frame1), inclusive(frame2)
@@ -666,6 +670,23 @@ end
     end
     fg = SnoopCompile.flamegraph(tinf; mode=counter)
     @test endswith(string(fg.child.data.sf.func), ".g (2)")
+
+    # Non-precompilability
+    M = Module()
+    @eval M begin
+        struct MyFloat x::Float64 end
+        Base.isless(x::MyFloat, y::Float64) = isless(x.x, y)
+    end
+    tinf = @snoopi_deep begin
+        z = M.MyFloat(2.0)
+        z < 3.0
+    end
+    fg = SnoopCompile.flamegraph(tinf)
+    nonpc = false
+    for leaf in AbstractTrees.PreOrderDFS(fg)
+        nonpc |= leaf.data.sf.func === Symbol("Base.<") && leaf.data.status & FlameGraphs.runtime_dispatch != 0x0
+    end
+    @test nonpc
 end
 
 @testset "demos" begin
@@ -781,7 +802,7 @@ end
     dspec = rit[findfirst(pr -> pr.first == m, rit)].second
     @test dspec.tinf > dspec.trun      # more time is spent on inference than on runtime
     @test dspec.nspec >= length(Ts)
-    # Check that much of the time in `mappushes!` is spend on runtime dispatch
+    # Check that much of the time in `mappushes!` is spent on runtime dispatch
     mp = @which SnoopBench.mappushes!(SnoopBench.spell_spec, [], first(Ts))
     dmp = rit[findfirst(pr -> pr.first == mp, rit)].second
     @test dmp.trtd >= 0.5*dmp.trun
