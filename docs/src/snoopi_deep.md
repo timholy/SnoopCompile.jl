@@ -161,6 +161,7 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 - ctrl-click can be used to zoom in
 - empty horizontal spaces correspond to activities other than type-inference
 - any boxes colored red (there are none in this particular example, but you'll see some later) correspond to *non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module.
+- any boxes colored orange-yellow (there is one in this demo) correspond to methods inferred for specific constants (constant propagation)
 
 You can explore this flamegraph and compare it to the output from `print_tree`.
 
