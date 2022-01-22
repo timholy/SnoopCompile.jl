@@ -118,10 +118,10 @@ You can extract the `MethodInstance` with
 
 ```jldoctest flatten-demo
 julia> Core.MethodInstance(tinf)
-MethodInstance for ROOT()
+MethodInstance for Core.Compiler.Timings.ROOT()
 
 julia> Core.MethodInstance(tinf.children[1])
-MethodInstance for packintype(::Int64)
+MethodInstance for FlattenDemo.packintype(::Int64)
 ```
 
 Each node in this tree is accompanied by a pair of numbers.
