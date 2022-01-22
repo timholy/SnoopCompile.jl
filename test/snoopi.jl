@@ -132,7 +132,14 @@ uncompiled(x) = x + 1
     @test  any(str->occursin("kwftype", str), FK)
     @test !any(str->occursin(r"Type\{NamedTuple.*typeof\(sin\)", str), FK)
     if VERSION >= v"1.4.0-DEV.215"
-        @test any(str->occursin("__lookup_kwbody__", str), FK)
+        mis = last.(tinf)
+        if !isempty(filter(mis) do mi
+                        length(mi.specTypes.parameters) >= 2 && mi.specTypes.parameters[end-1] === typeof(sortperm) && !(mi.specTypes.parameters[2] <: NamedTuple)
+                    end)
+            @test any(str->occursin("__lookup_kwbody__", str), FK)
+        else
+            @warn "Body method was not toplevel-inferred, test skipped"
+        end
     else
         @test any(str->occursin("isdefined", str), FK)
     end
