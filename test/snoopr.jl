@@ -214,7 +214,9 @@ end
     invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
     umis1 = uinvalidated(invs)
     umis2 = uinvalidated(invs; exclude_corecompiler=false)
-    @test length(umis2) > length(umis1) + 20
+    if Base.VERSION < v"1.8.0-DEV"
+        @test length(umis2) > length(umis1) + 20
+    end
 
     # recursive filtermod
     list = Union{Int,String}[1,2]

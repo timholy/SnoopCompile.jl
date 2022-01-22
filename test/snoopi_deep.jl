@@ -365,10 +365,16 @@ end
         @noinline callf(@nospecialize(f::Function), x) = f(x)
         g(x) = callf(sqrt, x)
     end
-    cats = categories(@snoopi_deep M.g(3))
-    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.Invoke]
-    SnoopCompile.show_suggest(io, cats, nothing, nothing)
-    @test occursin(r"invoked callee.*may fail to precompile", String(take!(io)))
+    tinf = @snoopi_deep M.g(3)
+    itrigs = inference_triggers(tinf)
+    if !isempty(itrigs)
+        cats = categories(tinf)
+        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.Invoke]
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test occursin(r"invoked callee.*may fail to precompile", String(take!(io)))
+    else
+        @warn "Skipped Invoke test due to improvements in inference"
+    end
 
     # FromInvokeLatest
     M = Module()
@@ -477,10 +483,15 @@ end
         Base.show(io::IO, ::BType) = print(io, "B")
         @noinline doprint(ref) = print(IOBuffer(), "a", ref[], 3.2)
     end
-    cats = categories(@snoopi_deep M.doprint(Ref{Union{M.AType,M.BType}}(M.AType())))
-    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.InvokedCalleeVararg]
-    SnoopCompile.show_suggest(io, cats, nothing, nothing)
-    @test occursin(r"invoked callee is varargs.*homogenize", String(take!(io)))
+    tinf = @snoopi_deep M.doprint(Ref{Union{M.AType,M.BType}}(M.AType()))
+    if !isempty(inference_triggers(tinf))
+        cats = categories(tinf)
+        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.InvokedCalleeVararg]
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test occursin(r"invoked callee is varargs.*homogenize", String(take!(io)))
+    else
+        @warn "Skipped InvokeCalleeVararg test due to improvements in inference"
+    end
 
     # Vararg that resolves to a UnionAll
     M = Module()
