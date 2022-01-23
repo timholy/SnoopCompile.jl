@@ -6,6 +6,15 @@ f3(::A) = 1
 f2(a::A) = f3(a)
 f1(a::A) = f2(a)
 
+function savevar(x; fn=joinpath(tempdir(), string(x)*".txt"))
+    open(fn, "w") do io
+        println(io, x)
+    end
+    return fn
+end
+
+sv() = savevar("horse")
+
 # Like map! except it uses push!
 # With a single call site
 mappushes!(f, dest, src) = (for item in src push!(dest, f(item)) end; return dest)

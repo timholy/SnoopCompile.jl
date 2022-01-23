@@ -380,14 +380,14 @@ parcel(tinf::InferenceTimingNode; tmin=0.0, kwargs...) = parcel(precompilable_ro
 
 ### write
 
-function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001)
+function get_reprs(tmi::Vector{Tuple{Float64,MethodInstance}}; tmin=0.001, kwargs...)
     strs = OrderedSet{String}()
     modgens = Dict{Module, Vector{Method}}()
     tmp = String[]
     twritten = 0.0
     for (t, mi) in reverse(tmi)
         if t >= tmin
-            if add_repr!(tmp, modgens, mi; check_eval=false, time=t)
+            if add_repr!(tmp, modgens, mi; check_eval=false, time=t, kwargs...)
                 str = pop!(tmp)
                 if !any(rex -> occursin(rex, str), default_exclusions)
                     push!(strs, str)
