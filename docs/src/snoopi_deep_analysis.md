@@ -11,6 +11,11 @@ The importance of fixing "problems" in type-inference was indicated in the [tuto
 
 In practice, it also turns out that opportunities to adjust specialization are often revealed by analyzing inference failures, so this page is complementary to the previous one.
 
+Finally, improving inference may also yield improvements in runtime performance, itself an excellent outcome.
+
+!!! note
+    [JET also detects inference failures](https://aviatesk.github.io/JET.jl/dev/optanalysis/), but JET and SnoopCompile use different mechanisms: JET performs *static* analysis of a particular call, while SnoopCompile performs *dynamic* analysis of new inference. As a consequence, JET's detection of inference failures is reproducible (you can run the same analysis repeatedly and get the same result) but terminates at any non-inferrable node of the call graph: you will miss runtime dispatch in any non-inferrable callees. Conversely, SnoopCompile's detection of inference failures can explore the entire callgraph, but only for those portions that have not been previously inferred, and the analysis cannot be repeated in the same session.
+
 Throughout this page, we'll use the `OptimizeMe` demo, which ships with `SnoopCompile`.
 
 !!! note
