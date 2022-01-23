@@ -200,6 +200,11 @@ can lead to insights. For example, you might be able to introduce a precompile i
 dependent package that can mitigate the total time.
 (`@snoopi_deep` makes the analysis and resolution of these issues more straightforward.)
 
+!!! tip
+    For packages that support just Julia 1.6 and higher, you may be able to slim down the precompile file by
+    adding `has_bodyfunction=true` to the arguments for `parcel`.
+    This setting applies for all packges in `inf_timing`, so you may need to call `parcel` twice (with both `false` and `true`) and select the appropriate precompile file for each package.
+
 ## Producing precompile directives manually
 
 While this "automated" approach is often useful, sometimes it makes more sense to

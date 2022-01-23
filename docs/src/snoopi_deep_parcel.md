@@ -111,6 +111,11 @@ Base.Ryu: precompiled 0.15733664599999997 out of 0.15733664599999997
 Main.OptimizeMeFixed: precompiled 0.4204474180000001 out of 0.4204474180000001
 ```
 
+!!! tip
+    For packages that support just Julia 1.6 and higher, you may be able to slim down the precompile file by
+    adding `has_bodyfunction=true` to the arguments for `write`.
+    This setting applies for all packges in `pcs`, so you may need to call `write` twice (with both `false` and `true`) and select the appropriate precompile file for each package.
+
 You'll now find a directory `/tmp/precompiles_OptimizeMe`, and inside you'll find three files, for `Base`, `Base.Ryu`, and `OptimizeMeFixed`, respectively.
 The contents of the last of these should be recognizable:
 

@@ -137,6 +137,8 @@ uncompiled(x) = x + 1
                         length(mi.specTypes.parameters) >= 2 && mi.specTypes.parameters[end-1] === typeof(sortperm) && !(mi.specTypes.parameters[2] <: NamedTuple)
                     end)
             @test any(str->occursin("__lookup_kwbody__", str), FK)
+            pc2 = SnoopCompile.parcel(tinf; has_bodyfunction=true)
+            @test !any(str->occursin("__lookup_kwbody__", str), pc2[:Base])
         else
             @warn "Body method was not toplevel-inferred, test skipped"
         end

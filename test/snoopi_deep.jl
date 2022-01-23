@@ -721,6 +721,20 @@ include("testmodules/SnoopBench.jl")
     @test isempty(prs)
     @test ttot2 == ttot
 
+    tinf = @snoopi_deep begin
+        fn = SnoopBench.sv()
+        rm(fn)
+    end
+    ttot, prs = SnoopCompile.parcel(tinf.children[1].children[1])
+    mod, (tmod, tmis) = only(prs)
+    io = IOBuffer()
+    SnoopCompile.write(io, tmis; tmin=0.0)
+    str = String(take!(io))
+    @test occursin("__lookup_kwbody__", str)
+    SnoopCompile.write(io, tmis; tmin=0.0, has_bodyfunction=true)
+    str = String(take!(io))
+    @test !occursin("__lookup_kwbody__", str)
+
     A = [a]
     tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
     @test isempty(staleinstances(tinf))

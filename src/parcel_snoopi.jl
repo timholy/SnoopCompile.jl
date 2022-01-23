@@ -242,7 +242,7 @@ let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
     end
 end
 
-function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
+function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true, has_bodyfunction::Bool=false)
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
     if !isdefined(m.module, nameparent)
         @debug "Module $topmod: skipping $m due to inability to look up kwbody parent" # see example related to issue #237
@@ -254,8 +254,13 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; c
     can1, exc1 = can_eval(topmod, whichstr, check_eval)
     if can1
         ttstr = tuplestring(paramrepr)
-        pcstr = """
-        let fbody = try __lookup_kwbody__($whichstr) catch missing end
+        pcstr = has_bodyfunction ? """
+            let fbody = try Base.bodyfunction($whichstr) catch missing end
+                if !ismissing(fbody)
+                    precompile($fstr, $ttstr)
+                end
+            end""" : """
+            let fbody = try __lookup_kwbody__($whichstr) catch missing end
                 if !ismissing(fbody)
                     precompile($fstr, $ttstr)
                 end
@@ -277,6 +282,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     exclusions = String[],
     remove_exclusions::Bool = true,
     check_eval::Bool = true,
+    has_bodyfunction::Bool = false,     # can set to true if your package only supports Julia 1.6+
     blacklist=nothing,                  # deprecated keyword
     remove_blacklist=nothing)           # deprecated keyword
 
@@ -323,7 +329,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
                 Core.eval(topmod, lookup_kwbody_ex)
             end
         end
-        add_repr!(pc[topmodname], modgens, mi, topmod; check_eval=check_eval)
+        add_repr!(pc[topmodname], modgens, mi, topmod; check_eval=check_eval, has_bodyfunction=has_bodyfunction)
     end
 
     # loop over the output
@@ -336,7 +342,7 @@ function parcel(tinf::AbstractVector{Tuple{Float64, Core.MethodInstance}};
     return Dict(mod=>collect(lines) for (mod, lines) in pc) # convert Set to Array before return
 end
 
-function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing)
+function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing, kwargs...)
     # Create the string representation of the signature
     # Use special care with keyword functions, anonymous functions
     tt = Base.unwrap_unionall(mi.specTypes)
@@ -364,7 +370,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
         fkw = "Core.kwftype(typeof($fname))"
         return add_if_evals!(list, topmod, fkw, paramrepr, tt; check_eval=check_eval, time=time)
     elseif mkwbody !== nothing
-        ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval)
+        ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval, kwargs...)
         if ret !== nothing
             push!(list, append_time(ret, time))
             return true
@@ -390,7 +396,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
                 else
                     if VERSION >= v"1.4.0-DEV.215"
                         getgen = "which(Core.kwfunc($(mkwc.captures[1])),$csigstr).generator.gen"
-                        ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval) #, getgen)
+                        ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval, kwargs...) #, getgen)
                         if ret !== nothing
                             push!(list, append_time(ret, time))
                             return true
