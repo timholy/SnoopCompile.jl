@@ -123,7 +123,7 @@ See also:  `flamegraph`, `flatten`, `inference_triggers`, `SnoopCompile.parcel`,
 julia> tinf = @snoopi_deep begin
            sort(rand(100))  # Evaluate some code and profile julia's type inference
        end
-InferenceTimingNode: 0.110018224/0.131464476 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 2 direct children
+InferenceTimingNode: 0.110018224/0.131464476 on Core.Compiler.Timings.ROOT() with 2 direct children
 ```
 
 """

@@ -11,10 +11,10 @@ makedocs(
     linkcheck = true,
     pages = ["index.md",
              "tutorial.md",
-             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "pgdsgui.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md"],
+             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "pgdsgui.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md", "jet.md"],
              "Older tools" => ["snoopi.md", "snoopc.md"],
              "userimg.md",
-             "reference.md"]
+             "reference.md"],
 )
 
 deploydocs(
