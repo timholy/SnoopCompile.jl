@@ -549,10 +549,14 @@ end
             return nothing
         end
     end
-    cats = categories(@snoopi_deep try M.checkstatus(false, M.MyType()) catch end)
-    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.ErrorPath]
-    SnoopCompile.show_suggest(io, cats, nothing, nothing)
-    @test occursin(r"error path.*ignore", String(take!(io)))
+    tinf = @snoopi_deep try M.checkstatus(false, M.MyType()) catch end
+    if !isempty(inference_triggers(tinf))
+        # Exceptions do not trigger a fresh entry into inference on Julia 1.8+
+        cats = categories(tinf)
+        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.ErrorPath]
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test occursin(r"error path.*ignore", String(take!(io)))
+    end
 
     # Core.Box
     @test !SnoopCompile.hascorebox(AbstractVecOrMat{T} where T)   # test Union handling
@@ -631,7 +635,12 @@ end
     frames = flatten(tinf; sortby=inclusive)
 
     fg = SnoopCompile.flamegraph(tinf)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg))) ∈ (5, 6, 14)  # depends on constant-prop
+    fgnodes = collect(AbstractTrees.PreOrderDFS(fg))
+    for tgtname in (Base.VERSION < v"1.7" ? (:h, :i) : (:h, :i, :+))
+        @test mapreduce(|, fgnodes; init=false) do node
+            node.data.sf.linfo.def.name == tgtname
+        end
+    end
     # Test that the span covers the whole tree, and check for const-prop
     has_constprop = false
     for leaf in AbstractTrees.PreOrderDFS(fg)
@@ -889,7 +898,8 @@ end
         # we get mt_backedges with a MethodInstance middle entry too
         strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
         sig, root, hits = only(only(strees2).mt_backedges)
-        @test sig == methodinstance(StaleA.stale, (String,))
+        mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
+        @test sig == mi_stale
         @test root == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         idx = findfirst(isequal("jl_method_table_insert"), invalidations)
