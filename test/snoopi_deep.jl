@@ -549,10 +549,14 @@ end
             return nothing
         end
     end
-    cats = categories(@snoopi_deep try M.checkstatus(false, M.MyType()) catch end)
-    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.ErrorPath]
-    SnoopCompile.show_suggest(io, cats, nothing, nothing)
-    @test occursin(r"error path.*ignore", String(take!(io)))
+    tinf = @snoopi_deep try M.checkstatus(false, M.MyType()) catch end
+    if !isempty(inference_triggers(tinf))
+        # Exceptions do not trigger a fresh entry into inference on Julia 1.8+
+        cats = categories(tinf)
+        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.ErrorPath]
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test occursin(r"error path.*ignore", String(take!(io)))
+    end
 
     # Core.Box
     @test !SnoopCompile.hascorebox(AbstractVecOrMat{T} where T)   # test Union handling
