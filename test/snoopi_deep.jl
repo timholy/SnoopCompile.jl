@@ -631,7 +631,12 @@ end
     frames = flatten(tinf; sortby=inclusive)
 
     fg = SnoopCompile.flamegraph(tinf)
-    @test length(collect(AbstractTrees.PreOrderDFS(fg))) ∈ (5, 6, 14)  # depends on constant-prop
+    fgnodes = collect(AbstractTrees.PreOrderDFS(fg))
+    for tgtname in (Base.VERSION < v"1.7" ? (:h, :i) : (:h, :i, :+))
+        @test mapreduce(|, fgnodes; init=false) do node
+            node.data.sf.linfo.def.name == tgtname
+        end
+    end
     # Test that the span covers the whole tree, and check for const-prop
     has_constprop = false
     for leaf in AbstractTrees.PreOrderDFS(fg)
