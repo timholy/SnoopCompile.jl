@@ -889,7 +889,8 @@ end
         # we get mt_backedges with a MethodInstance middle entry too
         strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
         sig, root, hits = only(only(strees2).mt_backedges)
-        @test sig == methodinstance(StaleA.stale, (String,))
+        mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
+        @test sig == mi_stale
         @test root == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         idx = findfirst(isequal("jl_method_table_insert"), invalidations)
