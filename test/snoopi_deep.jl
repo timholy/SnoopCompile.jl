@@ -882,7 +882,7 @@ end
         tree = trees[findfirst(tree -> !isempty(tree.mt_backedges), trees)]
         @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
         @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
-        @test Core.MethodInstance(only(tree.mt_backedges).second).def == which(StaleB.useA, ())
+        @test convert(Core.MethodInstance, only(tree.mt_backedges).second).def == which(StaleB.useA, ())
         tinf = @snoopi_deep begin
             StaleB.useA()
             StaleC.call_buildstale("hi")
@@ -907,7 +907,7 @@ end
         sig, root, hits = only(only(strees2).mt_backedges)
         mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
         @test sig == mi_stale
-        @test Core.MethodInstance(root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
+        @test convert(Core.MethodInstance, root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         idx = findfirst(isequal("jl_method_table_insert"), invalidations)
         pipe = Pipe()
