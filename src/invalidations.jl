@@ -351,6 +351,11 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         push!(backedges, root)
                     end
                     leaf = nothing
+                elseif loctag == "jl_insert_method_instance"
+                    @assert leaf !== nothing
+                    root = getroot(leaf)
+                    root = only(root.children)
+                    push!(mt_backedges, mi=>root)
                 elseif loctag == "jl_method_table_disable"
                     if leaf === nothing
                         push!(mt_disable, mi)

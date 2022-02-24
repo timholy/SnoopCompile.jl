@@ -875,57 +875,67 @@ end
     @test :build_stale ∈ stalenames
     @test :use_stale ∈ stalenames
     trees = invalidation_trees(invalidations)
-    tree = only(trees)
+    tree = trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
     if Base.VERSION > v"1.8.0-DEV.368"
+        tree = trees[findfirst(tree -> !isempty(tree.mt_backedges), trees)]
         @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
         @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
-        @test only(tree.mt_backedges).second.def == which(StaleB.useA, ())
+        @test Core.MethodInstance(only(tree.mt_backedges).second).def == which(StaleB.useA, ())
         tinf = @snoopi_deep begin
             StaleB.useA()
             StaleC.call_buildstale("hi")
         end
         @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
-        strees = precompile_blockers(invalidations, tinf)
-        tree = only(strees)
-        @test inclusive(tree) > 0
-        @test tree.method == which(StaleA.stale, (String,))
-        root, hits = only(tree.backedges)
-        @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
-        @test Core.MethodInstance(only(hits)).def == which(StaleA.use_stale, (Vector{Any},))
+        healed = true
+        if Base.VERSION < v"1.9.0-DEV.79" || Base.VERSION < v"1.8.0-beta2"
+            healed = false
+            # On more recent Julia, the invalidation of StaleA.stale is "healed over" by re-inferrence
+            # within StaleC. Hence we should skip this test.
+            strees = precompile_blockers(invalidations, tinf)
+            tree = only(strees)
+            @test inclusive(tree) > 0
+            @test tree.method == which(StaleA.stale, (String,))
+            root, hits = only(tree.backedges)
+            @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
+            @test Core.MethodInstance(only(hits)).def == which(StaleA.use_stale, (Vector{Any},))
+        end
         # If we don't discount ones left in an invalidated state,
         # we get mt_backedges with a MethodInstance middle entry too
         strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
         sig, root, hits = only(only(strees2).mt_backedges)
         mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
         @test sig == mi_stale
-        @test root == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
+        @test Core.MethodInstance(root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         idx = findfirst(isequal("jl_method_table_insert"), invalidations)
         pipe = Pipe()
         redirect_stdout(pipe) do
-            @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
-                broken_trees = invalidation_trees(invalidations[idx+1:end])
-                @test isempty(precompile_blockers(broken_trees, tinf))
-            end
+            broken_trees = invalidation_trees(invalidations[idx+1:end])
+            @test isempty(precompile_blockers(broken_trees, tinf))
         end
         # IO
         io = IOBuffer()
         print(io, trees)
         @test occursin(r"stale\(x::String\) in StaleC.*formerly stale\(x\) in StaleA", String(take!(io)))
-        print(io, strees)
+        if !healed
+            print(io, strees)
+            str = String(take!(io))
+            @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
+            @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
+            @test endswith(str, "\n]")
+            print(IOContext(io, :compact=>true), strees)
+            str = String(take!(io))
+            @test endswith(str, ";]")
+            SnoopCompile.printdata(io, [hits; hits])
+            @test occursin("inclusive time for 2 nodes", String(take!(io)))
+        end
+        print(io, only(strees2))
         str = String(take!(io))
-        @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
-        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
-        @test endswith(str, "\n]")
-        print(IOContext(io, :compact=>true), strees)
-        str = String(take!(io))
-        @test endswith(str, ";]")
-        SnoopCompile.printdata(io, [hits; hits])
-        @test occursin("inclusive time for 2 nodes", String(take!(io)))
-        print(io, strees2)
-        @test occursin("mt_backedges", String(take!(io)))
+        @test occursin(r"inserting stale\(.* in StaleC.*invalidated:", str)
+        @test occursin("mt_backedges", str)
+        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleB.useA", str)
     end
     Pkg.activate(cproj)
 end
