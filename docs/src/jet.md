@@ -1,7 +1,7 @@
 # [JET integration](@id JET)
 
 [JET](https://github.com/aviatesk/JET.jl) is a powerful tool for analyzing call graphs.
-Some of its functionality overlaps that of SnoopCompile's, that is, JET also provides mechanisms to detect potential errors.
+Conversely, some of its functionality overlaps that of SnoopCompile's, that is, JET also provides mechanisms to detect potential errors.
 JET is a purely static-analysis tool and lacks SnoopCompile's ability to "bridge" across runtime dispatch.
 In summary, JET doesn't need Julia to restart to find inference failures, but JET will only find the first inference failure.
 SnoopCompile has to run in a fresh session, but finds all inference failures.
