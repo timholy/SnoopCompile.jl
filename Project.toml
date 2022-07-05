@@ -20,7 +20,7 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 [compat]
 Cthulhu = "1.5, 2"
 FlameGraphs = "0.2"
-JET = "0.0, 0.4, 0.5"
+JET = "0.0, 0.4, 0.5, 0.6"
 OrderedCollections = "1"
 Requires = "1"
 SnoopCompileCore = "~2.9.0"
