@@ -20,12 +20,10 @@ struct OtherType
     str::String
 end
 
-let  # `let` prevents `list` from being a visible private name in the package
-    @precompile_calls :setup beginNaturally, y
-        # Putting some things in `:setup` can reduce the size of the
-        # precompile file and potentially make loading faster.
-        list = [OtherType("hello"), OtherType("world!")]
-    end
+@precompile_calls :setup begin
+    # Putting some things in `:setup` can reduce the size of the
+    # precompile file and potentially make loading faster.
+    list = [OtherType("hello"), OtherType("world!")]
     @precompile_calls begin
         # all calls in this block will be precompiled, regardless of whether
         # they belong to your package or not (on Julia 1.8 and higher)
@@ -46,9 +44,9 @@ When you build `MyPackage`, it will precompile the following, *including all the
 - `getindex(::Dict{MyPackage.MyType, Vector{MyPackage.OtherType}}, ::MyPackage.MyType)`
 - `last(::Vector{MyPackage.OtherType})`
 
-In this case, the "top level" calls were fully inferrable, so there are no additional
-entries on this list that were called by runtime dispatch. Thus, here you could have gotten
-the same result with manual `precompile` directives.
+In this case, the "top level" calls were fully inferrable, so there are no entries on this list
+that were called by runtime dispatch. Thus, here you could have gotten the same result with manual
+`precompile` directives.
 The key advantage of `@precompile_calls` is that it works even if the functions you're calling
 have runtime dispatch.
 
@@ -62,9 +60,20 @@ julia> SnoopPrecompile.verbose[] = true   # runs the block even if you're not pr
 julia> include("src/MyPackage.jl");
 ```
 
+Once you set up `SnoopPrecompile`, try your package and see if it reduces the time to first execution,
+using the same workload you put inside the `@precompile_calls` block.
+
+If you're happy with the results, you're done! If you want deeper verification of whether it worked as
+expected, or if you suspect problems, then the rest of SnoopCompile provides additional tools.
+Potential sources of trouble include invalidation (see [`@snoopr`](@ref) and related) and omission of
+intended calls from inside the `@precompile_calls` block (see [`@snoopi_deep`](@ref) and related).
+
 !!! note
-    Any calls that are already inferred prior to `@precompile_calls` may not be cached in the
-    package, unless they are for methods that belong to your package. You can use multiple
-    `@precompile_calls` blocks if you need to interleave `:setup` code with code that will precompile.
+    `@precompile_calls` works by monitoring type-inference. If the code was already inferred
+    prior to `@precompile_calls` (e.g., from prior usage), you might omit any external
+    methods that were called via runtime dispatch.
+
+    You can use multiple `@precompile_calls` blocks if you need to interleave `:setup` code with
+    code that you want precompiled.
     You can use `@snoopi_deep` to check for any (re)inference when you use the code in your package.
     To fix any specific problems, you can combine `@precompile_calls` with manual `precompile` directives.
