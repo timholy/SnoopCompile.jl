@@ -47,11 +47,13 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
+      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopPrecompile")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
+      - run: julia --project=SnoopPrecompile -e 'using Pkg; Pkg.test()'
       - uses: julia-actions/julia-processcoverage@v1
         with:
-          directories: src,SnoopCompileCore/src
+          directories: src,SnoopCompileCore/src,SnoopPrecompile/src
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
