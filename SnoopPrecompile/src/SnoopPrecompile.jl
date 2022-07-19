@@ -55,6 +55,17 @@ macro precompile_calls(args...)
         ex = args[1]::Expr
     end
     if sym == :all
+        if have_force_compile
+            ex = quote
+                begin
+                    Base.Experimental.@force_compile
+                    $ex
+                end
+            end
+        else
+            # Use the hack on earlier Julia versions that blocks the interpreter
+            pushfirst!(ex.args, :(while false end))
+        end
         if have_inference_tracking
             ex = quote
                 Core.Compiler.Timings.reset_timings()
@@ -69,17 +80,6 @@ macro precompile_calls(args...)
                 end
                 SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
             end
-        end
-        if have_force_compile
-            ex = quote
-                begin
-                    Base.Experimental.@force_compile
-                    $ex
-                end
-            end
-        else
-            # Use the hack on earlier Julia versions that blocks the interpreter
-            pushfirst!(ex.args, :(while false end))
         end
     end
     return esc(quote
