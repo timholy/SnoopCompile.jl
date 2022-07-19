@@ -1,0 +1,7 @@
+name = "SnoopPC_A"
+uuid = "13c4d82c-fea6-47db-9cd5-35bd2686c3b0"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+SnoopPrecompile = "66db9d55-30c0-4569-8b51-7e840670fc0c"

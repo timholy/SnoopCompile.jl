@@ -10,6 +10,7 @@ makedocs(
     modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
     linkcheck = true,
     pages = ["index.md",
+             "snoop_pc.md",
              "tutorial.md",
              "Modern tools" => ["snoopr.md", "snoopi_deep.md", "pgdsgui.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md", "jet.md"],
              "Older tools" => ["snoopi.md", "snoopc.md"],
