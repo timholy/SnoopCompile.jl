@@ -18,11 +18,11 @@ function call_findfirst(x, list)
 end
 
 let
-    @precompile_calls :setup begin
+    @precompile_setup begin
         list = [MyType(1), MyType(2), MyType(3)]
-    end
-    @precompile_calls begin
-        call_findfirst(MyType(2), list)
+        @precompile_all_calls begin
+            call_findfirst(MyType(2), list)
+        end
     end
 end
 

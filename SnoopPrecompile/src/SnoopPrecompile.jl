@@ -1,6 +1,6 @@
 module SnoopPrecompile
 
-export @precompile_calls
+export @precompile_all_calls, @precompile_setup
 
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
@@ -16,72 +16,95 @@ function precompile_roots(roots)
 end
 
 """
-    @precompile_calls f(args...)
+    @precompile_all_calls f(args...)
 
-    @precompile_calls :setup begin
-        vars = ...
-        @precompile_calls begin
-            y = f(vars...)
-            g(y)
-        end
-    end
+`precompile` any method-calls that occur inside the expression. All calls (direct or indirect) inside a
+`@precompile_all_calls` block will be precompiled.
 
-`precompile` any method-calls that occur inside the expression. All calls (direct or indirect) inside an
-"ordinary" `@precompile_calls` block (or one annotated with `:all`) will be precompiled. Code in `:setup`
-blocks is not necessarily precompiled, and can be used to set up data for use in the calls you do want
-to precompile.
+`@precompile_all_calls` has three key features:
 
-`@precompile_calls` has three key features:
-
-1. code inside (whether `:setup` or not) runs only when the package is being precompiled (i.e., a `*.ji`
+1. code inside runs only when the package is being precompiled (i.e., a `*.ji`
    precompile cache file is being written)
-2. in a non-`:setup` block the interpreter is disabled, ensuring your calls will be compiled
+2. the interpreter is disabled, ensuring your calls will be compiled
 3. both direct and indirect callees will be precompiled, even for methods defined in other packages
    and even for runtime-dispatched callees (requires Julia 1.8 and above).
+
+!!! note
+    For comprehensive precompilation, ensure the first usage of a given method/argument-type combination
+    occurs inside `@precompile_all_calls`.
+
+    In detail: runtime-dispatched callees are captured only when type-inference is executed, and they
+    are inferred only on first usage. Inferrable calls that trace back to a method defined in your package,
+    and their *inferrable* callees, will be precompiled regardless of "ownership" of the callees
+    (Julia 1.8 and higher).
+
+    Consequently, this recommendation matters only for:
+
+        - direct calls to methods defined in Base or other packages OR
+        - indirect runtime-dispatched calls to such methods.
 """
-macro precompile_calls(args...)
-    local sym, ex
-    if length(args) == 2
-        # This is tagged with a Symbol
-        isa(args[1], Symbol) || isa(args[1], QuoteNode) || throw(ArgumentError("expected a Symbol as the first argument to @precompile_calls, got $(typeof(args[1]))"))
-        isa(args[2], Expr) || throw(ArgumentError("expected an expression as the second argument to @precompile_calls, got $(typeof(args[2]))"))
-        sym = isa(args[1], Symbol) ? args[1]::Symbol : (args[1]::QuoteNode).value::Symbol
-        sym ∈ (:setup, :all) || throw(ArgumentError("first argument to @precompile_calls must be :setup or :all, got $(QuoteNode(sym))"))
-        ex = args[2]::Expr
+macro precompile_all_calls(ex::Expr)
+    if have_force_compile
+        ex = quote
+            begin
+                Base.Experimental.@force_compile
+                $ex
+            end
+        end
     else
-        length(args) == 1 || throw(ArgumentError("@precompile_calls accepts only one or two arguments"))
-        isa(args[1], Expr) || throw(ArgumentError("@precompile_calls expected an expression, got $(typeof(args[1]))"))
-        sym = :all
-        ex = args[1]::Expr
+        # Use the hack on earlier Julia versions that blocks the interpreter
+        pushfirst!(ex.args, :(while false end))
     end
-    if sym == :all
-        if have_force_compile
-            ex = quote
-                begin
-                    Base.Experimental.@force_compile
-                    $ex
-                end
+    if have_inference_tracking
+        ex = quote
+            local err, bt
+            err = bt = nothing
+            Core.Compiler.Timings.reset_timings()
+            Core.Compiler.__set_measure_typeinf(true)
+            try
+                $ex
+            catch e
+                err, bt = e, catch_backtrace()
+            finally
+                Core.Compiler.__set_measure_typeinf(false)
+                Core.Compiler.Timings.close_current_timer()
             end
-        else
-            # Use the hack on earlier Julia versions that blocks the interpreter
-            pushfirst!(ex.args, :(while false end))
-        end
-        if have_inference_tracking
-            ex = quote
-                Core.Compiler.Timings.reset_timings()
-                Core.Compiler.__set_measure_typeinf(true)
-                try
-                    $ex
-                catch err
-                    @warn "error in executing `@precompile_calls` expression" exception=(err,catch_backtrace())
-                finally
-                    Core.Compiler.__set_measure_typeinf(false)
-                    Core.Compiler.Timings.close_current_timer()
-                end
-                SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+            SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+            if err !== nothing
+                @warn "error in executing `@precompile_all_calls` expression" exception=(err,bt)
             end
         end
     end
+    return esc(quote
+        if ccall(:jl_generating_output, Cint, ()) == 1 || SnoopPrecompile.verbose[]
+            $ex
+        end
+    end)
+end
+
+"""
+    @precompile_setup begin
+        vars = ...
+        ⋮
+    end
+
+Run the code block only during package precompilation. `@precompile_setup` is often used in combination
+with [`@precompile_all_calls`](@ref), for example:
+
+    @precompile_setup begin
+        vars = ...
+        @precompile_all_calls begin
+            y = f(vars...)
+            g(y)
+            ⋮
+        end
+    end
+
+`@precompile_setup` does not force compilation (though it may happen anyway) nor intentionally capture
+runtime dispatches (though they will be precompiled anyway if the runtime-callee is for a method belonging
+to your package).
+"""
+macro precompile_setup(ex::Expr)
     return esc(quote
         # let
             if ccall(:jl_generating_output, Cint, ()) == 1 || SnoopPrecompile.verbose[]
