@@ -63,16 +63,11 @@ macro precompile_all_calls(ex::Expr)
             Core.Compiler.__set_measure_typeinf(true)
             try
                 $ex
-            catch e
-                err, bt = e, catch_backtrace()
             finally
                 Core.Compiler.__set_measure_typeinf(false)
                 Core.Compiler.Timings.close_current_timer()
             end
             SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
-            if err !== nothing
-                @warn "error in executing `@precompile_all_calls` expression" exception=(err,bt)
-            end
         end
     end
     return esc(quote

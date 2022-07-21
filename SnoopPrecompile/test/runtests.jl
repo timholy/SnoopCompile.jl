@@ -1,8 +1,10 @@
 using SnoopPrecompile
 using Test
+using UUIDs
 
 @testset "SnoopPrecompile.jl" begin
     push!(LOAD_PATH, @__DIR__)
+
     using SnoopPC_A
     if Base.VERSION >= v"1.8.0-rc1"
         # Check that calls inside :setup are not precompiled
@@ -36,4 +38,13 @@ using Test
         end
         @test count == 1
     end
+
+    pipe = Pipe()
+    id = Base.PkgId(UUID("d38b61e7-59a2-4ef9-b4d3-320bdc69b817"), "SnoopPC_B")
+    redirect_stderr(pipe) do
+        @test_throws Exception Base.require(id)
+    end
+    close(pipe.in)
+    str = read(pipe.out, String)
+    @test occursin("UndefVarError: missing_function not defined", str)
 end
