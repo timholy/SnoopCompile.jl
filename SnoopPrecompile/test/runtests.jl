@@ -39,12 +39,14 @@ using UUIDs
         @test count == 1
     end
 
-    pipe = Pipe()
-    id = Base.PkgId(UUID("d38b61e7-59a2-4ef9-b4d3-320bdc69b817"), "SnoopPC_B")
-    redirect_stderr(pipe) do
-        @test_throws Exception Base.require(id)
+    if Base.VERSION >= v"1.7"   # so we can use redirect_stderr(f, ::Pipe)
+        pipe = Pipe()
+        id = Base.PkgId(UUID("d38b61e7-59a2-4ef9-b4d3-320bdc69b817"), "SnoopPC_B")
+        redirect_stderr(pipe) do
+            @test_throws Exception Base.require(id)
+        end
+        close(pipe.in)
+        str = read(pipe.out, String)
+        @test occursin("UndefVarError: missing_function not defined", str)
     end
-    close(pipe.in)
-    str = read(pipe.out, String)
-    @test occursin("UndefVarError: missing_function not defined", str)
 end
