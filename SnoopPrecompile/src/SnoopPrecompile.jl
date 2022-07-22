@@ -53,12 +53,13 @@ macro precompile_all_calls(ex::Expr)
         end
     else
         # Use the hack on earlier Julia versions that blocks the interpreter
-        pushfirst!(ex.args, :(while false end))
+        ex = quote
+            while false end
+            $ex
+        end
     end
     if have_inference_tracking
         ex = quote
-            local err, bt
-            err = bt = nothing
             Core.Compiler.Timings.reset_timings()
             Core.Compiler.__set_measure_typeinf(true)
             try
