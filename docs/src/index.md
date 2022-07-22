@@ -72,6 +72,15 @@ Finally, another alternative for reducing latency without any modifications
 to package files is [Revise](https://github.com/timholy/Revise.jl).
 It can be used in conjunction with SnoopCompile.
 
+## Basic usage: SnoopPrecompile
+
+The "SnoopCompile family" includes a very small package, `SnoopPrecompile` (which does not require `SnoopCompile` itself),
+with which most packages can easily and effectively precompile code, particularly for Julia versions 1.8 and higher.
+See the [SnoopPrecompile](@ref) documentation.
+
+For many package developers, `SnoopPrecompile` may be all you need. In case of trouble (or if you want to check that
+`SnoopPrecompile` did its job thoroughly), the rest of `SnoopCompile` provides more sophisticated diagnostics.
+
 ## [A note on Julia versions and the recommended workflow](@id workflow)
 
 SnoopCompile is closely intertwined with Julia's own internals.
