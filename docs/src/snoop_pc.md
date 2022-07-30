@@ -27,7 +27,7 @@ end
     # Putting some things in `setup` can reduce the size of the
     # precompile file and potentially make loading faster.
     list = [OtherType("hello"), OtherType("world!")]
-    @precompile_all_calls all_begin
+    @precompile_all_calls begin
         # all calls in this block will be precompiled, regardless of whether
         # they belong to your package or not (on Julia 1.8 and higher)
         d = Dict(MyType(1) => list)
