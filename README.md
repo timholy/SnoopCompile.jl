@@ -10,4 +10,4 @@ loading packages and using them to do "real work."
 
 See the documentation:
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://timholy.github.io/SnoopCompile.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://timholy.github.io/SnoopCompile.jl/dev/)
