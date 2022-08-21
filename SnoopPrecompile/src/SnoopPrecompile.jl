@@ -68,11 +68,11 @@ macro precompile_all_calls(ex::Expr)
                 Core.Compiler.__set_measure_typeinf(false)
                 Core.Compiler.Timings.close_current_timer()
             end
-            SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+            $SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
         end
     end
     return esc(quote
-        if ccall(:jl_generating_output, Cint, ()) == 1 || SnoopPrecompile.verbose[]
+        if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
             $ex
         end
     end)
@@ -103,7 +103,7 @@ to your package).
 macro precompile_setup(ex::Expr)
     return esc(quote
         # let
-            if ccall(:jl_generating_output, Cint, ()) == 1 || SnoopPrecompile.verbose[]
+            if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
                 $ex
             end
         # end

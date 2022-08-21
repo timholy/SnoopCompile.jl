@@ -1,6 +1,6 @@
 module SnoopPC_A
 
-using SnoopPrecompile
+using SnoopPrecompile: @precompile_setup, @precompile_all_calls
 
 struct MyType
     x::Int
