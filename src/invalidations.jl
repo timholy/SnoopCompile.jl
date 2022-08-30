@@ -61,6 +61,7 @@ mutable struct InstanceNode
         end
         return leaf
     end
+    InstanceNode(mi::MethodInstance, children::Vector{InstanceNode}) = return new(mi, 0, children)
     # Create child with a given `parent`. Checks that the depths are consistent.
     function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth)
         @assert parent.depth + Int32(1) == depth
@@ -386,7 +387,18 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             item = list[i+=1]
             if isa(item, String)
                 reason = checkreason(reason, item)
-                push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
+                found = false
+                for tree in methodinvs
+                    if tree.method == method && tree.reason == reason
+                        join_invalidations!(tree.mt_backedges, mt_backedges)
+                        append!(tree.backedges, backedges)
+                        append!(tree.mt_cache, mt_cache)
+                        append!(tree.mt_disable, mt_disable)
+                        found = true
+                        break
+                    end
+                end
+                found || push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
                 mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
                 leaf = nothing
                 reason = nothing
@@ -437,7 +449,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 idx = get(callee2idx, callee.def, nothing)
                 if idx !== nothing
                     for caller in callers
-                        push!(methodinvs[idx].mt_backedges, callee => caller)
+                        join_invalidations!(methodinvs[idx].mt_backedges, [callee => caller])
                     end
                     push!(solved, i)
                     break
@@ -457,6 +469,40 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
         end
     end
     return sort!(methodinvs; by=countchildren)
+end
+
+function join_invalidations!(list::AbstractVector{<:Pair}, items::AbstractVector{<:Pair})
+    for (key, root) in items
+        found = false
+        node, mi = isa(root, MethodInstance) ? (InstanceNode(root, 0), root) : (root, root.mi)
+        for (key2, root2) in list
+            key2 == key || continue
+            mi2 = root2.mi
+            if mi2 == mi
+                # Find the first branch that isn't shared
+                join_branches!(node, root2)
+                found = true
+                break
+            end
+        end
+        found || push!(list, key => node)
+    end
+    return list
+end
+
+function join_branches!(to, from)
+    for cfrom in from.children
+        found = false
+        for cto in to.children
+            if cfrom.mi == cto.mi
+                join_branches!(cto, cfrom)
+                found = true
+                break
+            end
+        end
+        found || push!(to.children, cfrom)
+    end
+    return to
 end
 
 """
