@@ -222,7 +222,7 @@ fdouble(x) = 2x
         show(io, mtrig)
     end
     str = String(take!(io))
-    @test occursin("map(f, A::AbstractArray) in Base", str)
+    @test occursin(r"map\(f, A::AbstractArray\) (in|@) Base", str)
     @test occursin("2 callees from 1 caller", str)
     for mtrig in mtrigs
         summary(io, mtrig)
@@ -336,15 +336,17 @@ end
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
 
     # UnspecType
-    M = Module()
-    @eval M begin
-        struct Container{L,T} x::T end
-        Container(x::T) where {T} = Container{length(x),T}(x)
+    if Base.VERSION < v"1.9.0-DEV"   # on 1.9 there is no trigger assocated with the partial type call
+        M = Module()
+        @eval M begin
+            struct Container{L,T} x::T end
+            Container(x::T) where {T} = Container{length(x),T}(x)
+        end
+        cats = categories(@snoopi_deep M.Container([1,2,3]))
+        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
+        SnoopCompile.show_suggest(io, cats, nothing, nothing)
+        @test occursin("partial type call", String(take!(io)))
     end
-    cats = categories(@snoopi_deep M.Container([1,2,3]))
-    @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
-    SnoopCompile.show_suggest(io, cats, nothing, nothing)
-    @test occursin("partial type call", String(take!(io)))
     M = Module()
     @eval M begin
         struct Typ end
@@ -803,14 +805,16 @@ end
     Ts = subtypes(Any)
     tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     tf_unspec = flatten(tinf_unspec)
-    # To ensure independent data, invalidate all compiled CodeInstances
-    mis = map(last, accumulate_by_source(MethodInstance, tf_unspec))
-    for mi in mis
-        SnoopCompile.isROOT(mi) && continue
-        visit(mi) do item
-            isa(item, Core.CodeInstance) || return true
-            item.max_world = 0
-            return true
+    if Base.VERSION < v"1.8.0-DEV.1148"
+        # To ensure independent data, invalidate all compiled CodeInstances
+        mis = map(last, accumulate_by_source(MethodInstance, tf_unspec))
+        for mi in mis
+            SnoopCompile.isROOT(mi) && continue
+            visit(mi) do item
+                isa(item, Core.CodeInstance) || return true
+                item.max_world = 0
+                return true
+            end
         end
     end
     tinf_spec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
@@ -877,7 +881,7 @@ end
     trees = invalidation_trees(invalidations)
     tree = trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
-    @test Core.MethodInstance(only(tree.backedges)).def == which(StaleA.stale, (Any,))
+    @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
     if Base.VERSION > v"1.8.0-DEV.368"
         tree = trees[findfirst(tree -> !isempty(tree.mt_backedges), trees)]
         @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
@@ -918,7 +922,7 @@ end
         # IO
         io = IOBuffer()
         print(io, trees)
-        @test occursin(r"stale\(x::String\) in StaleC.*formerly stale\(x\) in StaleA", String(take!(io)))
+        @test occursin(r"stale\(x::String\) (in|@) StaleC.*formerly stale\(x\) (in|@) StaleA", String(take!(io)))
         if !healed
             print(io, strees)
             str = String(take!(io))
@@ -933,7 +937,7 @@ end
         end
         print(io, only(strees2))
         str = String(take!(io))
-        @test occursin(r"inserting stale\(.* in StaleC.*invalidated:", str)
+        @test occursin(r"inserting stale\(.* (in|@) StaleC.*invalidated:", str)
         @test occursin("mt_backedges", str)
         @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleB.useA", str)
     end
