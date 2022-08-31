@@ -889,7 +889,7 @@ end
         end
         @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
         healed = true
-        if Base.VERSION < v"1.9.0-DEV.79" || Base.VERSION < v"1.8.0-beta2"
+        if Base.VERSION < v"1.8"
             healed = false
             # On more recent Julia, the invalidation of StaleA.stale is "healed over" by re-inferrence
             # within StaleC. Hence we should skip this test.

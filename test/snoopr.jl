@@ -266,7 +266,7 @@ end
         @test tree.reason == :inserting
         mi1, mi2 = tree.mt_backedges[1]
         @test mi1 == callee
-        @test mi2 == caller
+        @test mi2.mi == caller
         @test Core.MethodInstance(tree.backedges[1]) == callee
         io = IOBuffer()
         print(io, tree)
