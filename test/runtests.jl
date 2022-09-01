@@ -1,9 +1,5 @@
 using Test
 
-if VERSION >= v"1.2.0-DEV.573"
-    include("snoopi.jl")
-end
-
 if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
     @testset "snoopi_deep" begin
         include("snoopi_deep.jl")
@@ -16,7 +12,15 @@ if VERSION >= v"1.6.0-DEV.1192"  # https://github.com/JuliaLang/julia/pull/37136
     end
 end
 
+if VERSION >= v"1.2.0-DEV.573"
+    include("snoopi.jl")
+end
+
 using SnoopCompile
+
+if isdefined(SnoopCompile, :invalidation_trees)
+    include("snoopr.jl")
+end
 
 @testset "Miscellaneous" begin
 # issue #26
@@ -111,8 +115,4 @@ end
 =#
 
 include("colortypes.jl")
-
-if isdefined(SnoopCompile, :invalidation_trees)
-    include("snoopr.jl")
-end
 
