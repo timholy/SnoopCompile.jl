@@ -2,7 +2,7 @@ import FlameGraphs
 
 using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
-using FlameGraphs.AbstractTrees
+using AbstractTrees
 using Core.Compiler.Timings: InferenceFrameInfo
 using SnoopCompileCore: InferenceTiming, InferenceTimingNode, inclusive, exclusive
 using Profile
@@ -1711,8 +1711,12 @@ function Base.summary(io::IO, loctrig::LocationTriggers)
 end
 Base.summary(loctrig::LocationTriggers) = summary(stdout, loctrig)
 
-const SuggestNode = AbstractTrees.AnnotationNode{Union{Nothing,Suggested}}
+struct SuggestNode
+    s::Union{Nothing,Suggested}
+    children::Vector{SuggestNode}
+end
 SuggestNode(s::Union{Nothing,Suggested}) = SuggestNode(s, SuggestNode[])
+AbstractTrees.children(node::SuggestNode) = node.children
 
 function suggest(node::TriggerNode)
     stree = node.itrig === nothing ? SuggestNode(nothing) : SuggestNode(suggest(node.itrig))

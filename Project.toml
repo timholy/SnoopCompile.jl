@@ -1,9 +1,10 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "2.9.2"
+version = "2.9.3"
 
 [deps]
+AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -18,8 +19,9 @@ SnoopCompileCore = "e2b509da-e806-4183-be48-004708413034"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
+AbstractTrees = "0.3, 0.4"
 Cthulhu = "1.5, 2"
-FlameGraphs = "0.2"
+FlameGraphs = "0.2, 1"
 JET = "0.0, 0.4, 0.5, 0.6"
 OrderedCollections = "1"
 Requires = "1"
