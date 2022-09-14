@@ -1,0 +1,4 @@
+name = "PkgC"
+uuid = "c8e0c308-2b2c-4e17-bb0b-031502754b83"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
