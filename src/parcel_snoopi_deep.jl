@@ -287,7 +287,7 @@ Precompiles(node::InferenceTimingNode) = Precompiles(InferenceTiming(node).mi_in
 
 Core.MethodInstance(pc::Precompiles) = MethodInstance(pc.mi_info)
 SnoopCompileCore.inclusive(pc::Precompiles) = pc.total_time
-precompilable_time(precompiles::Vector{Tuple{Float64,MethodInstance}}) where T = sum(first, precompiles; init=0.0)
+precompilable_time(precompiles::Vector{Tuple{Float64,MethodInstance}}) = sum(first, precompiles; init=0.0)
 precompilable_time(precompiles::Dict{MethodInstance,T}) where T = sum(values(precompiles); init=zero(T))
 precompilable_time(pc::Precompiles) = precompilable_time(pc.precompiles)
 
