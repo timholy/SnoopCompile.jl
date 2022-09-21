@@ -44,6 +44,7 @@ end
         - indirect runtime-dispatched calls to such methods.
 """
 macro precompile_all_calls(ex::Expr)
+    get(ENV, "SNOOP_PRECOMPILE", true) || return :()
     if have_force_compile
         ex = quote
             begin
@@ -101,6 +102,7 @@ runtime dispatches (though they will be precompiled anyway if the runtime-callee
 to your package).
 """
 macro precompile_setup(ex::Expr)
+    get(ENV, "SNOOP_PRECOMPILE", true) || return :()
     return esc(quote
         # let
             if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
