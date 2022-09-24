@@ -116,3 +116,6 @@ end
 
 include("colortypes.jl")
 
+if Base.VERSION >= v"1.7"
+    include("jet_integration.jl")
+end

@@ -1,14 +1,13 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "2.9.5"
+version = "3.0.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
-JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -25,7 +24,7 @@ FlameGraphs = "0.2, 1"
 JET = "0.0, 0.4, 0.5, 0.6"
 OrderedCollections = "1"
 Requires = "1"
-SnoopCompileCore = "~2.9.0"
+SnoopCompileCore = "~3.0.0"
 YAML = "0.4"
 julia = "1"
 
@@ -33,10 +32,11 @@ julia = "1"
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["ColorTypes", "Documenter", "FixedPointNumbers", "MethodAnalysis", "Pkg", "Random", "Test"]
+test = ["ColorTypes", "Documenter", "FixedPointNumbers", "JET", "MethodAnalysis", "Pkg", "Random", "Test"]

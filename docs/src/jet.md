@@ -91,7 +91,7 @@ As always, you need to do the data collection in a fresh session where the calls
 After restarting Julia, we can do this:
 
 ```
-julia> using SnoopCompile
+julia> using SnoopCompile, JET
 
 julia> list = Any[1,2,3];
 

@@ -119,6 +119,9 @@ function __init__()
     if isdefined(SnoopCompile, :runtime_inferencetime)
         @require PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("visualizations.jl")
     end
+    if isdefined(SnoopCompile, :inference_triggers)
+        @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("jet_integration.jl")
+    end
 end
 
 end # module
