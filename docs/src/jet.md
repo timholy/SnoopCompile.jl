@@ -1,22 +1,25 @@
 # [JET integration](@id JET)
 
 [JET](https://github.com/aviatesk/JET.jl) is a powerful tool for analyzing call graphs.
-Some of its functionality overlaps that of SnoopCompile's, that is, JET also provides mechanisms to detect potential errors.
-Conversely, JET is a purely static-analysis tool and lacks SnoopCompile's ability to "bridge" across runtime dispatch.
-In summary, JET doesn't need Julia to restart to find inference failures, but JET will only find the first inference failure.
-SnoopCompile has to run in a fresh session, but finds all inference failures.
+While JET and SnoopCompile have areas of overlap, their modes of data collection are very different, and the combination
+of both offers features that neither package provides on its own:
 
-For this reason, the combination of the tools provides capabilities that neither package has on its own.
-Specifically, one can use SnoopCompile to collect data on the callgraph and JET to perform the error analysis.
+- JET analyzes code "as it is," but cannot trace *through* calls that fail to be inferred (runtime dispatch). That is, JET's analysis stops at calls that fail to be inferred.
+- SnoopCompile analyzes code only when it is being compiled and thus only works for "fresh" code, but it can trace calls through inference failures as long as the callee is also "fresh."
+
+Consequently, using SnoopCompile to "bridge" across inference failures while using JET to analyze each well-inferred sub-graph can provide more comprehensive coverage about the code that runs when you execute a particular command.
 
 The integration between the two packages is bundled into SnoopCompile, specifically [`report_callee`](@ref),
 [`report_callees`](@ref), and [`report_caller`](@ref). These take [`InferenceTrigger`](@ref) (see the page on [inference failures](@ref inferrability)) and use them to generate JET reports.
+
+!!! note
+    To activate this "glue" code, you must load both packages: `using JET, SnoopCompile` (the order does not matter).
 
 We can demonstrate both the need and use of these tools with a simple extended example.
 
 ## JET usage
 
-JET provides a useful report for the following call:
+JET can be used to detect a possible error for the following call:
 
 ```jldoctest jet; filter=r"@ reduce.*"
 julia> using JET
@@ -78,15 +81,15 @@ julia> callsum(lc)
 6
 
 julia> @report_call callsum(lc)
-No errors !
+No errors detected
 ```
 
-Because we "hid" the type of `list` from inference, JET couldn't tell what specific instance of `sum` was going to be called, so it was unable to detect any errors.
+Because we "hid" the type of `list` from inference, JET couldn't tell which method of `sum` was going to be called, so it was unable to detect any errors.
 
 ## JET/SnoopCompile integration
 
 The resolution to this problem is to use SnoopCompile to do the "data collection" and JET to do the analysis.
-The key reason is that SnoopCompile is a dynamic analyzer, and is capable of bridging across runtime dispatch.
+The key reason is that SnoopCompile is a *dynamic* analyzer, and is capable of bridging across runtime dispatch.
 As always, you need to do the data collection in a fresh session where the calls have not previously been inferred.
 After restarting Julia, we can do this:
 

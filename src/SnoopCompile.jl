@@ -92,7 +92,6 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
     include("deep_demos.jl")
     export @snoopi_deep, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
     export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
-    export report_callee, report_caller, report_callees
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopl"))
