@@ -1,5 +1,7 @@
 using .JET
 
+export report_callee, report_caller, report_callees
+
 """
     report_callee(itrig::InferenceTrigger)
 
