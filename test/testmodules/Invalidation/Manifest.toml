@@ -1,0 +1,16 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.9.0-DEV"
+manifest_format = "2.0"
+project_hash = "0bc27949c56990fdb6d1c736921aa6799da2d200"
+
+[[deps.PkgC]]
+path = "PkgC"
+uuid = "c8e0c308-2b2c-4e17-bb0b-031502754b83"
+version = "0.1.0"
+
+[[deps.PkgD]]
+deps = ["PkgC"]
+path = "PkgD"
+uuid = "3a5fa9f4-f0a4-4856-859e-2bf0c30232a7"
+version = "0.1.0"
