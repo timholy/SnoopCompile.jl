@@ -286,20 +286,14 @@ julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
 See the documentation for further details.
 """
 function invalidation_trees(list; exclude_corecompiler::Bool=true)
-    function checkreason(reason, loctag)
-        if loctag == "jl_method_table_disable"
-            @assert reason === nothing || reason === :deleting
-            reason = :deleting
-        elseif loctag == "jl_method_table_insert"
-            @assert reason === nothing || reason === :inserting
-            reason = :inserting
-        else
-            error("unexpected reason ", loctag)
-        end
-        return reason
-    end
 
     function handle_insert_backedges(list, i, callee)
+        if Base.VERSION >= v"1.9.0-DEV.1432"
+            key = (list[i+=1], list[i+=1])
+            backedge_table[key] = (callee, list[i+=1])
+            return i
+        end
+
         ncovered = 0
         callees = Any[callee]
         while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
@@ -322,6 +316,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     leaf = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
+    backedge_table = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -377,10 +372,32 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 elseif loctag == "insert_backedges_callee"
                     i = handle_insert_backedges(list, i, mi)
                 elseif loctag == "insert_backedges"
-                    # pre Julia 1.8
-                    println("insert_backedges for ", mi)
-                    Base.VERSION < v"1.8.0-DEV.368" || error("unexpected failure at ", i)
-                    @assert leaf === nothing
+                    if Base.VERSION >= v"1.9.0-DEV.1432"
+                        key = (list[i+=1], list[i+=1])
+                        trig, causes = backedge_table[key]
+                        if leaf !== nothing
+                            root = getroot(leaf)
+                            root.mi = mi
+                            if trig isa MethodInstance
+                                oldroot = root
+                                root = InstanceNode(trig, [root])
+                                oldroot.parent = root
+                                push!(backedges, root)
+                            else
+                                push!(mt_backedges, trig=>root)
+                            end
+                        end
+                        for cause in causes
+                            add_method_trigger!(methodinvs, cause, :inserting, mt_backedges, backedges, mt_cache, mt_disable)
+                        end
+                        mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+                        leaf = nothing
+                        reason = nothing
+                    else
+                        # pre Julia 1.8
+                        Base.VERSION < v"1.8.0-DEV.368" || error("unexpected failure at ", i)
+                        @assert leaf === nothing
+                    end
                 else
                     error("unexpected loctag ", loctag, " at ", i)
                 end
@@ -393,18 +410,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             item = list[i+=1]
             if isa(item, String)
                 reason = checkreason(reason, item)
-                found = false
-                for tree in methodinvs
-                    if tree.method == method && tree.reason == reason
-                        join_invalidations!(tree.mt_backedges, mt_backedges)
-                        append!(tree.backedges, backedges)
-                        append!(tree.mt_cache, mt_cache)
-                        append!(tree.mt_disable, mt_disable)
-                        found = true
-                        break
-                    end
-                end
-                found || push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
+                add_method_trigger!(methodinvs, method, reason, mt_backedges, backedges, mt_cache, mt_disable)
                 mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
                 leaf = nothing
                 reason = nothing
@@ -477,6 +483,22 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     return sort!(methodinvs; by=countchildren)
 end
 
+function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_backedges, backedges, mt_cache, mt_disable)
+    found = false
+    for tree in methodinvs
+        if tree.method == method && tree.reason == reason
+            join_invalidations!(tree.mt_backedges, mt_backedges)
+            append!(tree.backedges, backedges)
+            append!(tree.mt_cache, mt_cache)
+            append!(tree.mt_disable, mt_disable)
+            found = true
+            break
+        end
+    end
+    found || push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
+    return methodinvs
+end
+
 function join_invalidations!(list::AbstractVector{<:Pair}, items::AbstractVector{<:Pair})
     for (key, root) in items
         found = false
@@ -509,6 +531,19 @@ function join_branches!(to, from)
         found || push!(to.children, cfrom)
     end
     return to
+end
+
+function checkreason(reason, loctag)
+    if loctag == "jl_method_table_disable"
+        @assert reason === nothing || reason === :deleting
+        reason = :deleting
+    elseif loctag == "jl_method_table_insert"
+        @assert reason === nothing || reason === :inserting
+        reason = :inserting
+    else
+        error("unexpected reason ", loctag)
+    end
+    return reason
 end
 
 """

@@ -1,4 +1,4 @@
-using SnoopCompile, InteractiveUtils, MethodAnalysis, Test
+using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
 
 const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
 
@@ -230,7 +230,31 @@ end
 end
 
 @testset "Delayed invalidations" begin
-    if Base.VERSION >= v"1.7.0-DEV.254"   # julia#39132 (redirect to Pipe)
+    if Base.VERSION >= v"1.9.0-DEV.1432"  # julia#46756
+        cproj = Base.active_project()
+        cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
+            Pkg.activate(pwd())
+            Pkg.develop(path="./PkgC")
+            Pkg.develop(path="./PkgD")
+            Pkg.precompile()
+            invalidations = @snoopr begin
+                @eval begin
+                    using PkgC
+                    PkgC.nbits(::UInt8) = 8
+                    using PkgD
+                end
+            end
+            tree = only(invalidation_trees(invalidations))
+            @test tree.reason == :inserting
+            @test tree.method.file == Symbol(@__FILE__)
+            @test isempty(tree.backedges)
+            sig, root = only(tree.mt_backedges)
+            @test sig.parameters[1] === typeof(PkgC.nbits)
+            @test sig.parameters[2] === Integer
+            @test root.mi == only(methods(PkgD.call_nbits)).specializations[1]
+        end
+        Pkg.activate(cproj)
+    elseif Base.VERSION >= v"1.7.0-DEV.254"   # julia#39132 (redirect to Pipe)
         # "Natural" tests are performed in the "Stale" testset of "snoopi_deep.jl"
         # because they are also used for precompile_blockers.
         # Here we craft them artificially.
