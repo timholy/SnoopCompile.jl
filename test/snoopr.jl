@@ -1,4 +1,5 @@
 using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
+import PrettyTables
 
 const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
 
@@ -187,6 +188,23 @@ end
             Base.@irrational twoπ 6.2831853071795864769 2*big(π)
         end
     end
+
+    # Tabulate invalidations:
+    (; table_data, header) = SnoopCompile.tabulated_invalidations(;
+        job_name = "job_name",
+        invalidations = invs,
+        process_filename = x -> "SnoopCompile.jl"*last(split(x, basename(pkgdir(SnoopCompile)))),
+    )
+    PrettyTables.pretty_table(
+        table_data;
+        header,
+        formatters = PrettyTables.ft_printf("%s", 2:2),
+        header_crayon = PrettyTables.crayon"yellow bold",
+        subheader_crayon = PrettyTables.crayon"green bold",
+        crop = :none,
+        alignment = [:l, :c, :c, :c],
+    )
+
     trees = invalidation_trees(invs)
     @test length(trees) == 3
     io = IOBuffer()
