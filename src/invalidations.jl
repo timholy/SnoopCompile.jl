@@ -249,27 +249,44 @@ function showlist(io::IO, treelist, indent::Int=0)
     end
 end
 
-function _callees(list, i)
-    callees = MethodInstance[]
-    while i+2 ≤ length(list) && list[i] == "insert_backedges_callee"
-        callee = list[i-1]::MethodInstance
-        target_idx = list[i+1]::Int32
-        matches::Vector{Method} = list[i+2]
-        push!(callees, callee)
-        i += 4
+function _insert_backedges_callees(list, i, callee)
+    if Base.VERSION >= v"1.9.0-DEV.1512" # julia/pull/46920
+        callees = MethodInstance[]
+        while i+2 ≤ length(list) && list[i] == "insert_backedges_callee"
+            callee = list[i-1]::MethodInstance
+            target_idx = list[i+1]::Int32
+            matches::Vector{Method} = list[i+2]
+            push!(callees, callee)
+            i += 4
+        end
+        return (i, callees)
+    else
+        callees = Any[callee]
+        while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
+            push!(callees, list[i+1])
+            i += 2
+        end
+        return (i, callees)
     end
-    return (i, callees)
 end
 
-function _callers(list, i)
+function _insert_backedges_callers(list, i)
     callers = MethodInstance[]
     did_run = false
-    while i+1 ≤ length(list) && list[i] == "verify_methods"
-        caller = list[i-1]::MethodInstance
-        callee_idx = list[i+1]::Int32
-        push!(callers, caller)
-        i += 2
-        did_run = true
+    if Base.VERSION >= v"1.9.0-DEV.1512" # julia/pull/46920
+        while i+1 ≤ length(list) && list[i] == "verify_methods"
+            caller = list[i-1]::MethodInstance
+            callee_idx = list[i+1]::Int32
+            push!(callers, caller)
+            i += 2
+            did_run = true
+        end
+    else
+        while length(list) >= i+2 && list[i+2] == "insert_backedges"
+            push!(callers, list[i+1])
+            i += 2
+            did_run = true
+        end
     end
     @assert did_run
     return (i, callers)
@@ -277,28 +294,9 @@ end
 
 function handle_insert_backedges!(delayed, list, i, callee)
     @assert list[i] == "insert_backedges_callee"
-    if Base.VERSION >= v"1.9.0-DEV.1512" # julia/pull/46920
-        ncovered = 0
-        i, callees = _callees(list, i)
-        i, callers = _callers(list, i)
-        push!(delayed, callees => callers)
-        return i
-    end
-
-    ncovered = 0
-    callees = Any[callee]
-    while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
-        push!(callees, list[i+1])
-        i += 2
-    end
-    callers = MethodInstance[]
-    while length(list) >= i+2 && list[i+2] == "insert_backedges"
-        push!(callers, list[i+1])
-        i += 2
-        ncovered += 1
-    end
+    i, callees = _insert_backedges_callees(list, i, callee)
+    i, callers = _insert_backedges_callers(list, i)
     push!(delayed, callees => callers)
-    @assert ncovered > 0
     return i
 end
 
@@ -476,7 +474,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     deleteat!(delayed, solved)
     if !isempty(delayed)
         @warn "Could not attribute the following delayed invalidations:"
-        for (callees, callers) in delayed
+        for (callees, callers) in delayed # Vector{Method
             @assert !isempty(callees)   # this shouldn't ever happen
             printstyled(length(callees) == 1 ? callees[1] : callees; color = :light_cyan)
             print(" invalidated ")
