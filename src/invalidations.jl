@@ -249,6 +249,59 @@ function showlist(io::IO, treelist, indent::Int=0)
     end
 end
 
+function _callees(list, i)
+    callees = MethodInstance[]
+    while i+2 ≤ length(list) && list[i] == "insert_backedges_callee"
+        callee = list[i-1]::MethodInstance
+        target_idx = list[i+1]::Int32
+        matches::Vector{Method} = list[i+2]
+        push!(callees, callee)
+        i += 4
+    end
+    return (i, callees)
+end
+
+function _callers(list, i)
+    callers = MethodInstance[]
+    did_run = false
+    while i+1 ≤ length(list) && list[i] == "verify_methods"
+        caller = list[i-1]::MethodInstance
+        callee_idx = list[i+1]::Int32
+        push!(callers, caller)
+        i += 2
+        did_run = true
+    end
+    @assert did_run
+    return (i, callers)
+end
+
+function handle_insert_backedges!(delayed, list, i, callee)
+    @assert list[i] == "insert_backedges_callee"
+    if Base.VERSION >= v"1.9.0-DEV.1512" # julia/pull/46920
+        ncovered = 0
+        i, callees = _callees(list, i)
+        i, callers = _callers(list, i)
+        push!(delayed, callees => callers)
+        return i
+    end
+
+    ncovered = 0
+    callees = Any[callee]
+    while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
+        push!(callees, list[i+1])
+        i += 2
+    end
+    callers = MethodInstance[]
+    while length(list) >= i+2 && list[i+2] == "insert_backedges"
+        push!(callers, list[i+1])
+        i += 2
+        ncovered += 1
+    end
+    push!(delayed, callees => callers)
+    @assert ncovered > 0
+    return i
+end
+
 """
     trees = invalidation_trees(list)
 
@@ -286,37 +339,12 @@ julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
 See the documentation for further details.
 """
 function invalidation_trees(list; exclude_corecompiler::Bool=true)
-
-    function handle_insert_backedges(list, i, callee)
-        if Base.VERSION >= v"1.9.0-DEV.1432"
-            key = (list[i+=1], list[i+=1])
-            backedge_table[key] = (callee, list[i+=1])
-            return i
-        end
-
-        ncovered = 0
-        callees = Any[callee]
-        while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
-            push!(callees, list[i+1])
-            i += 2
-        end
-        callers = MethodInstance[]
-        while length(list) >= i+2 && list[i+2] == "insert_backedges"
-            push!(callers, list[i+1])
-            i += 2
-            ncovered += 1
-        end
-        push!(delayed, callees => callers)
-        @assert ncovered > 0
-        return i
-    end
-
     methodinvs = MethodInvalidations[]
     delayed = Pair{Vector{Any},Vector{MethodInstance}}[]   # from "insert_backedges" invalidations
     leaf = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
-    backedge_table = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
+    backedge_table = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Method}}}()
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -370,34 +398,10 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         leaf = nothing
                     end
                 elseif loctag == "insert_backedges_callee"
-                    i = handle_insert_backedges(list, i, mi)
+                    i = handle_insert_backedges!(delayed, list, i, mi)
                 elseif loctag == "insert_backedges"
-                    if Base.VERSION >= v"1.9.0-DEV.1432"
-                        key = (list[i+=1], list[i+=1])
-                        trig, causes = backedge_table[key]
-                        if leaf !== nothing
-                            root = getroot(leaf)
-                            root.mi = mi
-                            if trig isa MethodInstance
-                                oldroot = root
-                                root = InstanceNode(trig, [root])
-                                oldroot.parent = root
-                                push!(backedges, root)
-                            else
-                                push!(mt_backedges, trig=>root)
-                            end
-                        end
-                        for cause in causes
-                            add_method_trigger!(methodinvs, cause, :inserting, mt_backedges, backedges, mt_cache, mt_disable)
-                        end
-                        mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
-                        leaf = nothing
-                        reason = nothing
-                    else
-                        # pre Julia 1.8
-                        Base.VERSION < v"1.8.0-DEV.368" || error("unexpected failure at ", i)
-                        @assert leaf === nothing
-                    end
+                    Base.VERSION < v"1.8.0-DEV.368" || error("unexpected failure at ", i)
+                    @assert leaf === nothing
                 else
                     error("unexpected loctag ", loctag, " at ", i)
                 end
@@ -425,7 +429,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             reason = nothing
         elseif isa(item, Type)
             if length(list) > i && list[i+1] == "insert_backedges_callee"
-                i = handle_insert_backedges(list, i+1, item)
+                i = handle_insert_backedges!(delayed, list, i+1, item)
             else
                 root = getroot(leaf)
                 if !exclude_corecompiler || !from_corecompiler(root.mi)
