@@ -47,6 +47,6 @@ using UUIDs
         end
         close(pipe.in)
         str = read(pipe.out, String)
-        @test occursin("UndefVarError: missing_function not defined", str)
+        @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
     end
 end
