@@ -63,8 +63,8 @@ mutable struct InstanceNode
     end
     InstanceNode(mi::MethodInstance, children::Vector{InstanceNode}) = return new(mi, 0, children)
     # Create child with a given `parent`. Checks that the depths are consistent.
-    function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth)
-        @assert parent.depth + Int32(1) == depth
+    function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth=parent.depth+Int32(1))
+        depth !== nothing && @assert parent.depth + Int32(1) == depth
         child = new(mi, depth, InstanceNode[], parent)
         push!(parent.children, child)
         return child
@@ -249,6 +249,12 @@ function showlist(io::IO, treelist, indent::Int=0)
     end
 end
 
+if Base.VERSION >= v"1.9.0-DEV.1512"
+    new_backedge_table() = Dict{Union{Int32,MethodInstance},Union{Tuple{Any,Vector{Any}},InstanceNode}}()
+else
+    new_backedge_table() = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
+end
+
 """
     trees = invalidation_trees(list)
 
@@ -288,6 +294,11 @@ See the documentation for further details.
 function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     function handle_insert_backedges(list, i, callee)
+        if Base.VERSION >= v"1.9.0-DEV.1512"
+            key, causes = list[i+=1], list[i+=1]
+            backedge_table[key] = (callee, causes)
+            return i
+        end
         if Base.VERSION >= v"1.9.0-DEV.1432"
             key = (list[i+=1], list[i+=1])
             backedge_table[key] = (callee, list[i+=1])
@@ -316,7 +327,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     leaf = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
-    backedge_table = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
+    backedge_table = new_backedge_table()
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -337,6 +348,9 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 end
             elseif isa(item, String)
                 loctag = item
+                if Base.VERSION >= v"1.9.0-DEV.1512" && loctag ∉ ("insert_backedges_callee", "verify_methods")
+                    empty!(backedge_table)
+                end
                 if loctag == "invalidate_mt_cache"
                     push!(mt_cache, mi)
                     leaf = nothing
@@ -371,6 +385,36 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     end
                 elseif loctag == "insert_backedges_callee"
                     i = handle_insert_backedges(list, i, mi)
+                elseif loctag == "verify_methods"
+                    next = list[i+=1]
+                    if isa(next, Integer)
+                        trig, causes = backedge_table[next]
+                        newnode = InstanceNode(mi, 1)
+                        push!(mt_backedges, trig => newnode)
+                        backedge_table[mi] = newnode
+                        for cause in causes
+                            add_method_trigger!(methodinvs, cause, :inserting, mt_backedges, backedges, mt_cache, mt_disable)
+                        end
+                        mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+                        leaf = nothing
+                        reason = nothing
+                    else
+                        @assert isa(next, MethodInstance) "unexpected logging format"
+                        parent = backedge_table[next]
+                        found = false
+                        for child in parent.children
+                            if child.mi == mi
+                                found = true
+                                break
+                            end
+                        end
+                        if !found
+                            newnode = InstanceNode(mi, parent)
+                            if !haskey(backedge_table, mi)
+                                backedge_table[mi] = newnode
+                            end
+                        end
+                    end
                 elseif loctag == "insert_backedges"
                     if Base.VERSION >= v"1.9.0-DEV.1432"
                         key = (list[i+=1], list[i+=1])
