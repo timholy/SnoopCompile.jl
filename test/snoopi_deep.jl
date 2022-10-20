@@ -863,6 +863,7 @@ end
     # pgdsgui(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end
 
+
 @testset "Stale" begin
     cproj = Base.active_project()
     cd(joinpath("testmodules", "Stale")) do
@@ -957,4 +958,33 @@ if Base.VERSION >= v"1.7"
         @test !isempty(SnoopCompile.JET.get_reports(only(irpts).second))
         @test  isempty(SnoopCompile.JET.get_reports(report_caller(itrigs[end])))
     end
+end
+
+@testset "reentrant concurrent profiles - 1" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    t1 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    t2 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo2(x) = x+2
+    foo2(2)
+
+    SnoopCompileCore.stop_deep_timing!(t1)
+    SnoopCompileCore.stop_deep_timing!(t2)
+
+    prof1 = SnoopCompileCore.finish_snoopi_deep(t1)
+    prof2 = SnoopCompileCore.finish_snoopi_deep(t2)
+
+    # [ROOT, foo1, foo2]
+    @test length(SnoopCompile.flatten(prof1)) == 3
+
+    # [ROOT, foo2]
+    @test length(SnoopCompile.flatten(prof2)) == 2
 end
