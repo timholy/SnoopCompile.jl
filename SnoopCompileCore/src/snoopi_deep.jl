@@ -140,7 +140,6 @@ function start_timing_invocation()
     # Locking respects mutex ordering.
     Base.@lock MUTEX begin
         profile_start_idx = _current_profile_length_locked() + 1
-        @show profile_start_idx
         invocation = Invocation(profile_start_idx)
         push!(invocations, invocation)
         return invocation
@@ -159,15 +158,12 @@ function finish_timing_invocation_and_clear_profile(invocation)
         if invocations[1] !== invocation
             idx = findfirst(==(invocation), invocations)
             @assert idx !== nothing  "invocation wasn't found in invocations: $invocation."
-            @show idx
             deleteat!(invocations, idx)
             return
         end
 
         # Clear this invocation from the invocations vector.
         popfirst!(invocations)
-
-        @show invocations
 
         # Now clear the global inference profile up to the start of the next invocation.
         # If no next invocations, clear them all.
@@ -198,7 +194,6 @@ function finish_timing_invocation_and_clear_profile(invocation)
         try
             inference_root_timing = Core.Compiler.Timings._timings[1]
             children = inference_root_timing.children
-            @show to_delete
             deleteat!(children, 1:to_delete)
         finally
             ccall(:jl_typeinf_lock_end, Cvoid, ())
@@ -220,8 +215,6 @@ end
 
 function finish_snoopi_deep(invocation)
     buffer = SnoopiDeepParallelism._fetch_profile_buffer_locked(invocation.start_idx, invocation.stop_idx)
-
-    @show invocation, buffer
 
     # Clean up the profile buffer, so that we don't leak memory.
     SnoopiDeepParallelism.finish_timing_invocation_and_clear_profile(invocation)
