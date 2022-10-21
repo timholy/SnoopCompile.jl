@@ -209,8 +209,9 @@ end
 end  # module
 
 function start_deep_timing()
+    invocation = SnoopiDeepParallelism.start_timing_invocation()
     Core.Compiler.__set_measure_typeinf(true)
-    return SnoopiDeepParallelism.start_timing_invocation()
+    return invocation
 end
 function stop_deep_timing!(invocation)
     Core.Compiler.__set_measure_typeinf(false)
@@ -231,7 +232,7 @@ end
 
 # The MethodInstance for ROOT(), and default empty values for other fields.
 # Copied from julia typeinf
-const root_inference_frame_info =
+root_inference_frame_info() =
     Core.Compiler.Timings.InferenceFrameInfo(Core.Compiler.Timings.ROOTmi, 0x0, Any[], Any[Core.Const(Core.Compiler.Timings.ROOT)], 1)
 
 function _create_finished_ROOT_Timing(invocation, buffer)
@@ -240,7 +241,7 @@ function _create_finished_ROOT_Timing(invocation, buffer)
     # Create a new ROOT() node, specific to this profiling invocation, which wraps the
     # current profile buffer, and contains the total time for the profile.
     return Core.Compiler.Timings.Timing(
-        root_inference_frame_info,
+        root_inference_frame_info(),
         invocation.start_time,
         0,
         # TODO: This is wrong, this is supposed to be the total exclusive ROOT time.

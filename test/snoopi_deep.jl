@@ -960,7 +960,9 @@ if Base.VERSION >= v"1.7"
     end
 end
 
-@testset "reentrant concurrent profiles - 1" begin
+_name(frame::SnoopCompileCore.InferenceTiming) = frame.mi_info.mi.def.name
+
+@testset "reentrant concurrent profiles 1 - overlap" begin
     # Warmup
     @eval foo1(x) = x+2
     @eval foo1(2)
@@ -974,7 +976,7 @@ end
     t2 = SnoopCompileCore.start_deep_timing()
 
     @eval foo2(x) = x+2
-    foo2(2)
+    @eval foo2(2)
 
     SnoopCompileCore.stop_deep_timing!(t1)
     SnoopCompileCore.stop_deep_timing!(t2)
@@ -982,9 +984,189 @@ end
     prof1 = SnoopCompileCore.finish_snoopi_deep(t1)
     prof2 = SnoopCompileCore.finish_snoopi_deep(t2)
 
-    # [ROOT, foo1, foo2]
-    @test length(SnoopCompile.flatten(prof1)) == 3
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT, :foo2])
 
-    # [ROOT, foo2]
-    @test length(SnoopCompile.flatten(prof2)) == 2
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
+
+@testset "reentrant concurrent profiles 2 - interleaved" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    t1 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    t2 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo2(x) = x+2
+    @eval foo2(2)
+
+    SnoopCompileCore.stop_deep_timing!(t1)
+
+    @eval foo3(x) = x+2
+    @eval foo3(2)
+
+    SnoopCompileCore.stop_deep_timing!(t2)
+
+    @eval foo4(x) = x+2
+    @eval foo4(2)
+
+    prof1 = SnoopCompileCore.finish_snoopi_deep(t1)
+
+    @eval foo5(x) = x+2
+    @eval foo5(2)
+
+    prof2 = SnoopCompileCore.finish_snoopi_deep(t2)
+
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT, :foo2, :foo3])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
+
+@testset "reentrant concurrent profiles 3 - nested" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    local prof1, prof2, prof3
+    prof1 = SnoopCompileCore.@snoopi_deep begin
+        @eval foo1(x) = x+2
+        @eval foo1(2)
+        prof2 = SnoopCompileCore.@snoopi_deep begin
+            @eval foo2(x) = x+2
+            @eval foo2(2)
+            prof3 = SnoopCompileCore.@snoopi_deep begin
+                @eval foo3(x) = x+2
+                @eval foo3(2)
+            end
+            @eval foo4(x) = x+2
+            @eval foo4(2)
+        end
+        @eval foo5(x) = x+2
+        @eval foo5(2)
+    end
+
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2, :foo3, :foo4, :foo5])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT,        :foo2, :foo3, :foo4])
+    @test Set(_name.(SnoopCompile.flatten(prof3))) == Set([:ROOT,               :foo3])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
+_name(frame::SnoopCompileCore.InferenceTiming) = frame.mi_info.mi.def.name
+
+@testset "reentrant concurrent profiles 1 - overlap" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    t1 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    t2 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo2(x) = x+2
+    @eval foo2(2)
+
+    SnoopCompileCore.stop_deep_timing!(t1)
+    SnoopCompileCore.stop_deep_timing!(t2)
+
+    prof1 = SnoopCompileCore.finish_snoopi_deep(t1)
+    prof2 = SnoopCompileCore.finish_snoopi_deep(t2)
+
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT, :foo2])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
+
+@testset "reentrant concurrent profiles 2 - interleaved" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    t1 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    t2 = SnoopCompileCore.start_deep_timing()
+
+    @eval foo2(x) = x+2
+    @eval foo2(2)
+
+    SnoopCompileCore.stop_deep_timing!(t1)
+
+    @eval foo3(x) = x+2
+    @eval foo3(2)
+
+    SnoopCompileCore.stop_deep_timing!(t2)
+
+    @eval foo4(x) = x+2
+    @eval foo4(2)
+
+    prof1 = SnoopCompileCore.finish_snoopi_deep(t1)
+
+    @eval foo5(x) = x+2
+    @eval foo5(2)
+
+    prof2 = SnoopCompileCore.finish_snoopi_deep(t2)
+
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT, :foo2, :foo3])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
+
+@testset "reentrant concurrent profiles 3 - nested" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    local prof1, prof2, prof3
+    prof1 = SnoopCompileCore.@snoopi_deep begin
+        @eval foo1(x) = x+2
+        @eval foo1(2)
+        prof2 = SnoopCompileCore.@snoopi_deep begin
+            @eval foo2(x) = x+2
+            @eval foo2(2)
+            prof3 = SnoopCompileCore.@snoopi_deep begin
+                @eval foo3(x) = x+2
+                @eval foo3(2)
+            end
+            @eval foo4(x) = x+2
+            @eval foo4(2)
+        end
+        @eval foo5(x) = x+2
+        @eval foo5(2)
+    end
+
+    @test Set(_name.(SnoopCompile.flatten(prof1))) == Set([:ROOT, :foo1, :foo2, :foo3, :foo4, :foo5])
+    @test Set(_name.(SnoopCompile.flatten(prof2))) == Set([:ROOT,        :foo2, :foo3, :foo4])
+    @test Set(_name.(SnoopCompile.flatten(prof3))) == Set([:ROOT,               :foo3])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
 end
