@@ -1170,3 +1170,38 @@ end
     @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
     @test isempty(Core.Compiler.Timings._timings[1].children)
 end
+
+@testset "reentrant concurrent profiles 3 - parallelism" begin
+    # Warmup
+    @eval foo1(x) = x+2
+    @eval foo1(2)
+
+    # Test:
+    local ts
+    # Run it twice to ensure we warmup the eval block
+    for _ in 1:2
+        @sync begin
+            ts = [
+                Threads.@spawn begin
+                    sleep(i-1)
+                    SnoopCompile.@snoopi_deep @eval begin
+                        $(Symbol("foo$i"))(x) = x + 1
+                        sleep(1.5)
+                        $(Symbol("foo$i"))(2)
+                    end
+                end
+                for i in 1:4
+            ]
+        end
+    end
+    profs = fetch.(ts)
+
+    @test Set(_name.(SnoopCompile.flatten(profs[1]))) == Set([:ROOT, :foo1])
+    @test Set(_name.(SnoopCompile.flatten(profs[2]))) == Set([:ROOT, :foo1, :foo2])
+    @test Set(_name.(SnoopCompile.flatten(profs[3]))) == Set([:ROOT,        :foo2, :foo3])
+    @test Set(_name.(SnoopCompile.flatten(profs[4]))) == Set([:ROOT,               :foo3, :foo4])
+
+    # Test Cleanup
+    @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
+    @test isempty(Core.Compiler.Timings._timings[1].children)
+end
