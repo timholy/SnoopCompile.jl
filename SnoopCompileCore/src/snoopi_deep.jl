@@ -80,10 +80,12 @@ mutable struct Invocation
     start_idx::Int
     stop_idx::Int
     start_time::UInt64
+    root_start_excl_time::UInt64
+    root_stop_excl_time::UInt64
 end
-function Invocation(start_idx)
+function Invocation(start_idx, start_root_excl_time)
     # Start at the current time.
-    return Invocation(start_idx, 0, time_ns())
+    return Invocation(start_idx, 0, time_ns(), start_root_excl_time, 0)
 end
 
 """
@@ -114,12 +116,18 @@ result, and we start two profiles, 1 and 2, at the times indicated below:
 """
 const invocations = Invocation[]
 
-function _current_profile_length_locked()
+function _current_profile_stats_locked()
     ccall(:jl_typeinf_lock_begin, Cvoid, ())
     try
         inference_root_timing = Core.Compiler.Timings._timings[1]
         children = inference_root_timing.children
-        return length(children)
+        # Since we were able to grab the lock, we must not be in an inference profile,
+        # meaning we are in ROOT(). So to get an accurate ROOT timing, we have to add the
+        # accumulated time since the ROOT was last updated:
+        accum_root_time = time_ns() - inference_root_timing.cur_start_time
+        current_root_time = inference_root_timing.time + accum_root_time
+
+        return length(children), current_root_time
     finally
         ccall(:jl_typeinf_lock_end, Cvoid, ())
     end
@@ -139,15 +147,16 @@ end
 function start_timing_invocation()
     # Locking respects mutex ordering.
     Base.@lock MUTEX begin
-        profile_start_idx = _current_profile_length_locked() + 1
-        invocation = Invocation(profile_start_idx)
+        current_profile_length, current_root_time = _current_profile_stats_locked()
+        profile_start_idx = current_profile_length + 1
+        invocation = Invocation(profile_start_idx, current_root_time)
         push!(invocations, invocation)
         return invocation
     end
 end
 
 function stop_timing_invocation!(invocation)
-    invocation.stop_idx = _current_profile_length_locked()
+    invocation.stop_idx, invocation.root_stop_excl_time = _current_profile_stats_locked()
 end
 
 function finish_timing_invocation_and_clear_profile(invocation)
@@ -237,9 +246,8 @@ function _create_finished_ROOT_Timing(invocation, buffer)
         root_inference_frame_info(),
         invocation.start_time,
         0,
-        # TODO: This is wrong, this is supposed to be the total exclusive ROOT time.
-        #  we should get this off the ROOT() timing when we stop!() the invocation.
-        total_time,
+        # Total exclusive time spent in ROOT during the lifetime of this node.
+        invocation.root_stop_excl_time - invocation.root_start_excl_time,
         # Use the copied-out section of the profile buffer as the children of ROOT()
         buffer,
     )

@@ -1171,24 +1171,27 @@ end
     @test isempty(Core.Compiler.Timings._timings[1].children)
 end
 
-@testset "reentrant concurrent profiles 3 - parallelism" begin
+@testset "reentrant concurrent profiles 3 - parallelism + accurate timing" begin
     # Warmup
     @eval foo1(x) = x+2
     @eval foo1(2)
 
     # Test:
     local ts
+    snoop_times = Float64[0.0, 0.0, 0.0, 0.0]
     # Run it twice to ensure we warmup the eval block
     for _ in 1:2
         @sync begin
             ts = [
                 Threads.@spawn begin
-                    sleep(i-1)
-                    SnoopCompile.@snoopi_deep @eval begin
+                    sleep((i-1) / 10)  # (Divide by 10 so the test isn't too slow)
+                    snoop_time = @timed SnoopCompile.@snoopi_deep @eval begin
                         $(Symbol("foo$i"))(x) = x + 1
-                        sleep(1.5)
+                        sleep(1.5 / 10)
                         $(Symbol("foo$i"))(2)
                     end
+                    snoop_times[i] = snoop_time.time
+                    return snoop_time.value
                 end
                 for i in 1:4
             ]
@@ -1200,6 +1203,18 @@ end
     @test Set(_name.(SnoopCompile.flatten(profs[2]))) == Set([:ROOT, :foo1, :foo2])
     @test Set(_name.(SnoopCompile.flatten(profs[3]))) == Set([:ROOT,        :foo2, :foo3])
     @test Set(_name.(SnoopCompile.flatten(profs[4]))) == Set([:ROOT,               :foo3, :foo4])
+
+    # Test the sanity of the reported Timings
+    @testset for i in eachindex(profs)
+        prof = profs[i]
+        # Test that the time for the inference is accounted for
+        @test prof.mi_timing.exclusive_time < prof.mi_timing.inclusive_time
+        # Test that the inclusive time (the total time reported by snoopi_deep) matches
+        # the actual time to do the snoopi_deep, as measured by `@time`.
+        # These should both be approximately ~0.15 seconds.
+        @info prof.mi_timing.inclusive_time
+        @test prof.mi_timing.inclusive_time <= snoop_times[i]
+    end
 
     # Test Cleanup
     @test isempty(SnoopCompileCore.SnoopiDeepParallelism.invocations)
