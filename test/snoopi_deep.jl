@@ -1088,6 +1088,7 @@ end
     @testset for i in eachindex(profs)
         prof = profs[i]
         # Test that the time for the inference is accounted for
+        @test 0.15 < prof.mi_timing.exclusive_time
         @test prof.mi_timing.exclusive_time < prof.mi_timing.inclusive_time
         # Test that the inclusive time (the total time reported by snoopi_deep) matches
         # the actual time to do the snoopi_deep, as measured by `@time`.
