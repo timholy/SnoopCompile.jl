@@ -71,16 +71,14 @@ function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timi
 end
 
 function start_deep_timing()
-    Core.Compiler.Timings.reset_timings()
     Core.Compiler.__set_measure_typeinf(true)
 end
 function stop_deep_timing()
     Core.Compiler.__set_measure_typeinf(false)
-    Core.Compiler.Timings.close_current_timer()
 end
 
 function finish_snoopi_deep()
-    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
+    return [InferenceTimingNode(tree) for tree in Core.Compiler.Timings.clear_and_fetch_timings()]
 end
 
 function _snoopi_deep(cmd::Expr)
