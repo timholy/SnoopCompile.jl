@@ -5,6 +5,7 @@ export @precompile_all_calls, @precompile_setup
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
 const have_force_compile = isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("#@force_compile"))
+const have_clear_and_fetch_timings = isdefined(Core.Compiler.Timings, :clear_and_fetch_timings)
 
 function precompile_roots(roots)
     @assert have_inference_tracking
@@ -59,16 +60,29 @@ macro precompile_all_calls(ex::Expr)
         end
     end
     if have_inference_tracking
-        ex = quote
-            Core.Compiler.Timings.reset_timings()
-            Core.Compiler.__set_measure_typeinf(true)
-            try
-                $ex
-            finally
-                Core.Compiler.__set_measure_typeinf(false)
-                Core.Compiler.Timings.close_current_timer()
+        if have_clear_and_fetch_timings
+            # use new thread-safe timings API if it's available in this version of Julia
+            ex = quote
+                Core.Compiler.__set_measure_typeinf(true)
+                try
+                    $ex
+                finally
+                    Core.Compiler.__set_measure_typeinf(false)
+                end
+                $SnoopPrecompile.precompile_roots(Core.Compiler.Timings.clear_and_fetch_timings())
             end
-            $SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+        else
+            ex = quote
+                Core.Compiler.Timings.reset_timings()
+                Core.Compiler.__set_measure_typeinf(true)
+                try
+                    $ex
+                finally
+                    Core.Compiler.__set_measure_typeinf(false)
+                    Core.Compiler.Timings.close_current_timer()
+                end
+                $SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+            end
         end
     end
     return esc(quote
