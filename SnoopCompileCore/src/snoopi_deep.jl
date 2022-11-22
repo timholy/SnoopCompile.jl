@@ -83,8 +83,7 @@ end
 
 function finish_snoopi_deep()
     # TODO(ISSUE): Update to a new API, which just directly returns this vector.
-    children = [InferenceTimingNode(tree) for tree in Core.Compiler.Timings.clear_and_fetch_timings()]
-    stop_time = Core.Compiler.Timings._time_ns()
+    children = Core.Compiler.Timings.clear_and_fetch_timings()
     root = Core.Compiler.Timings.Timing(
         # The MethodInstance for ROOT(), and default empty values for other fields.
         Core.Compiler.Timings.InferenceFrameInfo(
@@ -95,7 +94,7 @@ function finish_snoopi_deep()
         0,
         0,
         children,
-        )
+    )
     return InferenceTimingNode(root)
 end
 
