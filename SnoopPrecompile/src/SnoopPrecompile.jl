@@ -59,14 +59,29 @@ macro precompile_all_calls(ex::Expr)
         end
     end
     if have_inference_tracking
-        ex = quote
-            Core.Compiler.__set_measure_typeinf(true)
-            try
-                $ex
-            finally
-                Core.Compiler.__set_measure_typeinf(false)
+        ex = if isdefined(Core.Compiler.Timings, :clear_and_fetch_timings)
+            # use new thread-safe timings API if it's available in this version of Julia
+            quote
+                Core.Compiler.__set_measure_typeinf(true)
+                try
+                    $ex
+                finally
+                    Core.Compiler.__set_measure_typeinf(false)
+                end
+                $SnoopPrecompile.precompile_roots(Core.Compiler.Timings.clear_and_fetch_timings())
             end
-            $SnoopPrecompile.precompile_roots(Core.Compiler.Timings.clear_and_fetch_timings())
+        else
+            quote
+                Core.Compiler.Timings.reset_timings()
+                Core.Compiler.__set_measure_typeinf(true)
+                try
+                    $ex
+                finally
+                    Core.Compiler.__set_measure_typeinf(false)
+                    Core.Compiler.Timings.close_current_timer()
+                end
+                $SnoopPrecompile.precompile_roots(Core.Compiler.Timings._timings[1].children)
+            end
         end
     end
     return esc(quote
