@@ -5,7 +5,7 @@ export @precompile_all_calls, @precompile_setup
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
 const have_force_compile = isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("#@force_compile"))
-const have_clear_and_fetch_timings = isdefined(Core.Compiler.Timings, :clear_and_fetch_timings)
+const have_clear_and_fetch_timings = isdefined(Core.Compiler, :Timings) && isdefined(Core.Compiler.Timings, :clear_and_fetch_timings)
 
 function precompile_roots(roots)
     @assert have_inference_tracking
