@@ -70,7 +70,11 @@ function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timi
     end
 end
 
+# This is a hack to preserve the old API that returns a Root node.
+const start_time = Ref(Core.Compiler.Timings._time_ns())
+
 function start_deep_timing()
+    start_time[] = Core.Compiler.Timings._time_ns()
     Core.Compiler.__set_measure_typeinf(true)
 end
 function stop_deep_timing()
@@ -78,7 +82,21 @@ function stop_deep_timing()
 end
 
 function finish_snoopi_deep()
-    return [InferenceTimingNode(tree) for tree in Core.Compiler.Timings.clear_and_fetch_timings()]
+    # TODO(ISSUE): Update to a new API, which just directly returns this vector.
+    children = [InferenceTimingNode(tree) for tree in Core.Compiler.Timings.clear_and_fetch_timings()]
+    stop_time = Core.Compiler.Timings._time_ns()
+    root = Core.Compiler.Timings.Timing(
+        # The MethodInstance for ROOT(), and default empty values for other fields.
+        Core.Compiler.Timings.InferenceFrameInfo(
+            Core.Compiler.Timings.ROOTmi, 0x0, Any[],
+            Any[Core.Const(Core.Compiler.Timings.ROOT)], 1
+        ),
+        start_time[],
+        0,
+        0,
+        children,
+        )
+    return InferenceTimingNode(root)
 end
 
 function _snoopi_deep(cmd::Expr)
