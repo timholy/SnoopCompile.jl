@@ -73,9 +73,7 @@ macro precompile_all_calls(ex::Expr)
     end
     return esc(quote
         if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
-            let
-                $ex
-            end
+            $ex
         end
     end)
 end
