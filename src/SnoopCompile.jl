@@ -92,7 +92,6 @@ if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
     include("deep_demos.jl")
     export @snoopi_deep, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
     export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
-    export report_callee, report_caller, report_callees
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopl"))
@@ -118,6 +117,9 @@ include("write.jl")
 function __init__()
     if isdefined(SnoopCompile, :runtime_inferencetime)
         @require PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("visualizations.jl")
+    end
+    if isdefined(SnoopCompile, :inference_triggers)
+        @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("jet_integration.jl")
     end
 end
 
