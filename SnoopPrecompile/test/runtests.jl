@@ -49,4 +49,6 @@ using UUIDs
         str = read(pipe.out, String)
         @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
     end
+
+    using SnoopPC_C
 end
