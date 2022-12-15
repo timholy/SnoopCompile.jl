@@ -50,5 +50,7 @@ using UUIDs
         @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
     end
 
-    using SnoopPC_C
+    if Base.VERSION >= v"1.6"
+        using SnoopPC_C
+    end
 end
