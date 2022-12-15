@@ -60,10 +60,11 @@ macro precompile_all_calls(ex::Expr)
     end
     if have_inference_tracking
         ex = quote
+            thunk() = $ex
             Core.Compiler.Timings.reset_timings()
             Core.Compiler.__set_measure_typeinf(true)
             try
-                $ex
+                Base.invokelatest(thunk)
             finally
                 Core.Compiler.__set_measure_typeinf(false)
                 Core.Compiler.Timings.close_current_timer()
@@ -73,7 +74,9 @@ macro precompile_all_calls(ex::Expr)
     end
     return esc(quote
         if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
-            $ex
+            let
+                $ex
+            end
         end
     end)
 end
@@ -102,11 +105,11 @@ to your package).
 """
 macro precompile_setup(ex::Expr)
     return esc(quote
-        # let
+        let
             if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
                 $ex
             end
-        # end
+        end
     end)
 end
 
