@@ -49,4 +49,8 @@ using UUIDs
         str = read(pipe.out, String)
         @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
     end
+
+    if Base.VERSION >= v"1.6"
+        using SnoopPC_C
+    end
 end
