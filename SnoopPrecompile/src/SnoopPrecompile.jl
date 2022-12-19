@@ -1,6 +1,6 @@
 module SnoopPrecompile
 
-export @precompile_all_calls, @precompile_setup
+export @precompile_all_calls, @precompile_setup, @time_precompiled
 
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
@@ -116,6 +116,97 @@ macro precompile_setup(ex::Expr)
             end
         end
     end)
+end
+
+"""
+    @time_precompiled expr
+    @time_precompiled recordmacro expr
+
+Measure the time required to execute a precompilation workload `expr`. This is typically used in a fresh Julia session
+immediately after loading a package, to determine the impact of precompilation on the first execution of the entire workload.
+
+The measured time is for the workload in [`@precompile_all_calls`](@ref); time needed to run the code in [`@precompile_setup`](@ref)
+is not included. Having a `@precompile_setup` is not required (your workload can just use `@precompile_all_calls`),
+but if your package uses `@precompile_setup` you should include it in `expr`.
+
+Optionally, you can supply a different `recordmacro` operation than `@time`. As with `@time`, `recordmacro` is applied only to
+the workload in `@precompile_all_calls`.
+
+# Examples
+
+```
+julia> using SnoopPrecompile, MyCoolPackage
+
+julia> @time_precompiled @precompile_setup begin
+            vars = ...
+            @precompile_all_calls begin
+                y = f(vars...)
+                g(y)
+                ⋮
+            end
+        end
+```
+The expresssion inside `@time_precompiled` was copied from the precompile workload used in `MyCoolPackage`.
+
+If you want to see what's being inferred, then supply `@snoopi_deep` as the first argument:
+
+```
+julia> using SnoopPrecompile, SnoopCompileCore, MyCoolPackage
+
+julia> tinf = @time_precompiled @snoopi_deep @precompile_setup begin ... end;
+
+julia> using SnoopCompile
+```
+
+and then perform analysis on `tinf`.
+
+A fresh session is required for each analysis.
+"""
+macro time_precompiled(ex::Expr)
+    cmd = Symbol("@time")
+    if ex.head == :macrocall
+        sym = macrosym(ex)
+        if sym ∉ (Symbol("@precompile_setup"), Symbol("@precompile_all_calls"))
+            cmd = sym
+            ex = ex.args[end]::Expr
+        end
+    end
+    ex = replace_macros!(copy(ex), cmd)
+    return esc(ex)
+end
+
+function replace_macros!(@nospecialize(ex), cmd)
+    if ex isa Expr
+        head = ex.head
+        if head === :macrocall
+            arg1 = macrosym(ex)
+            if arg1 == Symbol("@precompile_setup")
+                ex.head = :let
+                deleteat!(ex.args, 1:length(ex.args)-1)
+                pushfirst!(ex.args, Expr(:block))
+            elseif arg1 == Symbol("@precompile_all_calls")
+                workload = ex.args[end]
+                empty!(ex.args)
+                ex.head = :block
+                push!(ex.args, :(thunk() = $workload))
+                push!(ex.args, Expr(:macrocall, cmd, LineNumberNode(@__LINE__, @__FILE__), :(Base.invokelatest(thunk))))
+            end
+        end
+        for arg in ex.args
+            replace_macros!(arg, cmd)
+        end
+    elseif ex isa QuoteNode
+        replace_macros!(ex.value, cmd)
+    end
+    return ex
+end
+
+function macrosym(ex::Expr)
+    arg1 = ex.args[1]
+    if arg1 isa Expr
+        arg1 = (arg1.args[2]::QuoteNode).value
+    end
+    return arg1::Symbol
 end
 
 end
