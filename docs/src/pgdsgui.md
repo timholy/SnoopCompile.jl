@@ -167,7 +167,7 @@ The results with `@nospecialize` are shown on the right. You can see that:
 
 Moreover, our runtimes (post-compilation) really aren't very different, both in the ballpark of a few millseconds (you can check with `@btime` from BenchmarkTools to be sure).
 
-In total, we've reduced compilation time approximately 50× without appreciably hurting runtime perfomance.
+In total, we've reduced compilation time approximately 50× without appreciably hurting runtime performance.
 Reducing specialization, when appropriate, can often yield your biggest reductions in latency.
 
 !!! tip
