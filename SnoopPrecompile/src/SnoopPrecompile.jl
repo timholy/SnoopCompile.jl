@@ -6,10 +6,15 @@ const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
 const have_force_compile = isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("#@force_compile"))
 
+# Don't make these `MethodInstance(obj)` to avoid potential conflict with SnoopCompile itself
+getmi(obj::Core.Compiler.Timings.Timing) = obj.mi_info.mi
+getmi(obj::Core.CodeInstance) = obj.def
+getmi(obj::Core.MethodInstance) = obj
+
 function precompile_roots(roots)
     @assert have_inference_tracking
     for child in roots
-        mi = child.mi_info.mi
+        mi = getmi(child)
         precompile(mi.specTypes) # TODO: Julia should allow one to pass `mi` directly (would handle `invoke` properly)
         verbose[] && println(mi)
     end
