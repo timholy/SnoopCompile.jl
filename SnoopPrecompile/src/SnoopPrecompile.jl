@@ -1,5 +1,7 @@
 module SnoopPrecompile
 
+using MethodAnalysis
+
 export @precompile_all_calls, @precompile_setup, @time_precompiled
 
 const verbose = Ref(false)    # if true, prints all the precompiles
@@ -15,7 +17,16 @@ function precompile_roots(roots)
     @assert have_inference_tracking
     for child in roots
         mi = getmi(child)
-        precompile(mi.specTypes) # TODO: Julia should allow one to pass `mi` directly (would handle `invoke` properly)
+        m = mi.def
+        if m isa Method && m.file == Symbol(@__FILE__)
+            println("found thunk: ", m)
+            # @show child.children
+            # This is the `thunk` method defined in the macro
+            precompile_roots(child.children)
+            continue
+        end
+        precompile(mi.specTypes)
+        @atomic mi.precompiled = true
         verbose[] && println(mi)
     end
 end
@@ -65,7 +76,7 @@ macro precompile_all_calls(ex::Expr)
     end
     if have_inference_tracking
         ex = quote
-            thunk() = $ex
+            local Base.@constprop :none thunk() = $ex
             Core.Compiler.Timings.reset_timings()
             Core.Compiler.__set_measure_typeinf(true)
             try
@@ -82,8 +93,30 @@ macro precompile_all_calls(ex::Expr)
             let
                 $ex
             end
+            # $SnoopPrecompile.analyzeme(@__MODULE__)
         end
     end)
+end
+
+function analyzeme(mod::Module)
+    println("Precompiling ", mod)
+    if isdefined(mod, :Column)
+        # objtyp = getglobal(mod, :Column)
+        strtyp = getglobal(getglobal(mod, :InlineStrings), :String3)
+        vectyp = getglobal(getglobal(mod, :SentinelArrays), :SentinelVector)
+        # mi = only(methodinstances(setproperty!, (objtyp, Symbol, vectyp{strtyp})))
+        mi = only(methodinstances(convert, (Type{AbstractVector}, vectyp{strtyp})))
+        println("  ", mi)
+        if isdefined(mi, :backedges)
+            for be in mi.backedges
+                println("    ", be)
+            end
+        else
+            println("no backedges!")
+        end
+        @show mi ∈ getmi.(Core.Compiler.newly_inferred)
+        @show mi ∈ getmi.(Core.Compiler.Timings._timings[1].children)
+    end
 end
 
 """
@@ -164,6 +197,7 @@ A fresh session is required for each analysis.
 """
 macro time_precompiled(ex::Expr)
     cmd = Symbol("@time")
+    # cmd = (:(SnoopPrecompile.@timenc)).args[1]
     if ex.head == :macrocall
         sym = macrosym(ex)
         if sym ∉ (Symbol("@precompile_setup"), Symbol("@precompile_all_calls"))
@@ -171,8 +205,22 @@ macro time_precompiled(ex::Expr)
             ex = ex.args[end]::Expr
         end
     end
+    ex = quote
+        let
+            $ex
+        end
+    end
     ex = replace_macros!(copy(ex), cmd)
     return esc(ex)
+end
+
+macro timenc(ex::Expr)
+    esc(quote
+        local tstart = time()
+        $ex
+        local t = time() - tstart
+        println("Time for workload: ", t)
+    end)
 end
 
 function replace_macros!(@nospecialize(ex), cmd)
@@ -188,7 +236,7 @@ function replace_macros!(@nospecialize(ex), cmd)
                 workload = ex.args[end]
                 empty!(ex.args)
                 ex.head = :block
-                push!(ex.args, :(thunk() = $workload))
+                push!(ex.args, :(local Base.@constprop :none thunk() = $workload))
                 push!(ex.args, Expr(:macrocall, cmd, LineNumberNode(@__LINE__, @__FILE__), :(Base.invokelatest(thunk))))
             end
         end
@@ -208,5 +256,11 @@ function macrosym(ex::Expr)
     end
     return arg1::Symbol
 end
+
+precompile(macrosym, (Expr,))
+precompile(replace_macros!, (Expr, Expr))
+precompile(replace_macros!, (Expr, Symbol))
+
+__init__() = Base.ENABLE_PRECOMPILE_WARNINGS[] = true
 
 end

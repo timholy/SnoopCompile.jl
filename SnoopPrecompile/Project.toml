@@ -3,6 +3,9 @@ uuid = "66db9d55-30c0-4569-8b51-7e840670fc0c"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
 version = "1.0.2"
 
+[deps]
+MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
+
 [compat]
 julia = "1"
 
