@@ -119,6 +119,8 @@ function __init__()
     if isdefined(SnoopCompile, :runtime_inferencetime)
         @require PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("visualizations.jl")
     end
+
+    @require PettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d" include("report_invalidations.jl")
 end
 
 end # module
