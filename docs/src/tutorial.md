@@ -105,6 +105,52 @@ because `Vector{AbstractFloat}` is a concrete type, whereas `AbstractFloat` is n
 
 If we create `c32 = [1.0f0]` and then `calldouble2(c32)`, we would also see backedges from `double(::Float32)` all the way back to `calldouble2(::Vector{Float32})`.
 
+## A copy-paste analysis of invalidations
+
+The following is a quick "grab and go" script for analyzing invalidations. Insert your code into the `@snoopr` block. The resulting plot shows the
+distributions of the invalidations sorted by the number of children effected. Generally, invalidations with many children matter more than those
+with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
+invalidations, with `show(trees[end-1])` being the second most, and so forth.
+
+```julia
+using SnoopCompile
+invalidations = @snoopr begin
+    # Your code goes here!
+    using OrdinaryDiffEq
+
+    function lorenz(du, u, p, t)
+        du[1] = 10.0(u[2] - u[1])
+        du[2] = u[1] * (28.0 - u[3]) - u[2]
+        du[3] = u[1] * u[2] - (8 / 3) * u[3]
+    end
+    u0 = [1.0; 0.0; 0.0]
+    tspan = (0.0, 100.0)
+    prob = ODEProblem{true,false}(lorenz, u0, tspan)
+    alg = Rodas5()
+    tinf = solve(prob, alg)
+end;
+
+trees = SnoopCompile.invalidation_trees(invalidations);
+
+@show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
+
+show(trees[end]) # show the most invalidated method
+
+# Count number of children (number of invalidations per invalidated method)
+n_invalidations = map(trees) do methinvs
+    SnoopCompile.countchildren(methinvs)
+end
+
+import Plots
+Plots.plot(
+    1:length(trees),
+    n_invalidations;
+    markershape=:circle,
+    xlabel="i-th method invalidation",
+    label="Number of children per method invalidations"
+)
+```
+
 ## Precompilation
 
 During *package precompilation*, Julia creates a `*.ji` file typically stored in `.julia/compiled/v1.x/`, where `1.x` is your version of Julia.
