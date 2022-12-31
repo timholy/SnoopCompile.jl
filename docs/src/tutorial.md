@@ -113,7 +113,7 @@ with few children, and thus this shows how many "bad actors" need to be investig
 invalidations, with `show(trees[end-1])` being the second most, and so forth.
 
 ```julia
-using SnoopCompile
+using SnoopCompileCore
 invalidations = @snoopr begin
     # Your code goes here!
     using OrdinaryDiffEq
