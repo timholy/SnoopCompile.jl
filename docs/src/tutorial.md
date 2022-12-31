@@ -4,6 +4,42 @@ Certain concepts and types will appear repeatedly, so it's worth
 spending a little time to familiarize yourself at the outset.
 You can find a more expansive version of this page in [this blog post](https://julialang.org/blog/2021/01/precompile_tutorial/).
 
+## Cut to the Chase: A copy-paste analysis of invalidations
+
+The following is a quick "grab and go" script for analyzing invalidations. Insert your code into the `@snoopr` block. The resulting plot shows the
+distributions of the invalidations sorted by the number of children affected. Generally, invalidations with many children matter more than those
+with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
+invalidations, with `show(trees[end-1])` being the second most, and so forth.
+
+```julia
+using SnoopCompileCore
+invalidations = @snoopr using PkgA, PkgB;
+using SnoopCompile
+trees = invalidation_trees(invalidations)
+tinf = @snoopi_deep begin
+    some_workload()
+end
+staletrees = precompile_blockers(trees, tinf)
+
+@show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
+
+show(trees[end]) # show the most invalidating method
+
+# Count number of children (number of invalidations per invalidated method)
+n_invalidations = map(trees) do methinvs
+    SnoopCompile.countchildren(methinvs)
+end
+
+import Plots
+Plots.plot(
+    1:length(trees),
+    n_invalidations;
+    markershape=:circle,
+    xlabel="i-th method invalidation",
+    label="Number of children per method invalidations"
+)
+```
+
 ## `MethodInstance`s, type-inference, and backedges
 
 Our first goal is to understand how code connects together.
@@ -104,41 +140,6 @@ MethodInstance for calldouble(::Vector{AbstractFloat})
 because `Vector{AbstractFloat}` is a concrete type, whereas `AbstractFloat` is not.
 
 If we create `c32 = [1.0f0]` and then `calldouble2(c32)`, we would also see backedges from `double(::Float32)` all the way back to `calldouble2(::Vector{Float32})`.
-
-## A copy-paste analysis of invalidations
-
-The following is a quick "grab and go" script for analyzing invalidations. Insert your code into the `@snoopr` block. The resulting plot shows the
-distributions of the invalidations sorted by the number of children affected. Generally, invalidations with many children matter more than those
-with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
-invalidations, with `show(trees[end-1])` being the second most, and so forth.
-
-```julia
-using SnoopCompileCore
-invalidations = @snoopr begin
-    # Your packages go here!
-    using OrdinaryDiffEq
-end;
-
-trees = SnoopCompile.invalidation_trees(invalidations);
-
-@show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
-
-show(trees[end]) # show the most invalidating method
-
-# Count number of children (number of invalidations per invalidated method)
-n_invalidations = map(trees) do methinvs
-    SnoopCompile.countchildren(methinvs)
-end
-
-import Plots
-Plots.plot(
-    1:length(trees),
-    n_invalidations;
-    markershape=:circle,
-    xlabel="i-th method invalidation",
-    label="Number of children per method invalidations"
-)
-```
 
 ## Precompilation
 
