@@ -108,7 +108,7 @@ If we create `c32 = [1.0f0]` and then `calldouble2(c32)`, we would also see back
 ## A copy-paste analysis of invalidations
 
 The following is a quick "grab and go" script for analyzing invalidations. Insert your code into the `@snoopr` block. The resulting plot shows the
-distributions of the invalidations sorted by the number of children effected. Generally, invalidations with many children matter more than those
+distributions of the invalidations sorted by the number of children affected. Generally, invalidations with many children matter more than those
 with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
 invalidations, with `show(trees[end-1])` being the second most, and so forth.
 
