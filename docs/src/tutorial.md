@@ -134,7 +134,7 @@ trees = SnoopCompile.invalidation_trees(invalidations);
 
 @show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
 
-show(trees[end]) # show the most invalidated method
+show(trees[end]) # show the most invalidating method
 
 # Count number of children (number of invalidations per invalidated method)
 n_invalidations = map(trees) do methinvs
