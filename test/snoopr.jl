@@ -1,5 +1,5 @@
 using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
-import PrettyTables
+import PrettyTables # so that the report_invalidations.jl file is loaded
 
 const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
 
@@ -190,19 +190,10 @@ end
     end
 
     # Tabulate invalidations:
-    (; table_data, header) = SnoopCompile.tabulated_invalidations(;
+    # Note: this table may change over time as invalidations get fixed.
+    SnoopCompile.report_invalidations(;
         job_name = "job_name",
         invalidations = invs,
-        process_filename = x -> "SnoopCompile.jl"*last(split(x, basename(pkgdir(SnoopCompile)))),
-    )
-    PrettyTables.pretty_table(
-        table_data;
-        header,
-        formatters = PrettyTables.ft_printf("%s", 2:2),
-        header_crayon = PrettyTables.crayon"yellow bold",
-        subheader_crayon = PrettyTables.crayon"green bold",
-        crop = :none,
-        alignment = [:l, :c, :c, :c],
     )
 
     trees = invalidation_trees(invs)

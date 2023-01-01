@@ -257,13 +257,15 @@ end
 
 """
     report_invalidations(;
-        job_name::String,
+        job_name::String = "",
         invalidations,
         n_rows::Int = 10,
         process_filename::Function = x -> x,
     )
 
-Print a tabular summary of invalidations.
+Print a tabular summary of invalidations given:
+
+ - `job_name::String` the name of the job
 
 An `@info` message also prints some information, for example
 if the table has been truncated (upon request).
@@ -277,6 +279,7 @@ invalidations = SnoopCompileCore.@snoopr begin
 end;
 
 using SnoopCompile
+using PrettyTables # to load report_invalidations
 report_invalidations(;
     job_name = "MyWork",
     invalidations,

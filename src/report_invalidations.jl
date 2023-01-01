@@ -5,7 +5,7 @@ import .PrettyTables
 export report_invalidations
 
 function report_invalidations(;
-        job_name::String,
+        job_name::String = "",
         invalidations,
         n_rows::Int = 10,
         process_filename::Function = x -> x,
@@ -13,7 +13,6 @@ function report_invalidations(;
     trees = reverse(invalidation_trees(invalidations))
     n_total_invalidations = length(uinvalidated(invalidations))
     # TODO: Merge `@info` statement with one below
-    @info "Number of invalidations for $job_name: $n_total_invalidations"
     invs_per_method = map(trees) do methinvs
         countchildren(methinvs)
     end
@@ -22,8 +21,9 @@ function report_invalidations(;
     sum_invs = sum(invs_per_method)
     invs_per_method = invs_per_method[1:min(n_rows, n_invs_total)]
     trees = trees[1:min(n_rows, n_invs_total)]
-    trunc_msg = truncated_invs ? " (showing $n_rows) " : ""
-    @info "$(job_name): $n_invs_total total method invalidations$trunc_msg"
+    trunc_msg = truncated_invs ? " (showing $n_rows functions) " : ""
+    mgs_prefix = job_name == "" ? "" : "$job_name: "
+    @info "$mgs_prefix$n_total_invalidations methods invalidated for $n_invs_total functions$trunc_msg"
     n_invalidations_percent = map(invs_per_method) do inv
         inv_perc = inv / sum_invs
         Int(round(inv_perc*100, digits = 0))
@@ -35,8 +35,8 @@ function report_invalidations(;
         "$(process_filename(string(inv.method.file))):$(inv.method.line)"
     end
     header = (
-        ["<file name>:<line number>", "Method Name", "Invalidations", "Invalidations %"],
-        ["", "", "Number", "(xᵢ/∑x)"],
+        ["<file name>:<line number>", "Function Name", "Invalidations", "Invalidations %"],
+        ["", "", "", "(xᵢ/∑x)"],
     )
     table_data = hcat(
         fileinfo,
