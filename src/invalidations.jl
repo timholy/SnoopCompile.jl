@@ -400,18 +400,23 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         reason = nothing
                     else
                         @assert isa(next, MethodInstance) "unexpected logging format"
-                        parent = backedge_table[next]
-                        found = false
-                        for child in parent.children
-                            if child.mi == mi
-                                found = true
-                                break
+                        parent = get(backedge_table, next, nothing)
+                        if parent === nothing
+                            # display(backedge_table)
+                            @warn "$next not a key for backedge_table"
+                        else
+                            found = false
+                            for child in parent.children
+                                if child.mi == mi
+                                    found = true
+                                    break
+                                end
                             end
-                        end
-                        if !found
-                            newnode = InstanceNode(mi, parent)
-                            if !haskey(backedge_table, mi)
-                                backedge_table[mi] = newnode
+                            if !found
+                                newnode = InstanceNode(mi, parent)
+                                if !haskey(backedge_table, mi)
+                                    backedge_table[mi] = newnode
+                                end
                             end
                         end
                     end
