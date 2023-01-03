@@ -6,8 +6,11 @@ You can find a more expansive version of this page in [this blog post](https://j
 
 ## Cut to the Chase: A copy-paste analysis of invalidations
 
-The following is a quick "grab and go" script for analyzing invalidations. Insert your code into the `@snoopr` block. The resulting plot shows the
-distributions of the invalidations sorted by the number of children affected. Generally, invalidations with many children matter more than those
+The following is a quick "grab and go" script for analyzing invalidations.
+Insert package loads (`using` or `import` statements) and/or method definitions into the `@snoopr` block,
+and put the workload you want to be fast in the `@snoopi_deep` block.
+The resulting plot shows the distribution of the invalidations sorted by the number of children affected.
+Generally, invalidations with many children matter more than those
 with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
 invalidations, with `show(trees[end-1])` being the second most, and so forth.
 
