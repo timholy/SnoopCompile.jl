@@ -129,7 +129,8 @@ uncompiled(x) = x + 1
     end
     pc = SnoopCompile.parcel(tinf)
     FK = pc[:Base]
-    @test  any(str->occursin("kwftype", str), FK)
+    kwcallname = isdefined(Core, :kwcall) ? "kwcall" : "kwftype"
+    @test  any(str->occursin(kwcallname, str), FK)
     @test !any(str->occursin(r"Type\{NamedTuple.*typeof\(sin\)", str), FK)
     if VERSION >= v"1.4.0-DEV.215"
         mis = last.(tinf)
@@ -150,7 +151,7 @@ uncompiled(x) = x + 1
     tinf = @snoopi FuncKinds.callhaskw()
     pc = SnoopCompile.parcel(tinf)
     FK = pc[:FuncKinds]
-    @test any(str->occursin("kwftype", str), FK)
+    @test any(str->occursin(kwcallname, str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(haskw),", str), FK)
     if VERSION >= v"1.4.0-DEV.215"
         @test any(str->occursin("let", str), FK)
@@ -179,7 +180,11 @@ uncompiled(x) = x + 1
     @test any(str->occursin("typeof(which(gen2,($Int,Any,)).generator.gen)", str), FK)
     @test any(str->occursin("precompile(Tuple{typeof(genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(genkw2)})", str), FK)
-    @test any(str->occursin("Tuple{Core.kwftype(typeof(genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(genkw2)}", str), FK)
+    if isdefined(Core, :kwcall)
+        @test any(str->occursin("Tuple{typeof(Core.kwcall),NamedTuple{(:b,), Tuple{String}},typeof(genkw2)}", str), FK)
+    else
+        @test any(str->occursin("Tuple{Core.kwftype(typeof(genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(genkw2)}", str), FK)
+    end
     if VERSION >=  v"1.4.0-DEV.215"
         @test any(str->occursin("__lookup_kwbody__(which(genkw1, ()))", str), FK)
         @test any(str->occursin("__lookup_kwbody__(which(genkw2, ()))", str), FK)
@@ -243,13 +248,21 @@ end
     @test any(str->occursin("typeof(f4),$Int,$Int", str), FK)
     @test any(str->occursin("typeof(f4),$UInt,String", str), FK)
     @test any(str->occursin("typeof(f4),$(Matrix{Float64})", str), FK)
-    @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Int8", str), FK)
+    if isdefined(Core, :kwcall)
+        @test any(str->occursin(r"kwcall.*typeof\(f5\), ?Int8", str), FK)
+    else
+        @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Int8", str), FK)
+    end
     @test any(str->occursin("typeof(f5),Int16", str), FK)
     @test any(str->occursin("typeof(f5),Int32", str), FK)
-    if "$(Matrix{Float64})" == "Matrix{Float64}"
-        @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Matrix\{Float64\}", str), FK)
+    if isdefined(Core, :kwcall)
+        @test any(str->occursin(r"kwcall.*typeof\(f5\), ?Matrix\{Float64\}", str), FK)
     else
-        @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Array\{Float64,2\}", str), FK)
+        if "$(Matrix{Float64})" == "Matrix{Float64}"
+            @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Matrix\{Float64\}", str), FK)
+        else
+            @test any(str->occursin(r"kwftype\(typeof\(f5.*:y.*Array\{Float64,2\}", str), FK)
+        end
     end
     # @test any(str->occursin("typeof(f6),(1, "hi"; z=8) == 1
     # @test any(str->occursin("typeof(f7),(1, (1, :hi)) == 1
