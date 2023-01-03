@@ -26,9 +26,7 @@ staletrees = precompile_blockers(trees, tinf)
 show(trees[end]) # show the most invalidating method
 
 # Count number of children (number of invalidations per invalidated method)
-n_invalidations = map(trees) do methinvs
-    SnoopCompile.countchildren(methinvs)
-end
+n_invalidations = map(SnoopCompile.countchildren, trees)
 
 import Plots
 Plots.plot(
