@@ -18,11 +18,11 @@ While the plot shows total invalidations (`trees`), only the ones in `staletrees
 ```julia
 using SnoopCompileCore
 invalidations = @snoopr using PkgA, PkgB;
-using SnoopCompile
-trees = invalidation_trees(invalidations)
 tinf = @snoopi_deep begin
     some_workload()
 end
+using SnoopCompile
+trees = invalidation_trees(invalidations)
 staletrees = precompile_blockers(trees, tinf)
 
 @show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
