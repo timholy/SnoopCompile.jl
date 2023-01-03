@@ -328,6 +328,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
     backedge_table = new_backedge_table()
+    inserted_backedges = false
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -348,8 +349,13 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 end
             elseif isa(item, String)
                 loctag = item
-                if Base.VERSION >= v"1.9.0-DEV.1512" && loctag ∉ ("insert_backedges_callee", "verify_methods")
-                    empty!(backedge_table)
+                if Base.VERSION >= v"1.9.0-DEV.1512" && loctag ∉ ("insert_backedges_callee", "verify_methods") && inserted_backedges
+                    # The integer index resets between packages, clear all with integer keys
+                    ikeys = collect(Iterators.filter(x -> isa(x, Integer), keys(backedge_table)))
+                    for key in ikeys
+                        delete!(backedge_table, key)
+                    end
+                    inserted_backedges = false
                 end
                 if loctag == "invalidate_mt_cache"
                     push!(mt_cache, mi)
@@ -385,6 +391,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     end
                 elseif loctag == "insert_backedges_callee"
                     i = handle_insert_backedges(list, i, mi)
+                    inserted_backedges = true
                 elseif loctag == "verify_methods"
                     next = list[i+=1]
                     if isa(next, Integer)
@@ -400,23 +407,18 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         reason = nothing
                     else
                         @assert isa(next, MethodInstance) "unexpected logging format"
-                        parent = get(backedge_table, next, nothing)
-                        if parent === nothing
-                            # display(backedge_table)
-                            @warn "$next not a key for backedge_table"
-                        else
-                            found = false
-                            for child in parent.children
-                                if child.mi == mi
-                                    found = true
-                                    break
-                                end
+                        parent = backedge_table[next]
+                        found = false
+                        for child in parent.children
+                            if child.mi == mi
+                                found = true
+                                break
                             end
-                            if !found
-                                newnode = InstanceNode(mi, parent)
-                                if !haskey(backedge_table, mi)
-                                    backedge_table[mi] = newnode
-                                end
+                        end
+                        if !found
+                            newnode = InstanceNode(mi, parent)
+                            if !haskey(backedge_table, mi)
+                                backedge_table[mi] = newnode
                             end
                         end
                     end
