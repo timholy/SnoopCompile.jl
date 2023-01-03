@@ -13,6 +13,7 @@ The resulting plot shows the distribution of the invalidations sorted by the num
 Generally, invalidations with many children matter more than those
 with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
 invalidations, with `show(trees[end-1])` being the second most, and so forth.
+While the plot shows total invalidations (`trees`), only the ones in `staletrees` affect the workload in `@snoopi_deep`.
 
 ```julia
 using SnoopCompileCore
