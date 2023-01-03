@@ -307,6 +307,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
         ncovered = 0
         callees = Any[callee]
+        i0 = i
         while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
             push!(callees, list[i+1])
             i += 2
@@ -318,6 +319,8 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             ncovered += 1
         end
         push!(delayed, callees => callers)
+        println("i0 = $i0, i = $i")
+        display(list[i0:i-1])
         @assert ncovered > 0
         return i
     end
