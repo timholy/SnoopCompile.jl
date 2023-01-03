@@ -319,9 +319,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             ncovered += 1
         end
         push!(delayed, callees => callers)
-        println("i0 = $i0, i = $i")
-        display(list[i0:i-1])
-        @assert ncovered > 0
+        i > i0 && @assert ncovered > 0
         return i
     end
 
