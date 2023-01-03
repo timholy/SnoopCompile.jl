@@ -395,7 +395,9 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 elseif loctag == "verify_methods"
                     next = list[i+=1]
                     if isa(next, Integer)
-                        trig, causes = backedge_table[next]
+                        ret = get(backedge_table, next, nothing)
+                        ret === nothing && (@warn "$next not found in `backedge_table`"; continue)
+                        trig, causes = ret
                         newnode = InstanceNode(mi, 1)
                         push!(mt_backedges, trig => newnode)
                         backedge_table[mi] = newnode
@@ -407,7 +409,8 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         reason = nothing
                     else
                         @assert isa(next, MethodInstance) "unexpected logging format"
-                        parent = backedge_table[next]
+                        parent = get(backedge_table, next, nothing)
+                        parent === nothing && (@warn "$next not found in `backedge_table`"; continue)
                         found = false
                         for child in parent.children
                             if child.mi == mi
