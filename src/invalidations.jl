@@ -2,6 +2,8 @@ using Cthulhu
 
 export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 
+const have_verify_methods = Base.VERSION >= v"1.9.0-DEV.1512" || Base.VERSION >= v"1.8.4"
+
 function from_corecompiler(mi::MethodInstance)
     fn = fullname(mi.def.module)
     length(fn) < 2 && return false
@@ -249,7 +251,7 @@ function showlist(io::IO, treelist, indent::Int=0)
     end
 end
 
-if Base.VERSION >= v"1.9.0-DEV.1512"
+if have_verify_methods
     new_backedge_table() = Dict{Union{Int32,MethodInstance},Union{Tuple{Any,Vector{Any}},InstanceNode}}()
 else
     new_backedge_table() = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
@@ -294,7 +296,7 @@ See the documentation for further details.
 function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     function handle_insert_backedges(list, i, callee)
-        if Base.VERSION >= v"1.9.0-DEV.1512"
+        if have_verify_methods
             key, causes = list[i+=1], list[i+=1]
             backedge_table[key] = (callee, causes)
             return i
