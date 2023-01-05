@@ -1786,7 +1786,7 @@ The empty horizontal periods in the flamegraph correspond to times when somethin
 The total width of the flamegraph is set from the `ROOT` node.
 """
 function FlameGraphs.flamegraph(tinf::InferenceTimingNode; tmin = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
-    isROOT(tinf) && isempty(tinf.children) && error("root node has no children")
+    isROOT(tinf) && isempty(tinf.children) && @warn "Empty profile: no compilation was recorded."
     io = IOBuffer()
     # Compute a "root" frame for the top-level node, to cover the whole profile
     node_data, _ = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=true)
