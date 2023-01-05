@@ -230,7 +230,7 @@ end
 end
 
 @testset "Delayed invalidations" begin
-    if Base.VERSION >= v"1.9.0-DEV.1432"  # julia#46756
+    if SnoopCompile.have_verify_methods
         cproj = Base.active_project()
         cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
             Pkg.activate(pwd())

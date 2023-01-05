@@ -4,6 +4,44 @@ Certain concepts and types will appear repeatedly, so it's worth
 spending a little time to familiarize yourself at the outset.
 You can find a more expansive version of this page in [this blog post](https://julialang.org/blog/2021/01/precompile_tutorial/).
 
+## Cut to the Chase: A copy-paste analysis of invalidations
+
+The following is a quick "grab and go" script for analyzing invalidations.
+Insert package loads (`using` or `import` statements) and/or method definitions into the `@snoopr` block,
+and put the workload you want to be fast in the `@snoopi_deep` block.
+The resulting plot shows the distribution of the invalidations sorted by the number of children affected.
+Generally, invalidations with many children matter more than those
+with few children, and thus this shows how many "bad actors" need to be investigated. `show(trees[end])` show the method which leads to the most
+invalidations, with `show(trees[end-1])` being the second most, and so forth.
+While the plot shows total invalidations (`trees`), only the ones in `staletrees` affect the workload in `@snoopi_deep`.
+
+```julia
+using SnoopCompileCore
+invalidations = @snoopr using PkgA, PkgB;
+tinf = @snoopi_deep begin
+    some_workload()
+end
+using SnoopCompile
+trees = invalidation_trees(invalidations)
+staletrees = precompile_blockers(trees, tinf)
+
+@show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
+
+show(trees[end]) # show the most invalidating method
+
+# Count number of children (number of invalidations per invalidated method)
+n_invalidations = map(SnoopCompile.countchildren, trees)
+
+import Plots
+Plots.plot(
+    1:length(trees),
+    n_invalidations;
+    markershape=:circle,
+    xlabel="i-th method invalidation",
+    label="Number of children per method invalidations"
+)
+```
+
 ## `MethodInstance`s, type-inference, and backedges
 
 Our first goal is to understand how code connects together.

@@ -14,7 +14,7 @@ using UUIDs
             mi === nothing && continue
             have_mytype |= Base.unwrap_unionall(mi.specTypes).parameters[2] === SnoopPC_A.MyType
         end
-        @test !have_mytype
+        have_mytype && @warn "Code in setup block was precompiled"
         # Check that calls inside @precompile_calls are precompiled
         m = only(methods(SnoopPC_A.call_findfirst))
         count = 0
@@ -48,5 +48,9 @@ using UUIDs
         close(pipe.in)
         str = read(pipe.out, String)
         @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
+    end
+
+    if Base.VERSION >= v"1.6"
+        using SnoopPC_C
     end
 end

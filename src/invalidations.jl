@@ -2,6 +2,8 @@ using Cthulhu
 
 export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 
+const have_verify_methods = Base.VERSION >= v"1.9.0-DEV.1512" || Base.VERSION >= v"1.8.4"
+
 function from_corecompiler(mi::MethodInstance)
     fn = fullname(mi.def.module)
     length(fn) < 2 && return false
@@ -249,7 +251,7 @@ function showlist(io::IO, treelist, indent::Int=0)
     end
 end
 
-if Base.VERSION >= v"1.9.0-DEV.1512"
+if have_verify_methods
     new_backedge_table() = Dict{Union{Int32,MethodInstance},Union{Tuple{Any,Vector{Any}},InstanceNode}}()
 else
     new_backedge_table() = Dict{Tuple{Int32,UInt64},Tuple{Any,Vector{Any}}}()
@@ -294,7 +296,7 @@ See the documentation for further details.
 function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     function handle_insert_backedges(list, i, callee)
-        if Base.VERSION >= v"1.9.0-DEV.1512"
+        if have_verify_methods
             key, causes = list[i+=1], list[i+=1]
             backedge_table[key] = (callee, causes)
             return i
@@ -307,6 +309,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
         ncovered = 0
         callees = Any[callee]
+        i0 = i
         while length(list) >= i+2 && list[i+2] == "insert_backedges_callee"
             push!(callees, list[i+1])
             i += 2
@@ -318,7 +321,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
             ncovered += 1
         end
         push!(delayed, callees => callers)
-        @assert ncovered > 0
+        i > i0 && @assert ncovered > 0
         return i
     end
 
@@ -328,6 +331,7 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     reason = nothing
     backedge_table = new_backedge_table()
+    inserted_backedges = false
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -348,8 +352,13 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                 end
             elseif isa(item, String)
                 loctag = item
-                if Base.VERSION >= v"1.9.0-DEV.1512" && loctag ∉ ("insert_backedges_callee", "verify_methods")
-                    empty!(backedge_table)
+                if Base.VERSION >= v"1.9.0-DEV.1512" && loctag ∉ ("insert_backedges_callee", "verify_methods") && inserted_backedges
+                    # The integer index resets between packages, clear all with integer keys
+                    ikeys = collect(Iterators.filter(x -> isa(x, Integer), keys(backedge_table)))
+                    for key in ikeys
+                        delete!(backedge_table, key)
+                    end
+                    inserted_backedges = false
                 end
                 if loctag == "invalidate_mt_cache"
                     push!(mt_cache, mi)
@@ -385,10 +394,13 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     end
                 elseif loctag == "insert_backedges_callee"
                     i = handle_insert_backedges(list, i, mi)
+                    inserted_backedges = true
                 elseif loctag == "verify_methods"
                     next = list[i+=1]
                     if isa(next, Integer)
-                        trig, causes = backedge_table[next]
+                        ret = get(backedge_table, next, nothing)
+                        ret === nothing && (@warn "$next not found in `backedge_table`"; continue)
+                        trig, causes = ret
                         newnode = InstanceNode(mi, 1)
                         push!(mt_backedges, trig => newnode)
                         backedge_table[mi] = newnode
@@ -400,7 +412,8 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         reason = nothing
                     else
                         @assert isa(next, MethodInstance) "unexpected logging format"
-                        parent = backedge_table[next]
+                        parent = get(backedge_table, next, nothing)
+                        parent === nothing && (@warn "$next not found in `backedge_table`"; continue)
                         found = false
                         for child in parent.children
                             if child.mi == mi

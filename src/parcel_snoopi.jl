@@ -70,10 +70,13 @@ const __bodyfunction__ = Dict{Method,Any}()
 # `mnokw` is the method that gets called when you invoke it without
 # supplying any keywords.
 function __lookup_kwbody__(mnokw::Method)
-    function getsym(arg)
+    function getsym(ast, arg)
         isa(arg, Symbol) && return arg
-        @assert isa(arg, GlobalRef)
-        return arg.name
+        isa(arg, GlobalRef) && return arg.name
+        if isa(arg, Core.SSAValue)
+            arg = ast.code[arg.id]
+            return getsym(ast, arg)
+        end
     end
 
     f = get(__bodyfunction__, mnokw, nothing)
@@ -92,9 +95,9 @@ function __lookup_kwbody__(mnokw::Method)
                     f = getfield(fmod, fsym)
                 elseif isa(fsym, GlobalRef)
                     if fsym.mod === Core && fsym.name === :_apply
-                        f = getfield(mnokw.module, getsym(callexpr.args[2]))
+                        f = getfield(mnokw.module, getsym(ast, callexpr.args[2]))
                     elseif fsym.mod === Core && fsym.name === :_apply_iterate
-                        f = getfield(mnokw.module, getsym(callexpr.args[3]))
+                        f = getfield(mnokw.module, getsym(ast, callexpr.args[3]))
                     else
                         f = getfield(fsym.mod, fsym.name)
                     end

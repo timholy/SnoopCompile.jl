@@ -8,7 +8,7 @@ Consequently, an analysis of specialization can be a powerful tool for improving
 
 `SnoopCompile` ships with an interactive tool, [`pgdsgui`](@ref), short for "Profile-guided despecialization."
 The name is a reference to a related technique, [profile-guided optimization](https://en.wikipedia.org/wiki/Profile-guided_optimization) (PGO).
-Both PGO and PGDS use rutime profiling to help guide decisions about code optimization.
+Both PGO and PGDS use runtime profiling to help guide decisions about code optimization.
 PGO is often used in languages whose default mode is to avoid specialization, whereas PGDS seems more appropriate for
 a language like Julia which specializes by default.
 While PGO is sometimes an automatic part of the compiler that optimizes code midstream during execution, PGDS is a tool for making static changes in code.
@@ -167,7 +167,7 @@ The results with `@nospecialize` are shown on the right. You can see that:
 
 Moreover, our runtimes (post-compilation) really aren't very different, both in the ballpark of a few millseconds (you can check with `@btime` from BenchmarkTools to be sure).
 
-In total, we've reduced compilation time approximately 50× without appreciably hurting runtime perfomance.
+In total, we've reduced compilation time approximately 50× without appreciably hurting runtime performance.
 Reducing specialization, when appropriate, can often yield your biggest reductions in latency.
 
 !!! tip
