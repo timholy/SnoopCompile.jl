@@ -23,10 +23,11 @@ function uinvalidated(invlist; exclude_corecompiler::Bool=true)
     umis = Set{MethodInstance}()
     for (i, item) in enumerate(invlist)
         if isa(item, Core.MethodInstance)
-            if invlist[i+1] != "invalidate_mt_cache"
-                if !exclude_corecompiler || !from_corecompiler(item)
-                    push!(umis, item)
-                end
+            if i < lastindex(invlist)
+                invlist[i+1] == "invalidate_mt_cache" && continue
+            end
+            if !exclude_corecompiler || !from_corecompiler(item)
+                push!(umis, item)
             end
         end
     end
