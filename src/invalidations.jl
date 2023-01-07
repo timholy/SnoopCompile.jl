@@ -21,15 +21,24 @@ they do not invalidate any compiled code, they only transiently affect an optimi
 """
 function uinvalidated(invlist; exclude_corecompiler::Bool=true)
     umis = Set{MethodInstance}()
-    for (i, item) in enumerate(invlist)
+    i, ilast = firstindex(invlist), lastindex(invlist)
+    while i <= ilast
+        item = invlist[i]
         if isa(item, Core.MethodInstance)
             if i < lastindex(invlist)
                 invlist[i+1] == "invalidate_mt_cache" && continue
+                if invlist[i+1] == "verify_methods"
+                    # Skip over the cause, which can also be a MethodInstance
+                    # These may be superseded, but they aren't technically invalidated
+                    # (e.g., could still be called via `invoke`)
+                    i += 1
+                end
             end
             if !exclude_corecompiler || !from_corecompiler(item)
                 push!(umis, item)
             end
         end
+        i += 1
     end
     return umis
 end
