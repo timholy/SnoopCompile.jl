@@ -53,6 +53,8 @@ end
     mi1 = methodinstance(SnooprTests.applyf, (Vector{Any},))
     mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
 
+    @test length(uinvalidated([mi1])) == 1  # issue #327
+
     invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)
     umis = uinvalidated(invs)
