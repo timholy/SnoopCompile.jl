@@ -87,4 +87,4 @@ using SnoopPrecompile, Preferences
 set_preferences!(SnoopPrecompile, "skip_precompile" => ["PackageA", "PackageB"])
 ```
 
-After restarting julia, precompilation will be disabled for `PackageA` and `PackageB`.
+After restarting julia, the `@precompile_all_calls` and `@precompile_setup` workloads will be disabled (locally) for `PackageA` and `PackageB`.
