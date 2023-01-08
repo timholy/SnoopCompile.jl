@@ -1,10 +1,13 @@
 module SnoopPrecompile
 
+using Preferences
+
 export @precompile_all_calls, @precompile_setup
 
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
 const have_force_compile = isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("#@force_compile"))
+const do_precompile = Base.VERSION >= v"1.6" ? @load_preference("precompile", true) : true
 
 function precompile_roots(roots)
     @assert have_inference_tracking
@@ -44,6 +47,7 @@ end
         - indirect runtime-dispatched calls to such methods.
 """
 macro precompile_all_calls(ex::Expr)
+    do_precompile || return :()
     if have_force_compile
         ex = quote
             begin
@@ -101,6 +105,7 @@ runtime dispatches (though they will be precompiled anyway if the runtime-callee
 to your package).
 """
 macro precompile_setup(ex::Expr)
+    do_precompile || return :()
     return esc(quote
         # let
             if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
