@@ -80,3 +80,11 @@ intended calls from inside the `@precompile_all_calls` block (see [`@snoopi_deep
     code that you want precompiled.
     You can use `@snoopi_deep` to check for any (re)inference when you use the code in your package.
     To fix any specific problems, you can combine `@precompile_all_calls` with manual `precompile` directives.
+
+One can disable precompilation for selected packages using the `Preferences.jl` based mechanism and the `skip_precompile` key:
+```julia
+using SnoopPrecompile, Preferences
+set_preferences!(SnoopPrecompile, "skip_precompile" => ["PackageA", "PackageB"])
+```
+
+After restarting julia, precompilation will be disabled for `PackageA` and `PackageB`.
