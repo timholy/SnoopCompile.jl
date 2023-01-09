@@ -6,7 +6,7 @@ using UUIDs
     push!(LOAD_PATH, @__DIR__)
 
     using SnoopPC_A
-    if Base.VERSION >= v"1.8.0-rc1"
+    if VERSION >= v"1.8.0-rc1"
         # Check that calls inside :setup are not precompiled
         m = which(Tuple{typeof(Base.vect), Vararg{T}} where T)
         have_mytype = false
@@ -39,7 +39,7 @@ using UUIDs
         @test count == 1
     end
 
-    if Base.VERSION >= v"1.7"   # so we can use redirect_stderr(f, ::Pipe)
+    if VERSION >= v"1.7"   # so we can use redirect_stderr(f, ::Pipe)
         pipe = Pipe()
         id = Base.PkgId(UUID("d38b61e7-59a2-4ef9-b4d3-320bdc69b817"), "SnoopPC_B")
         redirect_stderr(pipe) do
@@ -50,7 +50,21 @@ using UUIDs
         @test occursin(r"UndefVarError: `?missing_function`? not defined", str)
     end
 
-    if Base.VERSION >= v"1.6"
+    if VERSION >= v"1.6"
         using SnoopPC_C
+    end
+
+    if VERSION >= v"1.6"
+        script = """
+        push!(LOAD_PATH, @__DIR__)
+        using SnoopPC_D
+        exit(isdefined(SnoopPC_D, :workload_ran) === parse(Bool, ARGS[1]) ? 0 : 1)
+        """
+
+        SnoopPrecompile.Preferences.set_preferences!(SnoopPrecompile, "skip_precompile" => ["SnoopPC_D"])
+        @test success(run(`$(Base.julia_cmd()) --project=$(Base.active_project()) -e $script 0`))
+
+        SnoopPrecompile.Preferences.delete_preferences!(SnoopPrecompile, "skip_precompile"; force = true)
+        @test success(run(`$(Base.julia_cmd()) --project=$(Base.active_project()) -e $script 1`))
     end
 end

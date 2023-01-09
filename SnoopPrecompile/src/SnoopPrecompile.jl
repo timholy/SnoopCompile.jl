@@ -2,6 +2,16 @@ module SnoopPrecompile
 
 export @precompile_all_calls, @precompile_setup
 
+@static if VERSION >= v"1.6"
+    using Preferences
+end
+
+@static if VERSION >= v"1.6"
+    const skip_precompile = @load_preference("skip_precompile", String[])
+else
+    const skip_precompile = String[]
+end
+
 const verbose = Ref(false)    # if true, prints all the precompiles
 const have_inference_tracking = isdefined(Core.Compiler, :__set_measure_typeinf)
 const have_force_compile = isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("#@force_compile"))
@@ -44,6 +54,7 @@ end
         - indirect runtime-dispatched calls to such methods.
 """
 macro precompile_all_calls(ex::Expr)
+    string(__module__) in skip_precompile && return :()
     if have_force_compile
         ex = quote
             begin
@@ -101,6 +112,7 @@ runtime dispatches (though they will be precompiled anyway if the runtime-callee
 to your package).
 """
 macro precompile_setup(ex::Expr)
+    string(__module__) in skip_precompile && return :()
     return esc(quote
         # let
             if ccall(:jl_generating_output, Cint, ()) == 1 || $SnoopPrecompile.verbose[]
