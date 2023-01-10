@@ -54,6 +54,8 @@ end
     mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
 
     @test length(uinvalidated([mi1])) == 1  # issue #327
+    @test length(uinvalidated([mi1, "verify_methods", mi2])) == 1
+    @test length(uinvalidated([mi1, "invalidate_mt_cache"])) == 0
 
     invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)

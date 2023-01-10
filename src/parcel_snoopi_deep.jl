@@ -149,7 +149,7 @@ that it is being inferred for many specializations (which might include speciali
 
 We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
 
-```jldoctest accum1; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|at .*/deep_demos.jl:\\d+|at Base\\.jl:\\d+|at compiler/typeinfer\\.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
+```jldoctest accum1; setup=:(using SnoopCompile), filter=[r"(in|@)", r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|:[0-9]+\\)|at .*/deep_demos.jl:\\d+|at Base\\.jl:\\d+|at compiler/typeinfer\\.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"]
 julia> tinf = SnoopCompile.flatten_demo()
 InferenceTimingNode: 0.002148974/0.002767166 on Core.Compiler.Timings.ROOT() with 1 direct children
 
@@ -918,7 +918,7 @@ Filter `itrigs` for those with a non-passing `JET` report, returning the list of
 
 # Examples
 
-```jldoctest jetfib; setup=(using SnoopCompile, JET), filter=r"[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
+```jldoctest jetfib; setup=(using SnoopCompile, JET), filter=[r"\\d direct children", r"[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"]
 julia> fib(n::Integer) = n ≤ 2 ? n : fib(n-1) + fib(n-2);
 
 julia> function fib(str::String)
@@ -938,7 +938,7 @@ julia> tinf = @snoopi_deep try mapfib(list) catch end
 InferenceTimingNode: 0.049825/0.071476 on Core.Compiler.Timings.ROOT() with 5 direct children
 
 julia> @report_call mapfib(list)
-No errors !
+No errors detected
 ```
 
 JET did not catch the error because the call to `fib` is hidden behind runtime dispatch.
@@ -949,7 +949,7 @@ julia> report_callees(inference_triggers(tinf))
 1-element Vector{Pair{InferenceTrigger, JET.JETCallResult{JET.JETAnalyzer{JET.BasicPass{typeof(JET.basic_function_filter)}}, Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}}}}:
  Inference triggered to call fib(::String) from iterate (./generator.jl:47) inlined into Base.collect_to!(::Vector{Int64}, ::Base.Generator{Vector{Any}, typeof(fib)}, ::Int64, ::Int64) (./array.jl:782) => ═════ 1 possible error found ═════
 ┌ @ none:3 fib(m)
-│ variable m is not defined: fib(m)
+│ variable `m` is not defined
 └──────────
 ```
 """

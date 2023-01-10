@@ -18,7 +18,7 @@ We can demonstrate both the need and use of these tools with a simple extended e
 
 JET provides a useful report for the following call:
 
-```jldoctest jet; filter=r"@ reduce.*"
+```jldoctest jet; filter=[r"@ reduce.*", r"(in|@)", r"(REPL\[\d+\]|none)"]
 julia> using JET
 
 julia> list = Any[1,2,3];
@@ -78,7 +78,7 @@ julia> callsum(lc)
 6
 
 julia> @report_call callsum(lc)
-No errors !
+No errors detected
 ```
 
 Because we "hid" the type of `list` from inference, JET couldn't tell what specific instance of `sum` was going to be called, so it was unable to detect any errors.

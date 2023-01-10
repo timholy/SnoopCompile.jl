@@ -33,7 +33,7 @@ Readers who want more background and context are encouraged to read [this blog p
 ## Recording invalidations
 
 ```@meta
-DocTestFilters = r"(REPL\[\d+\]|none):\d+"
+DocTestFilters = r"(in|@) [a-zA-Z0-9]* (REPL\[\d+\]|none):\d+"
 DocTestSetup = quote
     using SnoopCompile
 end
@@ -115,7 +115,7 @@ The length of this set is your simplest insight into the extent of invalidations
 If you want to fix invalidations, it's crucial to know *why* certain `MethodInstance`s were invalidated.
 For that, it's best to use a tree structure, in which children are invalidated because their parents get invalidated:
 
-```jldoctest invalidations
+```jldoctest invalidations; filter=[r"(in Main at|@ Main) (REPL\[\d+\]|none)"]
 julia> trees = invalidation_trees(invalidations)
 1-element Vector{SnoopCompile.MethodInvalidations}:
  inserting f(::Float64) in Main at REPL[9]:1 invalidated:
@@ -165,7 +165,7 @@ These are invalidations triggered via the `MethodTable` for a particular functio
 When extracting `mt_backedges`, in addition to a root `MethodInstance` these also indicate a particular signature that triggered the invalidation.
 We can illustrate this by returning to the `call2f` example above:
 
-```jldoctest invalidations
+```jldoctest invalidations; filter=[r"(in Main at|@ Main) (REPL\[\d+\]|none)"]
 julia> call2f(["hello"])
 ERROR: MethodError: no method matching f(::String)
 [...]
