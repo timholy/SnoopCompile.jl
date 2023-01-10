@@ -26,12 +26,15 @@ function uinvalidated(invlist; exclude_corecompiler::Bool=true)
         item = invlist[i]
         if isa(item, Core.MethodInstance)
             if i < lastindex(invlist)
-                invlist[i+1] == "invalidate_mt_cache" && continue
+                if invlist[i+1] == "invalidate_mt_cache"
+                    i += 2
+                    continue
+                end
                 if invlist[i+1] == "verify_methods"
                     # Skip over the cause, which can also be a MethodInstance
                     # These may be superseded, but they aren't technically invalidated
                     # (e.g., could still be called via `invoke`)
-                    i += 1
+                    i += 2
                 end
             end
             if !exclude_corecompiler || !from_corecompiler(item)
