@@ -188,13 +188,13 @@ end
             Base.@irrational twoπ 6.2831853071795864769 2*big(π)
         end
     end
-
     # Tabulate invalidations:
-    # Note: this table may change over time as invalidations get fixed.
-    SnoopCompile.report_invalidations(;
-        job_name = "job_name",
+    io = IOBuffer()
+    SnoopCompile.report_invalidations(io;
         invalidations = invs,
     )
+    str = String(take!(io))
+    @test occursin("Invalidations %", str)
 
     trees = invalidation_trees(invs)
     @test length(trees) == 3

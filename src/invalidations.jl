@@ -256,8 +256,8 @@ else
 end
 
 """
-    report_invalidations(;
-        job_name::String = "",
+    report_invalidations(
+        io::IO = stdout;
         invalidations,
         n_rows::Int = 10,
         process_filename::Function = x -> x,
@@ -265,10 +265,19 @@ end
 
 Print a tabular summary of invalidations given:
 
- - `job_name::String` the name of the job
+ - `invalidations` the output of [`SnoopCompileCore.@snoopr`](@ref)
 
-An `@info` message also prints some information, for example
-if the table has been truncated (upon request).
+and (optionally)
+
+ - `io::IO` IO stream. Defaults to `stdout`
+ - `n_rows::Int` the number of rows to be displayed in the
+   truncated table. A value of 0 indicates no truncation.
+   A positive value will truncate the table to the specified
+   number of rows.
+ - `process_filename(::String)::String` a function to post-process
+   each filename, where invalidations are found
+
+# Example usage
 
 ```julia
 import SnoopCompileCore
@@ -280,10 +289,7 @@ end;
 
 using SnoopCompile
 using PrettyTables # to load report_invalidations
-report_invalidations(;
-    job_name = "MyWork",
-    invalidations,
-)
+report_invalidations(;invalidations)
 ```
 
 Using `report_invalidations` requires that you first load the `PrettyTables.jl` package.

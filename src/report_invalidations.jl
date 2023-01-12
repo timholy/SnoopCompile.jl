@@ -4,12 +4,12 @@ import .PrettyTables
 
 export report_invalidations
 
-function report_invalidations(;
-        job_name::String = "",
+function report_invalidations(io::IO = stdout;
         invalidations,
         n_rows::Int = 10,
         process_filename::Function = x -> x,
     )
+    @assert n_rows ≥ 0
     trees = reverse(invalidation_trees(invalidations))
     n_total_invalidations = length(uinvalidated(invalidations))
     # TODO: Merge `@info` statement with one below
@@ -17,13 +17,17 @@ function report_invalidations(;
         countchildren(methinvs)
     end
     n_invs_total = length(invs_per_method)
-    truncated_invs = n_rows < n_invs_total
+    if n_invs_total == 0
+        @info "Zero invalidations! 🎉"
+        return nothing
+    end
+    nr = n_rows == 0 ? n_invs_total : n_rows
+    truncated_invs = nr < n_invs_total
     sum_invs = sum(invs_per_method)
-    invs_per_method = invs_per_method[1:min(n_rows, n_invs_total)]
-    trees = trees[1:min(n_rows, n_invs_total)]
-    trunc_msg = truncated_invs ? " (showing $n_rows functions) " : ""
-    mgs_prefix = job_name == "" ? "" : "$job_name: "
-    @info "$mgs_prefix$n_total_invalidations methods invalidated for $n_invs_total functions$trunc_msg"
+    invs_per_method = invs_per_method[1:min(nr, n_invs_total)]
+    trees = trees[1:min(nr, n_invs_total)]
+    trunc_msg = truncated_invs ? " (showing $nr functions) " : ""
+    @info "$n_total_invalidations methods invalidated for $n_invs_total functions$trunc_msg"
     n_invalidations_percent = map(invs_per_method) do inv
         inv_perc = inv / sum_invs
         Int(round(inv_perc*100, digits = 0))
@@ -46,6 +50,7 @@ function report_invalidations(;
     )
 
     PrettyTables.pretty_table(
+        io,
         table_data;
         header,
         formatters = PrettyTables.ft_printf("%s", 2:2),
