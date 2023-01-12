@@ -274,7 +274,7 @@ if the table has been truncated (upon request).
 import SnoopCompileCore
 invalidations = SnoopCompileCore.@snoopr begin
 
-    # load packages & do representative work
+    # load packages & define any additional methods
 
 end;
 
