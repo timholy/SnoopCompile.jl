@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "2.9.8"
+version = "2.10.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -25,7 +25,7 @@ FlameGraphs = "0.2, 1"
 JET = "0.0, 0.4, 0.5, 0.6"
 OrderedCollections = "1"
 Requires = "1"
-SnoopCompileCore = "~2.9.0"
+SnoopCompileCore = "~2.10.0"
 YAML = "0.4"
 julia = "1"
 
