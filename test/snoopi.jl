@@ -101,6 +101,9 @@ uncompiled(x) = x + 1
     tinf = @snoopi sum(a)
     @test any(td->td[2].def.name == :sum, tinf)
 
+    a = rand(Float32, 5)
+    @snoopi tmin=1e-3 sum(a)  # coverage
+
     a = [E.ET(1)]
     c = [A.B.C.CT(1)]
     tinf = @snoopi (A.f(a); A.f(c))
@@ -274,8 +277,9 @@ end
 
 # Issue https://github.com/timholy/SnoopCompile.jl/issues/40#issuecomment-570560584
 @testset "Reachable" begin
-    tinf = @snoopi tmin=1e-3 include("snoopreachable.jl")
-    tinf = @snoopi include("snoopreachable.jl")
+    tinf = @snoopi begin
+        include("snoopreachable.jl")
+    end
     pc = SnoopCompile.parcel(tinf)
     pcd = pc[:Reachable]
     @test length(pcd) == 2
