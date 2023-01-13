@@ -271,6 +271,47 @@ else
 end
 
 """
+    report_invalidations(
+        io::IO = stdout;
+        invalidations,
+        n_rows::Int = 10,
+        process_filename::Function = x -> x,
+    )
+
+Print a tabular summary of invalidations given:
+
+ - `invalidations` the output of [`SnoopCompileCore.@snoopr`](@ref)
+
+and (optionally)
+
+ - `io::IO` IO stream. Defaults to `stdout`
+ - `n_rows::Int` the number of rows to be displayed in the
+   truncated table. A value of 0 indicates no truncation.
+   A positive value will truncate the table to the specified
+   number of rows.
+ - `process_filename(::String)::String` a function to post-process
+   each filename, where invalidations are found
+
+# Example usage
+
+```julia
+import SnoopCompileCore
+invalidations = SnoopCompileCore.@snoopr begin
+
+    # load packages & define any additional methods
+
+end;
+
+using SnoopCompile
+using PrettyTables # to load report_invalidations
+report_invalidations(;invalidations)
+```
+
+Using `report_invalidations` requires that you first load the `PrettyTables.jl` package.
+"""
+function report_invalidations end
+
+"""
     trees = invalidation_trees(list)
 
 Parse `list`, as captured by [`SnoopCompileCore.@snoopr`](@ref), into a set of invalidation trees, where parents nodes

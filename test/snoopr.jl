@@ -1,4 +1,5 @@
 using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
+import PrettyTables # so that the report_invalidations.jl file is loaded
 
 const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
 
@@ -191,6 +192,14 @@ end
             Base.@irrational twoπ 6.2831853071795864769 2*big(π)
         end
     end
+    # Tabulate invalidations:
+    io = IOBuffer()
+    SnoopCompile.report_invalidations(io;
+        invalidations = invs,
+    )
+    str = String(take!(io))
+    @test occursin("Invalidations %", str)
+
     trees = invalidation_trees(invs)
     @test length(trees) == 3
     io = IOBuffer()
