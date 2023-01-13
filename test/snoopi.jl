@@ -274,9 +274,8 @@ end
 
 # Issue https://github.com/timholy/SnoopCompile.jl/issues/40#issuecomment-570560584
 @testset "Reachable" begin
-    tinf = @snoopi begin
-        include("snoopreachable.jl")
-    end
+    tinf = @snoopi tmin=1e-3 include("snoopreachable.jl")
+    tinf = @snoopi include("snoopreachable.jl")
     pc = SnoopCompile.parcel(tinf)
     pcd = pc[:Reachable]
     @test length(pcd) == 2
