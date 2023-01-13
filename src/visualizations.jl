@@ -1,4 +1,5 @@
 # This is loaded conditionally via @require if PyPlot is loaded
+# COV_EXCL_START
 
 using .PyPlot: plt, PyCall
 
@@ -81,3 +82,5 @@ function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookup
 end
 
 @deprecate specialization_plot pgdsgui
+
+# COV_EXCL_STOP
