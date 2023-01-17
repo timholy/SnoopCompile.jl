@@ -101,6 +101,9 @@ uncompiled(x) = x + 1
     tinf = @snoopi sum(a)
     @test any(td->td[2].def.name == :sum, tinf)
 
+    a = rand(Float32, 5)
+    @snoopi tmin=1e-3 sum(a)  # coverage
+
     a = [E.ET(1)]
     c = [A.B.C.CT(1)]
     tinf = @snoopi (A.f(a); A.f(c))

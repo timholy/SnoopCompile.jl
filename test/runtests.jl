@@ -67,6 +67,12 @@ if Base.VERSION < v"1.7.0-DEV.694"
     end
 end
 
+# coverage
+if isdefined(SnoopCompile.SnoopCompileCore, Symbol("@snoopi_deep"))
+    tinf = SnoopCompile.flatten_demo()
+    @test length(accumulate_by_source(flatten(tinf))) == 7
+end
+
 end
 
 #=
