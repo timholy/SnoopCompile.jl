@@ -8,13 +8,14 @@ using SnoopCompile
 trees = invalidation_trees(invalidations)
 staletrees = precompile_blockers(trees, tinf)
 
-@show length(SnoopCompile.uinvalidated(invalidations)) # show total invalidations
+@show length(uinvalidated(invalidations))  # show total invalidations
 
-show(trees[end]) # show the most invalidating method
+show(trees[end])  # show the most invalidating method
 
 # Count number of children (number of invalidations per invalidated method)
 n_invalidations = map(SnoopCompile.countchildren, trees)
 
+# (optional) plot the number of children per method invalidations
 import Plots
 Plots.plot(
     1:length(trees),
@@ -22,7 +23,15 @@ Plots.plot(
     markershape=:circle,
     xlabel=&quot;i-th method invalidation&quot;,
     label=&quot;Number of children per method invalidations&quot;
-)</code></pre><h2 id="MethodInstances,-type-inference,-and-backedges"><a class="docs-heading-anchor" href="#MethodInstances,-type-inference,-and-backedges"><code>MethodInstance</code>s, type-inference, and backedges</a><a id="MethodInstances,-type-inference,-and-backedges-1"></a><a class="docs-heading-anchor-permalink" href="#MethodInstances,-type-inference,-and-backedges" title="Permalink"></a></h2><p>Our first goal is to understand how code connects together. We&#39;ll try some experiments using the following:</p><pre><code class="language-julia hljs">double(x::Real) = 2x
+)
+
+# (optional) report invalidations summary
+using PrettyTables  # needed for `report_invalidations` to be defined
+SnoopCompile.report_invalidations(;
+     invalidations,
+     process_filename = x -&gt; last(split(x, &quot;.julia/packages/&quot;)),
+     n_rows = 0,  # no-limit (show all invalidations)
+  )</code></pre><h2 id="MethodInstances,-type-inference,-and-backedges"><a class="docs-heading-anchor" href="#MethodInstances,-type-inference,-and-backedges"><code>MethodInstance</code>s, type-inference, and backedges</a><a id="MethodInstances,-type-inference,-and-backedges-1"></a><a class="docs-heading-anchor-permalink" href="#MethodInstances,-type-inference,-and-backedges" title="Permalink"></a></h2><p>Our first goal is to understand how code connects together. We&#39;ll try some experiments using the following:</p><pre><code class="language-julia hljs">double(x::Real) = 2x
 calldouble(container) = double(container[1])
 calldouble2(container) = calldouble(container)</code></pre><p>Let&#39;s create a <code>container</code> and run this code:</p><pre><code class="language-julia-repl hljs">julia&gt; c64 = [1.0]
 1-element Vector{Float64}:
@@ -116,4 +125,4 @@ MethodInstance for *(::Int64, ::Float32)
 
 julia&gt; mi.def
 *(x::Number, y::Number) in Base at promotion.jl:322</code></pre><p>So even though the method is defined in <code>Base</code>, because <code>SnoopCompileDemo</code> needed this code it got stashed in <code>SnoopCompileDemo.ji</code>.</p><p><em>The ability to cache <code>MethodInstance</code>s from code defined in other packages or libraries is fundamental to latency reduction; however, it has significant limitations.</em>  Most crucially, <code>*.ji</code> files can only hold code they &quot;own,&quot; either:</p><ul><li>to a method defined in the package</li><li>through a chain of backedges to methods owned by the package</li></ul><p>If we add</p><pre><code class="language-julia hljs">precompile(*, (Int, Float16))</code></pre><p>to the definition of <code>SnoopCompileDemo.jl</code>, nothing happens:</p><pre><code class="language-julia hljs">julia&gt; mi = methodinstance(*, (Int, Float16))
-                                                 # nothing</code></pre><p>because there is no &quot;chain of ownership&quot; to <code>SnoopCompileDemo</code>. Consequently, we can&#39;t precompile methods defined in other modules in and of themselves; we can only do it if those methods are linked by backedges to this package.</p><p>Because backedges are created during successful type-inference, the consequence is that <em>precompilation works better when type inference succeeds.</em> For some packages, time invested in improving inferrability can make your <code>precompile</code> directives work better.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snoop_pc/">« SnoopPrecompile</a><a class="docs-footer-nextpage" href="../snoopr/">Snooping on and fixing invalidations: <code>@snoopr</code> »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Friday 13 January 2023 09:48">Friday 13 January 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+                                                 # nothing</code></pre><p>because there is no &quot;chain of ownership&quot; to <code>SnoopCompileDemo</code>. Consequently, we can&#39;t precompile methods defined in other modules in and of themselves; we can only do it if those methods are linked by backedges to this package.</p><p>Because backedges are created during successful type-inference, the consequence is that <em>precompilation works better when type inference succeeds.</em> For some packages, time invested in improving inferrability can make your <code>precompile</code> directives work better.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snoop_pc/">« SnoopPrecompile</a><a class="docs-footer-nextpage" href="../snoopr/">Snooping on and fixing invalidations: <code>@snoopr</code> »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Tuesday 17 January 2023 12:36">Tuesday 17 January 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
