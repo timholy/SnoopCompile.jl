@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>JET integration · SnoopCompile</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">SnoopCompile</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">SnoopCompile.jl</a></li><li><a class="tocitem" href="../snoop_pc/">SnoopPrecompile</a></li><li><a class="tocitem" href="../tutorial/">Tutorial on the foundations</a></li><li><span class="tocitem">Modern tools</span><ul><li><a class="tocitem" href="../snoopr/">Snooping on and fixing invalidations: <code>@snoopr</code></a></li><li><a class="tocitem" href="../snoopi_deep/">Snooping on inference: <code>@snoopi_deep</code></a></li><li><a class="tocitem" href="../pgdsgui/">Profile-guided despecialization</a></li><li><a class="tocitem" href="../snoopi_deep_analysis/">Using <code>@snoopi_deep</code> results to improve inferrability</a></li><li><a class="tocitem" href="../snoopi_deep_parcel/">Using <code>@snoopi_deep</code> results for precompilation</a></li><li class="is-active"><a class="tocitem" href>JET integration</a><ul class="internal"><li><a class="tocitem" href="#JET-usage"><span>JET usage</span></a></li><li><a class="tocitem" href="#JET-limitations"><span>JET limitations</span></a></li><li><a class="tocitem" href="#JET/SnoopCompile-integration"><span>JET/SnoopCompile integration</span></a></li></ul></li></ul></li><li><span class="tocitem">Older tools</span><ul><li><a class="tocitem" href="../snoopi/">Snooping on inference: <code>@snoopi</code></a></li><li><a class="tocitem" href="../snoopc/">Snooping on code generation: <code>@snoopc</code></a></li></ul></li><li><a class="tocitem" href="../userimg/">Creating <code>userimg.jl</code> files</a></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Modern tools</a></li><li class="is-active"><a href>JET integration</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>JET integration</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/timholy/SnoopCompile.jl/blob/master/docs/src/jet.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="JET"><a class="docs-heading-anchor" href="#JET">JET integration</a><a id="JET-1"></a><a class="docs-heading-anchor-permalink" href="#JET" title="Permalink"></a></h1><p><a href="https://github.com/aviatesk/JET.jl">JET</a> is a powerful tool for analyzing call graphs. Some of its functionality overlaps that of SnoopCompile&#39;s, that is, JET also provides mechanisms to detect potential errors. Conversely, JET is a purely static-analysis tool and lacks SnoopCompile&#39;s ability to &quot;bridge&quot; across runtime dispatch. In summary, JET doesn&#39;t need Julia to restart to find inference failures, but JET will only find the first inference failure. SnoopCompile has to run in a fresh session, but finds all inference failures.</p><p>For this reason, the combination of the tools provides capabilities that neither package has on its own. Specifically, one can use SnoopCompile to collect data on the callgraph and JET to perform the error analysis.</p><p>The integration between the two packages is bundled into SnoopCompile, specifically <a href="../reference/#SnoopCompile.report_callee"><code>report_callee</code></a>, <a href="../reference/#SnoopCompile.report_callees"><code>report_callees</code></a>, and <a href="../reference/#SnoopCompile.report_caller"><code>report_caller</code></a>. These take <a href="../reference/#SnoopCompile.InferenceTrigger"><code>InferenceTrigger</code></a> (see the page on <a href="../snoopi_deep_analysis/#inferrability">inference failures</a>) and use them to generate JET reports.</p><p>We can demonstrate both the need and use of these tools with a simple extended example.</p><h2 id="JET-usage"><a class="docs-heading-anchor" href="#JET-usage">JET usage</a><a id="JET-usage-1"></a><a class="docs-heading-anchor-permalink" href="#JET-usage" title="Permalink"></a></h2><p>JET provides a useful report for the following call:</p><pre><code class="language-julia-repl hljs">julia&gt; using JET
+
+julia&gt; list = Any[1,2,3];
+
+julia&gt; sum(list)
+6
+
+julia&gt; @report_call sum(list)
+═════ 1 possible error found ═════
+┌ @ reducedim.jl:889 Base.#sum#732(Base.:, Base.pairs(Core.NamedTuple()), #self#, a)
+│┌ @ reducedim.jl:889 Base._sum(a, dims)
+││┌ @ reducedim.jl:893 Base.#_sum#734(Base.pairs(Core.NamedTuple()), #self#, a, _3)
+│││┌ @ reducedim.jl:893 Base._sum(Base.identity, a, Base.:)
+││││┌ @ reducedim.jl:894 Base.#_sum#735(Base.pairs(Core.NamedTuple()), #self#, f, a, _4)
+│││││┌ @ reducedim.jl:894 Base.mapreduce(f, Base.add_sum, a)
+││││││┌ @ reducedim.jl:322 Base.#mapreduce#725(Base.:, Base._InitialValue(), #self#, f, op, A)
+│││││││┌ @ reducedim.jl:322 Base._mapreduce_dim(f, op, init, A, dims)
+││││││││┌ @ reducedim.jl:330 Base._mapreduce(f, op, Base.IndexStyle(A), A)
+│││││││││┌ @ reduce.jl:402 Base.mapreduce_empty_iter(f, op, A, Base.IteratorEltype(A))
+││││││││││┌ @ reduce.jl:353 Base.reduce_empty_iter(Base.MappingRF(f, op), itr, ItrEltype)
+│││││││││││┌ @ reduce.jl:357 Base.reduce_empty(op, Base.eltype(itr))
+││││││││││││┌ @ reduce.jl:331 Base.mapreduce_empty(Base.getproperty(op, :f), Base.getproperty(op, :rf), _)
+│││││││││││││┌ @ reduce.jl:345 Base.reduce_empty(op, T)
+││││││││││││││┌ @ reduce.jl:322 Base.reduce_empty(Base.+, _)
+│││││││││││││││┌ @ reduce.jl:313 Base.zero(_)
+││││││││││││││││┌ @ missing.jl:106 Base.throw(Base.MethodError(Base.zero, Core.tuple(Base.Any)))
+│││││││││││││││││ MethodError: no method matching zero(::Type{Any})
+││││││││││││││││└──────────────────</code></pre><p>The final line reveals that while <code>sum</code> happened to work for the specific <code>list</code> we provided, it nevertheless has a &quot;gotcha&quot; for the types we supplied: if <code>list</code> happens to be empty, <code>sum</code> depends on the ability to generate <code>zero(T)</code> for the element-type <code>T</code> of <code>list</code>, but because we constructed <code>list</code> to have an element-type of <code>Any</code>, there is no such method and <code>sum(Any[])</code> throws an error:</p><pre><code class="language-julia-repl hljs">julia&gt; sum(Int[])
+0
+
+julia&gt; sum(Any[])
+ERROR: MethodError: no method matching zero(::Type{Any})
+[...]</code></pre><p>(This can be circumvented with <code>sum(Any[]; init=0)</code>.)</p><p>This is the kind of bug that can &quot;lurk&quot; undetected for a long time, and JET excels at exposing them.</p><h2 id="JET-limitations"><a class="docs-heading-anchor" href="#JET-limitations">JET limitations</a><a id="JET-limitations-1"></a><a class="docs-heading-anchor-permalink" href="#JET-limitations" title="Permalink"></a></h2><p>JET is a <em>static</em> analyzer, meaning that it works from the argument types provided, and that has an important consequence: if a particular callee can&#39;t be inferred, JET can&#39;t analyze it. We can illustrate that quite easily:</p><pre><code class="language-julia-repl hljs">julia&gt; callsum(listcontainer) = sum(listcontainer[1])
+callsum (generic function with 1 method)
+
+julia&gt; lc = Any[list];   # &quot;hide&quot; `list` inside a Vector{Any}
+
+julia&gt; callsum(lc)
+6
+
+julia&gt; @report_call callsum(lc)
+No errors detected</code></pre><p>Because we &quot;hid&quot; the type of <code>list</code> from inference, JET couldn&#39;t tell what specific instance of <code>sum</code> was going to be called, so it was unable to detect any errors.</p><h2 id="JET/SnoopCompile-integration"><a class="docs-heading-anchor" href="#JET/SnoopCompile-integration">JET/SnoopCompile integration</a><a id="JET/SnoopCompile-integration-1"></a><a class="docs-heading-anchor-permalink" href="#JET/SnoopCompile-integration" title="Permalink"></a></h2><p>The resolution to this problem is to use SnoopCompile to do the &quot;data collection&quot; and JET to do the analysis. The key reason is that SnoopCompile is a dynamic analyzer, and is capable of bridging across runtime dispatch. As always, you need to do the data collection in a fresh session where the calls have not previously been inferred. After restarting Julia, we can do this:</p><pre><code class="nohighlight hljs">julia&gt; using SnoopCompile
+
+julia&gt; list = Any[1,2,3];
+
+julia&gt; lc = Any[list];   # &quot;hide&quot; `list` inside a Vector{Any}
+
+julia&gt; callsum(listcontainer) = sum(listcontainer[1])
+callsum (generic function with 1 method)
+
+julia&gt; tinf = @snoopi_deep callsum(lc)
+InferenceTimingNode: 0.039239/0.046793 on Core.Compiler.Timings.ROOT() with 2 direct children
+
+julia&gt; tinf.children
+2-element Vector{SnoopCompileCore.InferenceTimingNode}:
+ InferenceTimingNode: 0.000869/0.000869 on callsum(::Vector{Any}) with 0 direct children
+ InferenceTimingNode: 0.000196/0.006685 on sum(::Vector{Any}) with 1 direct children
+
+julia&gt; report_callees(inference_triggers(tinf))
+1-element Vector{Pair{InferenceTrigger, JET.JETCallResult{JET.JETAnalyzer{JET.BasicPass{typeof(JET.basic_function_filter)}}, Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}}}}:
+ Inference triggered to call sum(::Vector{Any}) from callsum (./REPL[5]:1) with specialization callsum(::Vector{Any}) =&gt; ═════ 1 possible error found ═════
+┌ @ reducedim.jl:889 Base.#sum#732(Base.:, Base.pairs(Core.NamedTuple()), #self#, a)
+│┌ @ reducedim.jl:889 Base._sum(a, dims)
+││┌ @ reducedim.jl:893 Base.#_sum#734(Base.pairs(Core.NamedTuple()), #self#, a, _3)
+│││┌ @ reducedim.jl:893 Base._sum(Base.identity, a, Base.:)
+││││┌ @ reducedim.jl:894 Base.#_sum#735(Base.pairs(Core.NamedTuple()), #self#, f, a, _4)
+│││││┌ @ reducedim.jl:894 Base.mapreduce(f, Base.add_sum, a)
+││││││┌ @ reducedim.jl:322 Base.#mapreduce#725(Base.:, Base._InitialValue(), #self#, f, op, A)
+│││││││┌ @ reducedim.jl:322 Base._mapreduce_dim(f, op, init, A, dims)
+││││││││┌ @ reducedim.jl:330 Base._mapreduce(f, op, Base.IndexStyle(A), A)
+│││││││││┌ @ reduce.jl:402 Base.mapreduce_empty_iter(f, op, A, Base.IteratorEltype(A))
+││││││││││┌ @ reduce.jl:353 Base.reduce_empty_iter(Base.MappingRF(f, op), itr, ItrEltype)
+│││││││││││┌ @ reduce.jl:357 Base.reduce_empty(op, Base.eltype(itr))
+││││││││││││┌ @ reduce.jl:331 Base.mapreduce_empty(Base.getproperty(op, :f), Base.getproperty(op, :rf), _)
+│││││││││││││┌ @ reduce.jl:345 Base.reduce_empty(op, T)
+││││││││││││││┌ @ reduce.jl:322 Base.reduce_empty(Base.+, _)
+│││││││││││││││┌ @ reduce.jl:313 Base.zero(_)
+││││││││││││││││┌ @ missing.jl:106 Base.throw(Base.MethodError(Base.zero, Core.tuple(Base.Any)))
+│││││││││││││││││ MethodError: no method matching zero(::Type{Any})
+││││││││││││││││└──────────────────</code></pre><p>Because SnoopCompile collected the runtime-dispatched <code>sum</code> call, we can pass it to JET. <code>report_callees</code> filters those calls which generate JET reports, allowing you to focus on potential errors.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../snoopi_deep_parcel/">« Using <code>@snoopi_deep</code> results for precompilation</a><a class="docs-footer-nextpage" href="../snoopi/">Snooping on inference: <code>@snoopi</code> »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 9 February 2023 15:01">Thursday 9 February 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
