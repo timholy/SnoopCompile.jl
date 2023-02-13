@@ -32,7 +32,7 @@ function snoopl(flags, func_file, llvm_file, commands)
                 Core.eval(Main, deserialize(stdin))
             end
             """
-    process = open(`$(Base.julia_cmd()) $flags --eval $code_object`, stdout, write=true)
+    process = open(`$(Base.julia_cmd()) $flags --eval $code_object --project=$(Base.active_project())`, stdout, write=true)
     serialize(process, quote
         let func_io = open($func_file, "w"), llvm_io = open($llvm_file, "w")
             ccall(:jl_dump_emitted_mi_name, Nothing, (Ptr{Nothing},), func_io.handle)
