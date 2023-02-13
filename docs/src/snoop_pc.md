@@ -83,8 +83,8 @@ intended calls from inside the `@precompile_all_calls` block (see [`@snoopi_deep
 
 One can reduce the cost of precompilation for selected packages using the `Preferences.jl` based mechanism and the `skip_precompile` key:
 ```julia
-using SnoopPrecompile, Preferences
-set_preferences!(SnoopPrecompile, "skip_precompile" => ["PackageA", "PackageB"])
+import SnoopPrecompile, Preferences
+Preferences.set_preferences!(SnoopPrecompile, "skip_precompile" => ["PackageA", "PackageB"])
 ```
 
 After restarting julia, the `@precompile_all_calls` and `@precompile_setup` workloads will be disabled (locally) for `PackageA` and `PackageB`.
