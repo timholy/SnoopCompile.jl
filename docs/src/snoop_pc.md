@@ -91,3 +91,7 @@ After restarting julia, the `@precompile_all_calls` and `@precompile_setup` work
 
 !!! note
     Changing `skip_precompile` may result in a one-time recompilation of all packages that use SnoopPrecompile.
+    Package developers may wish to set this preference *locally* within the package's environment;
+    precompilation will be skipped while you're actively developing the project, but not if you use the package
+    from an external environment. This will also keep the `skip_precompile` setting independent and avoid needless recompilation
+    of large environments.
