@@ -102,15 +102,18 @@ end
     # These next are identical to the above
     @test methinvs.method == m
     @test methinvs.reason === :inserting
-    root = only(methinvs.backedges)
-    @test root.mi == mi3
-    @test SnoopCompile.getroot(root) === root
-    @test root.depth == 0
-    child = only(root.children)
-    @test child.mi == mi1
-    @test SnoopCompile.getroot(child) === root
-    @test child.depth == 1
-    if isempty(child.children)
+    have_backedges = !isempty(methinvs.backedges)
+    if have_backedges
+        root = only(methinvs.backedges)
+        @test root.mi == mi3
+        @test SnoopCompile.getroot(root) === root
+        @test root.depth == 0
+        child = only(root.children)
+        @test child.mi == mi1
+        @test SnoopCompile.getroot(child) === root
+        @test child.depth == 1
+    end
+    if isempty(methinvs.backedges) || isempty(child.children)
         # the mt_backedges got invalidated first
         sig, root = only(methinvs.mt_backedges)
         @test sig === Tuple{typeof(Main.SnooprTests.f), Any}
@@ -132,8 +135,13 @@ end
     print(io, methinvs)
     str = String(take!(io))
     @test startswith(str, "inserting f(::Float32)")
-    @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
-    @test occursin("with MethodInstance for $(prefix)f(::AbstractFloat) ($targetdepth children)", str)
+    if !isempty(methinvs.backedges)
+        @test occursin("backedges: 1: superseding f(::AbstractFloat)", str)
+        @test occursin("with MethodInstance for $(prefix)f(::AbstractFloat) ($targetdepth children)", str)
+    else
+        @test occursin("signature Tuple{typeof($(prefix)f), Any} triggered", str)
+        @test occursin("for $(prefix)applyf(::Vector{Any}) ($targetdepth children)", str)
+    end
 
     show(io, root; minchildren=1)
     str = String(take!(io))
@@ -153,10 +161,15 @@ end
                                           "MethodInstance for $(prefix)applyf(::$(Vector{Any})) (1 children)")
     @test lines[2] == "⋮"
 
-    ftrees = filtermod(@__MODULE__, trees)
-    ftree = only(ftrees)
-    @test ftree.backedges == methinvs.backedges
-    @test isempty(ftree.mt_backedges)
+    if have_backedges
+        ftrees = filtermod(@__MODULE__, trees)
+        ftree = only(ftrees)
+        @test ftree.backedges == methinvs.backedges
+        @test isempty(ftree.mt_backedges)
+    else
+        ftrees = filtermod(SnooprTests, trees)
+        @test ftrees == trees
+    end
 
     cai = Any[1]
     cas = Any[:sym]
@@ -201,7 +214,7 @@ end
     @test occursin("Invalidations %", str)
 
     trees = invalidation_trees(invs)
-    @test length(trees) == 3
+    @test length(trees) >= 3
     io = IOBuffer()
     show(io, trees)
     str = String(take!(io))

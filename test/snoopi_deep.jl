@@ -879,7 +879,7 @@ end
     @test :build_stale ∈ stalenames
     @test :use_stale ∈ stalenames
     trees = invalidation_trees(invalidations)
-    tree = trees[findfirst(tree -> !isempty(tree.backedges), trees)]
+    tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
     if Base.VERSION > v"1.8.0-DEV.368"
