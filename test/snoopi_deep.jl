@@ -913,20 +913,19 @@ end
         @test sig == mi_stale
         @test convert(Core.MethodInstance, root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
-        pipe = Pipe()   # suppress warning
         if any(isequal("verify_methods"), invalidations)
             # The 1.9+ format
             invscopy = copy(invalidations)
             idx = findlast(==("verify_methods"), invscopy)
             invscopy[idx+1] = 22
-            redirect_stderr(pipe) do
+            redirect_stderr(devnull) do
                 broken_trees = invalidation_trees(invscopy)
                 @test isempty(precompile_blockers(broken_trees, tinf))
             end
         else
             # The older format
             idx = findfirst(isequal("jl_method_table_insert"), invalidations)
-            redirect_stdout(pipe) do
+            redirect_stdout(devnull) do
                 broken_trees = invalidation_trees(invalidations[idx+1:end])
                 @test isempty(precompile_blockers(broken_trees, tinf))
             end
