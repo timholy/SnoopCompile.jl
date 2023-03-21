@@ -879,7 +879,7 @@ end
     @test :build_stale ∈ stalenames
     @test :use_stale ∈ stalenames
     trees = invalidation_trees(invalidations)
-    tree = trees[findfirst(tree -> !isempty(tree.backedges), trees)]
+    tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
     if Base.VERSION > v"1.8.0-DEV.368"
@@ -913,20 +913,19 @@ end
         @test sig == mi_stale
         @test convert(Core.MethodInstance, root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
-        pipe = Pipe()   # suppress warning
         if any(isequal("verify_methods"), invalidations)
             # The 1.9+ format
             invscopy = copy(invalidations)
             idx = findlast(==("verify_methods"), invscopy)
             invscopy[idx+1] = 22
-            redirect_stderr(pipe) do
+            redirect_stderr(devnull) do
                 broken_trees = invalidation_trees(invscopy)
                 @test isempty(precompile_blockers(broken_trees, tinf))
             end
         else
             # The older format
             idx = findfirst(isequal("jl_method_table_insert"), invalidations)
-            redirect_stdout(pipe) do
+            redirect_stdout(devnull) do
                 broken_trees = invalidation_trees(invalidations[idx+1:end])
                 @test isempty(precompile_blockers(broken_trees, tinf))
             end
@@ -958,10 +957,19 @@ end
 
 if Base.VERSION >= v"1.7"
     @testset "JET integration" begin
-        f(c) = sum(c[1])
-        c = Any[Any[1,2,3]]
-        tinf = @snoopi_deep f(c)
-        rpt = SnoopCompile.JET.@report_call f(c)
+        function mysum(c)   # vendor a simple version of `sum`
+            isempty(c) && return zero(eltype(c))
+            s = first(c)
+            for x in Iterators.drop(c, 1)
+                s += x
+            end
+            return s
+        end
+        call_mysum(cc) = mysum(cc[1])
+
+        cc = Any[Any[1,2,3]]
+        tinf = @snoopi_deep call_mysum(cc)
+        rpt = SnoopCompile.JET.@report_call call_mysum(cc)
         @test isempty(SnoopCompile.JET.get_reports(rpt))
         itrigs = inference_triggers(tinf)
         irpts = report_callees(itrigs)

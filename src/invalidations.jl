@@ -168,6 +168,16 @@ end
 
 Base.isempty(methinvs::MethodInvalidations) = isempty(methinvs.mt_backedges) && isempty(methinvs.backedges)  # ignore mt_cache
 
+function Base.:(==)(methinvs1::MethodInvalidations, methinvs2::MethodInvalidations)
+    methinvs1.method == methinvs2.method || return false
+    methinvs1.reason == methinvs2.reason || return false
+    methinvs1.mt_backedges == methinvs2.mt_backedges || return false
+    methinvs1.backedges == methinvs2.backedges || return false
+    methinvs1.mt_cache == methinvs2.mt_cache || return false
+    methinvs1.mt_disable == methinvs2.mt_disable || return false
+    return true
+end
+
 countchildren(sigtree::Pair{<:Any,Union{InstanceNode,MethodInstance}}) = countchildren(sigtree.second)
 countchildren(::MethodInstance) = 1
 
