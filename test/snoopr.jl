@@ -277,7 +277,7 @@ end
             sig, root = only(tree.mt_backedges)
             @test sig.parameters[1] === typeof(PkgC.nbits)
             @test sig.parameters[2] === Integer
-            @test root.mi == only(methods(PkgD.call_nbits)).specializations[1]
+            @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
         end
         Pkg.activate(cproj)
     elseif Base.VERSION >= v"1.7.0-DEV.254"   # julia#39132 (redirect to Pipe)

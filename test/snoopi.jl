@@ -84,7 +84,7 @@ if Base.VERSION >= v"1.6.0-DEV.736"
         fb = Base.bodyfunction(m)
         mb = methods(fb).ms[1]
         @test occursin("#_#", String(mb.name))
-        mi = mb.specializations[1]
+        mi = first(SnoopCompile.specializations(mb))
         modgens = Dict{Module, Vector{Method}}()
         tmp = String[]
         SnoopCompile.add_repr!(tmp, modgens, mi; check_eval=true)  # no error
