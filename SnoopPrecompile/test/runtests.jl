@@ -2,12 +2,9 @@ using SnoopPrecompile
 using Test
 using UUIDs
 
+
 @testset "SnoopPrecompile.jl" begin
-    if isdefined(Base, :specializations)
-        specializations(m::Method) = Base.specializations(m)
-    else
-        specializations(m::Method) = m.specializations
-    end
+    specializations(m::Method) = isdefined(Base, :specializations) ? Base.specializations(m) : m.specializations
 
     push!(LOAD_PATH, @__DIR__)
 
