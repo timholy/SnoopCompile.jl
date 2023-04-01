@@ -53,7 +53,7 @@ end
 
 dummy() = nothing
 dummy()
-const dummyinstance = which(dummy, ()).specializations[1]
+const dummyinstance = first(specializations(which(dummy, ())))
 
 mutable struct InstanceNode
     mi::MethodInstance

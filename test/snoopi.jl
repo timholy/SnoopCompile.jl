@@ -84,7 +84,7 @@ if Base.VERSION >= v"1.6.0-DEV.736"
         fb = Base.bodyfunction(m)
         mb = methods(fb).ms[1]
         @test occursin("#_#", String(mb.name))
-        mi = mb.specializations[1]
+        mi = first(SnoopCompile.specializations(mb))
         modgens = Dict{Module, Vector{Method}}()
         tmp = String[]
         SnoopCompile.add_repr!(tmp, modgens, mi; check_eval=true)  # no error
@@ -184,7 +184,11 @@ uncompiled(x) = x + 1
     @test any(str->occursin("precompile(Tuple{typeof(genkw1)})", str), FK)
     @test !any(str->occursin("precompile(Tuple{typeof(genkw2)})", str), FK)
     if isdefined(Core, :kwcall)
-        @test any(str->occursin("Tuple{typeof(Core.kwcall),NamedTuple{(:b,), Tuple{String}},typeof(genkw2)}", str), FK)
+        if Base.VERSION >= v"1.10.0-DEV.886"
+            @test any(str->occursin("Tuple{typeof(Core.kwcall),@NamedTuple{b::String},typeof(genkw2)}", str), FK)
+        else
+            @test any(str->occursin("Tuple{typeof(Core.kwcall),NamedTuple{(:b,), Tuple{String}},typeof(genkw2)}", str), FK)
+        end
     else
         @test any(str->occursin("Tuple{Core.kwftype(typeof(genkw2)),NamedTuple{(:b,),$(SP)Tuple{String}},typeof(genkw2)}", str), FK)
     end

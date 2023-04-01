@@ -2,7 +2,10 @@ using SnoopPrecompile
 using Test
 using UUIDs
 
+
 @testset "SnoopPrecompile.jl" begin
+    specializations(m::Method) = isdefined(Base, :specializations) ? Base.specializations(m) : m.specializations
+
     push!(LOAD_PATH, @__DIR__)
 
     using SnoopPC_A
@@ -10,7 +13,7 @@ using UUIDs
         # Check that calls inside :setup are not precompiled
         m = which(Tuple{typeof(Base.vect), Vararg{T}} where T)
         have_mytype = false
-        for mi in m.specializations
+        for mi in specializations(m)
             mi === nothing && continue
             have_mytype |= Base.unwrap_unionall(mi.specTypes).parameters[2] === SnoopPC_A.MyType
         end
@@ -18,7 +21,7 @@ using UUIDs
         # Check that calls inside @precompile_calls are precompiled
         m = only(methods(SnoopPC_A.call_findfirst))
         count = 0
-        for mi in m.specializations
+        for mi in specializations(m)
             mi === nothing && continue
             sig = Base.unwrap_unionall(mi.specTypes)
             @test sig.parameters[2] == SnoopPC_A.MyType
@@ -29,7 +32,7 @@ using UUIDs
         # Even one that was runtime-dispatched
         m = which(Tuple{typeof(findfirst), Base.Fix2{typeof(==), T}, Vector{T}} where T)
         count = 0
-        for mi in m.specializations
+        for mi in specializations(m)
             mi === nothing && continue
             sig = Base.unwrap_unionall(mi.specTypes)
             if sig.parameters[3] == Vector{SnoopPC_A.MyType}

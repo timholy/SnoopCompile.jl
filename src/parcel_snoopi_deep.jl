@@ -1632,7 +1632,7 @@ function Base.summary(io::IO, mtrigs::MethodTriggers)
     hascb = false
     for mi in callers
         tt = Base.unwrap_unionall(mi.specTypes)::DataType
-        mlist = Base._methods_by_ftype(tt, -1, typemax(UInt))
+        mlist = Base._methods_by_ftype(tt, -1, Base.get_world_counter())
         if length(mlist) < 10
             cts = Base.code_typed_by_type(tt; debuginfo=:source)
             for (ct::CodeInfo, _) in cts
