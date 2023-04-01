@@ -65,7 +65,7 @@ end
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
-const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functions
+const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functions (prior to Core.kwcall)
 const kwbodyrex = r"^##(\w[^#]*)#\d+"         # detect keyword body methods
 const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
 const innerrex = r"^#[^#]+#\d+"               # detect inner functions
