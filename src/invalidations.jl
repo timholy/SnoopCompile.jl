@@ -428,12 +428,14 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     push!(mt_cache, mi)
                     leaf = nothing
                 elseif loctag == "jl_method_table_insert"
-                    root = getroot(leaf)
-                    root.mi = mi
-                    if !exclude_corecompiler || !from_corecompiler(mi)
-                        push!(backedges, root)
+                    if leaf !== nothing    # we logged without actually invalidating anything (issue #354)
+                        root = getroot(leaf)
+                        root.mi = mi
+                        if !exclude_corecompiler || !from_corecompiler(mi)
+                            push!(backedges, root)
+                        end
+                        leaf = nothing
                     end
-                    leaf = nothing
                 elseif loctag == "jl_insert_method_instance"
                     @assert leaf !== nothing
                     root = getroot(leaf)
