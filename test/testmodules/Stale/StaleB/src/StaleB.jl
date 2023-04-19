@@ -11,9 +11,6 @@ useA2() = useA()
 useA3() = useA2()
 
 # force precompilation
-begin
-    Base.Experimental.@force_compile
-    useA3()
-end
+useA3()
 
 end
