@@ -156,12 +156,12 @@ end
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
-    mt_backedges::Vector{Pair{Any,Union{InstanceNode,MethodInstance}}}   # sig=>root for immediate, calleemi=>callermi for delayed
+    mt_backedges::Vector{Pair{Type,Union{InstanceNode,MethodInstance}}}   # sig=>root
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
     mt_disable::Vector{MethodInstance}
 end
-methinv_storage() = Pair{Any,InstanceNode}[], InstanceNode[], MethodInstance[], MethodInstance[]
+methinv_storage() = Pair{Type,InstanceNode}[], InstanceNode[], MethodInstance[], MethodInstance[]
 function MethodInvalidations(method::Method, reason::Symbol)
     MethodInvalidations(method, reason, methinv_storage()...)
 end
@@ -467,9 +467,18 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         ret = get(backedge_table, next, nothing)
                         ret === nothing && (@warn "$next not found in `backedge_table`"; continue)
                         trig, causes = ret
-                        newnode = InstanceNode(mi, 1)
-                        push!(mt_backedges, trig => newnode)
-                        backedge_table[mi] = newnode
+                        if isa(trig, MethodInstance)
+                            newnode = InstanceNode(trig, 1)
+                            push!(backedges, newnode)
+                            newchild = InstanceNode(mi, 2)
+                            push!(newnode.children, newchild)
+                            backedge_table[trig] = newnode
+                            backedge_table[mi] = newchild
+                        else
+                            newnode = InstanceNode(mi, 1)
+                            push!(mt_backedges, trig => newnode)
+                            backedge_table[mi] = newnode
+                        end
                         for cause in causes
                             add_method_trigger!(methodinvs, cause, :inserting, mt_backedges, backedges, mt_cache, mt_disable)
                         end
