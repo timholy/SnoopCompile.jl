@@ -7,8 +7,10 @@ using StaleA
 
 # This will be invalidated if StaleC is loaded
 useA() = StaleA.stale("hello")
+useA2() = useA()
+useA3() = useA2()
 
 # force precompilation
-useA()
+useA3()
 
 end

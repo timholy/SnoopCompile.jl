@@ -883,10 +883,14 @@ end
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
     if Base.VERSION > v"1.8.0-DEV.368"
-        tree = trees[findfirst(tree -> !isempty(tree.mt_backedges), trees)]
-        @test only(tree.mt_backedges).first.def == which(StaleA.stale, (Any,))
-        @test which(only(tree.mt_backedges).first.specTypes) == which(StaleA.stale, (String,))
-        @test convert(Core.MethodInstance, only(tree.mt_backedges).second).def == which(StaleB.useA, ())
+        root = only(filter(tree.backedges) do be
+            Core.MethodInstance(be).specTypes.parameters[end] === String
+        end)
+        @test convert(Core.MethodInstance, root.children[1]).def == which(StaleB.useA, ())
+        m2 = which(StaleB.useA2, ())
+        if any(item -> isa(item, Core.MethodInstance) && item.def == m2, invalidations) # requires julia#49449
+            @test convert(Core.MethodInstance, root.children[1].children[1]).def == m2
+        end
         tinf = @snoopi_deep begin
             StaleB.useA()
             StaleC.call_buildstale("hi")
@@ -908,10 +912,10 @@ end
         # If we don't discount ones left in an invalidated state,
         # we get mt_backedges with a MethodInstance middle entry too
         strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
-        sig, root, hits = only(only(strees2).mt_backedges)
+        root, hits = only(only(strees2).backedges)
         mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
-        @test sig == mi_stale
-        @test convert(Core.MethodInstance, root) == Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
+        @test Core.MethodInstance(root) == mi_stale
+        @test Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
         # What happens when we can't find it in the tree?
         if any(isequal("verify_methods"), invalidations)
             # The 1.9+ format
@@ -933,7 +937,7 @@ end
         # IO
         io = IOBuffer()
         print(io, trees)
-        @test occursin(r"stale\(x::String\) (in|@) StaleC.*formerly stale\(x\) (in|@) StaleA", String(take!(io)))
+        @test occursin(r"stale\(x::String\) (in|@) StaleC", String(take!(io)))
         if !healed
             print(io, strees)
             str = String(take!(io))
@@ -949,7 +953,7 @@ end
         print(io, only(strees2))
         str = String(take!(io))
         @test occursin(r"inserting stale\(.* (in|@) StaleC.*invalidated:", str)
-        @test occursin("mt_backedges", str)
+        @test !occursin("mt_backedges", str)
         @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleB.useA", str)
     end
     Pkg.activate(cproj)
