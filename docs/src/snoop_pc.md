@@ -1,5 +1,8 @@
 # SnoopPrecompile
 
+!!! warning
+    SnoopPrecompile is deprecated. Please use [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl) instead.
+
 SnoopPrecompile provides a macro, `@precompile_all_calls`, which precompiles every call on its first usage.
 The key feature of `@precompile_all_calls` is that it intercepts all callees (including those made by runtime dispatch) and, on Julia 1.8 and higher, allows you to precompile the callee even if it comes from a different module (e.g., `Base` or a different package).
 
