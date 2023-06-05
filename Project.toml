@@ -1,7 +1,7 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 author = ["Tim Holy <tim.holy@gmail.com>"]
-version = "2.10.7"
+version = "2.10.8"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
