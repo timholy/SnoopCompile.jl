@@ -1,3 +1,7 @@
+const have_clear_and_fetch_timings = isdefined(Core.Compiler, :Timings) && isdefined(Core.Compiler.Timings, :clear_and_fetch_timings)
+
+using Core.Compiler.Timings: ROOT, ROOTmi, InferenceFrameInfo, Timing
+
 struct InferenceTiming
     mi_info::Core.Compiler.Timings.InferenceFrameInfo
     inclusive_time::Float64
@@ -70,17 +74,34 @@ function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timi
     end
 end
 
-function start_deep_timing()
-    Core.Compiler.Timings.reset_timings()
-    Core.Compiler.__set_measure_typeinf(true)
-end
-function stop_deep_timing()
-    Core.Compiler.__set_measure_typeinf(false)
-    Core.Compiler.Timings.close_current_timer()
-end
+if have_clear_and_fetch_timings
+    function start_deep_timing()
+        Core.Compiler.__set_measure_typeinf(true)
+    end
+    function stop_deep_timing()
+        Core.Compiler.__set_measure_typeinf(false)
+    end
+    function finish_snoopi_deep()
+        # Construct a dummy Timing for ROOT(), for backwards compatibility with the old API.
+        root = Timing(
+            InferenceFrameInfo(ROOTmi, 0x0, Any[], Any[Core.Const(ROOT)], 1),
+            0x0)
+        root.children = Core.Compiler.Timings.clear_and_fetch_timings()
 
-function finish_snoopi_deep()
-    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
+        return InferenceTimingNode(root)
+    end
+else
+    function start_deep_timing()
+        Core.Compiler.Timings.reset_timings()
+        Core.Compiler.__set_measure_typeinf(true)
+    end
+    function stop_deep_timing()
+        Core.Compiler.__set_measure_typeinf(false)
+        Core.Compiler.Timings.close_current_timer()
+    end
+    function finish_snoopi_deep()
+        return InferenceTimingNode(Core.Compiler.Timings._timings[1])
+    end
 end
 
 function _snoopi_deep(cmd::Expr)
