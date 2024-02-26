@@ -973,12 +973,12 @@ if Base.VERSION >= v"1.7"
 
         cc = Any[Any[1,2,3]]
         tinf = @snoopi_deep call_mysum(cc)
-        rpt = SnoopCompile.JET.@report_call call_mysum(cc)
-        @test isempty(SnoopCompile.JET.get_reports(rpt))
+        rpt = JET.@report_call call_mysum(cc)
+        @test isempty(JET.get_reports(rpt))
         itrigs = inference_triggers(tinf)
         irpts = report_callees(itrigs)
         @test only(irpts).first == last(itrigs)
-        @test !isempty(SnoopCompile.JET.get_reports(only(irpts).second))
-        @test  isempty(SnoopCompile.JET.get_reports(report_caller(itrigs[end])))
+        @test !isempty(JET.get_reports(only(irpts).second))
+        @test  isempty(JET.get_reports(report_caller(itrigs[end])))
     end
 end
