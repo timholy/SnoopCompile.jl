@@ -1,7 +1,7 @@
 module CthulhuExt
     import Cthulhu
     using Core: MethodInstance
-    using SnoopCompile: InstanceNode, TriggerNode, Suggested, InferenceTrigger
+    using SnoopCompile: InstanceNode, TriggerNode, Suggested, InferenceTrigger, countchildren
 
 
     # Originally from invalidations.jl
