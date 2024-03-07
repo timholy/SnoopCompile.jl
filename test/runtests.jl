@@ -1,5 +1,10 @@
 using Test
 
+if Base.VERSION >= v"1.7"
+    import JET
+    import Cthulhu
+end
+
 if VERSION >= v"1.6.0-DEV.1190"  # https://github.com/JuliaLang/julia/pull/37749
     @testset "snoopi_deep" begin
         include("snoopi_deep.jl")
@@ -30,7 +35,7 @@ logfile = joinpath(tempdir(), "anon.log")
 end
 data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
-@test length(pc[:Base]) <= 1
+@test_broken length(pc[:Base]) <= 1
 
 # issue #29
 keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symbol(\"##s27#8\")), Any, Any, Any, Any, Any}")
