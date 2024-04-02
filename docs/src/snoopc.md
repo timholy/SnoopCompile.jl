@@ -3,8 +3,6 @@
 `@snoopc` has the advantage of working on any modern version of Julia.
 It "snoops" on the code-generation phase of compilation (the 'c' is a reference to
 code-generation).
-Note that while native code is not cached, it nevertheless reveals
-which methods are being compiled.
 
 Note that unlike `@snoopi`, `@snoopc` will generate all methods, not just the top-level
 methods that trigger compilation.
