@@ -1581,7 +1581,7 @@ function unwrapconst(@nospecialize(arg))
         return arg.val
     elseif isa(arg, Core.PartialStruct)
         return arg.typ
-    elseif isa(arg, Core.Compiler.MaybeUndef)
+    elseif isdefined(Core.Compiler, :MaybeUndef) && isa(arg, Core.Compiler.MaybeUndef)
         return arg.typ
     end
     return arg
