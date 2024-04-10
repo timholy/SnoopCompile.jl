@@ -336,7 +336,7 @@ end
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
 
     # UnspecType
-    if Base.VERSION < v"1.9.0-DEV"   # on 1.9 there is no trigger assocated with the partial type call
+    if VERSION < v"1.9.0-DEV"   # on 1.9 there is no trigger assocated with the partial type call
         M = Module()
         @eval M begin
             struct Container{L,T} x::T end
@@ -638,7 +638,7 @@ end
 
     fg = SnoopCompile.flamegraph(tinf)
     fgnodes = collect(AbstractTrees.PreOrderDFS(fg))
-    for tgtname in (Base.VERSION < v"1.7" ? (:h, :i) : (:h, :i, :+))
+    for tgtname in (VERSION < v"1.7" ? (:h, :i) : (:h, :i, :+))
         @test mapreduce(|, fgnodes; init=false) do node
             node.data.sf.linfo.def.name == tgtname
         end
@@ -650,7 +650,7 @@ end
         @test leaf.data.span.stop in fg.data.span
         has_constprop |= leaf.data.status & FlameGraphs.gc_event != 0x0
     end
-    Base.VERSION >= v"1.7" && @test has_constprop
+    VERSION >= v"1.7" && @test has_constprop
 
     frame1, frame2 = frames[1], frames[2]
     t1, t2 = inclusive(frame1), inclusive(frame2)
@@ -805,7 +805,7 @@ end
     Ts = subtypes(Any)
     tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     tf_unspec = flatten(tinf_unspec)
-    if Base.VERSION < v"1.8.0-DEV.1148"
+    if VERSION < v"1.8.0-DEV.1148"
         # To ensure independent data, invalidate all compiled CodeInstances
         mis = map(last, accumulate_by_source(MethodInstance, tf_unspec))
         for mi in mis
@@ -882,7 +882,7 @@ end
     tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
-    if Base.VERSION > v"1.8.0-DEV.368"
+    if VERSION > v"1.8.0-DEV.368"
         root = only(filter(tree.backedges) do be
             Core.MethodInstance(be).specTypes.parameters[end] === String
         end)
@@ -897,7 +897,7 @@ end
         end
         @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
         healed = true
-        if Base.VERSION < v"1.8"
+        if VERSION < v"1.8"
             healed = false
             # On more recent Julia, the invalidation of StaleA.stale is "healed over" by re-inferrence
             # within StaleC. Hence we should skip this test.
@@ -959,7 +959,10 @@ end
     Pkg.activate(cproj)
 end
 
-if Base.VERSION >= v"1.7"
+if VERSION >= v"1.7"
+    using JET
+end
+@static if VERSION >= v"1.7"
     @testset "JET integration" begin
         function mysum(c)   # vendor a simple version of `sum`
             isempty(c) && return zero(eltype(c))
@@ -973,12 +976,12 @@ if Base.VERSION >= v"1.7"
 
         cc = Any[Any[1,2,3]]
         tinf = @snoopi_deep call_mysum(cc)
-        rpt = SnoopCompile.JET.@report_call call_mysum(cc)
-        @test isempty(SnoopCompile.JET.get_reports(rpt))
+        rpt = @report_call call_mysum(cc)
+        @test isempty(JET.get_reports(rpt))
         itrigs = inference_triggers(tinf)
         irpts = report_callees(itrigs)
         @test only(irpts).first == last(itrigs)
-        @test !isempty(SnoopCompile.JET.get_reports(only(irpts).second))
-        @test  isempty(SnoopCompile.JET.get_reports(report_caller(itrigs[end])))
+        @test !isempty(JET.get_reports(only(irpts).second))
+        @test  isempty(JET.get_reports(report_caller(itrigs[end])))
     end
 end

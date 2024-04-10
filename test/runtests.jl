@@ -51,7 +51,7 @@ data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
 @test any(startswith.(pc[:IsDef], "isdefined"))
 
-if Base.VERSION < v"1.7.0-DEV.694"
+if VERSION < v"1.7.0-DEV.694"
     @testset "Warning for failures to precompile" begin
         pcs = ["@warnpcfail precompile(fsimple, (Char,))",
             "@warnpcfail precompile(fsimple, (Char, Char))",
@@ -121,4 +121,3 @@ end
 =#
 
 include("colortypes.jl")
-
