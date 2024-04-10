@@ -897,8 +897,11 @@ Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
 Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
 # JET integrations are implemented lazily
-function report_callee end
+"To use `report_caller` do `using JET`"
 function report_caller end
+"To use `report_callee` do `using JET`"
+function report_callee end
+"To use `report_callees` do `using JET`"
 function report_callees end
 
 filtermod(mod::Module, itrigs::AbstractVector{InferenceTrigger}) = filter(==(mod) ∘ callermodule, itrigs)
