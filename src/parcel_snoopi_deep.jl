@@ -1843,9 +1843,6 @@ function max_end_time(node::InferenceTimingNode, recursive::Bool=false, tmax=-on
     return tmax
 end
 
-# See ext/JETExt.jl for implementation
-function report_callees end
-
 for IO in (IOContext{Base.TTY}, IOContext{IOBuffer}, IOBuffer)
     for T = (InferenceTimingNode, InferenceTrigger, Precompiles, MethodLoc, MethodTriggers, Location, LocationTriggers)
         @warnpcfail precompile(show, (IO, T))

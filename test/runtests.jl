@@ -1,6 +1,6 @@
 using Test
 
-if Base.VERSION >= v"1.7"
+if VERSION >= v"1.7"
     import JET
     import Cthulhu
 end
