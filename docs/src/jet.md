@@ -91,7 +91,7 @@ As always, you need to do the data collection in a fresh session where the calls
 After restarting Julia, we can do this:
 
 ```julia
-julia> using SnoopCompile
+julia> using SnoopCompile, JET, Cthulhu
 
 julia> using JET # this is necessary to enable the integration
 

@@ -30,7 +30,11 @@ logfile = joinpath(tempdir(), "anon.log")
 end
 data = SnoopCompile.read(logfile)
 pc = SnoopCompile.parcel(reverse!(data[2]))
-@test length(pc[:Base]) <= 1
+if Base.VERSION < v"1.10"
+    @test length(pc[:Base]) <= 1
+else
+    @test !haskey(pc, :Base)
+end
 
 # issue #29
 keep, pcstring, topmod, name = SnoopCompile.parse_call("Tuple{getfield(JLD, Symbol(\"##s27#8\")), Any, Any, Any, Any, Any}")

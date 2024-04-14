@@ -1,5 +1,3 @@
-using Cthulhu
-
 export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
 
 const have_verify_methods = Base.VERSION >= v"1.9.0-DEV.1512" || Base.VERSION >= v"1.8.4"
@@ -852,10 +850,3 @@ function findcaller(meth::Method, node::InstanceNode)
 end
 
 findcaller(meth::Method, mi::MethodInstance) = mi.def == meth ? mi : nothing
-
-# Cthulhu integration
-
-Cthulhu.backedges(node::InstanceNode) = sort(node.children; by=countchildren, rev=true)
-Cthulhu.method(node::InstanceNode) = Cthulhu.method(node.mi)
-Cthulhu.specTypes(node::InstanceNode) = Cthulhu.specTypes(node.mi)
-Cthulhu.instance(node::InstanceNode) = node.mi

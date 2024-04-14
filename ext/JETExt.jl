@@ -3,12 +3,12 @@ module JETExt
 @static if isdefined(Base, :get_extension)
     import SnoopCompile: report_callee, report_caller, report_callees
     using SnoopCompile: SnoopCompile, InferenceTrigger, callerinstance
-    using SnoopCompile.Cthulhu: specTypes
+    using Cthulhu: specTypes
     using JET: report_call, get_reports
 else
     import ..SnoopCompile: report_callee, report_caller, report_callees
     using ..SnoopCompile: SnoopCompile, InferenceTrigger, callerinstance
-    using ..SnoopCompile.Cthulhu: specTypes
+    using ..Cthulhu: specTypes
     using ..JET: report_call, get_reports
 end
 

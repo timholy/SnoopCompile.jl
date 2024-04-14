@@ -6,7 +6,6 @@ using AbstractTrees
 using Core.Compiler.Timings: InferenceFrameInfo
 using SnoopCompileCore: InferenceTiming, InferenceTimingNode, inclusive, exclusive
 using Profile
-using Cthulhu
 
 const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNode}
 
@@ -889,12 +888,6 @@ end
 AbstractTrees.children(tinf::InferenceTimingNode) = tinf.children
 
 InteractiveUtils.edit(itrig::InferenceTrigger) = edit(Location(itrig.callerframes[end]))
-Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
-Cthulhu.instance(itrig::InferenceTrigger) = MethodInstance(itrig.node)
-Cthulhu.method(itrig::InferenceTrigger) = Method(itrig.node)
-Cthulhu.specTypes(itrig::InferenceTrigger) = Cthulhu.specTypes(Cthulhu.instance(itrig))
-Cthulhu.backedges(itrig::InferenceTrigger) = (itrig.callerframes,)
-Cthulhu.nextnode(itrig::InferenceTrigger, edge) = (ret = callingframe(itrig); return isempty(ret.callerframes) ? nothing : ret)
 
 # JET integrations are implemented lazily
 "To use `report_caller` do `using JET`"
@@ -982,7 +975,6 @@ end
 
 InteractiveUtils.edit(node::TriggerNode) = edit(node.itrig)
 Base.stacktrace(node::TriggerNode) = stacktrace(node.itrig)
-Cthulhu.ascend(node::TriggerNode) = ascend(node.itrig)
 
 ### tagged trigger lists
 # good for organizing a collection of related triggers
@@ -1323,7 +1315,6 @@ unspec(s::Suggestion) = s ∈ (UnspecCall, UnspecType, CalleeVariable)
 unspec(s::Suggested)  = any(unspec, s.categories)
 
 Base.stacktrace(s::Suggested) = stacktrace(s.itrig)
-Cthulhu.ascend(s::Suggested) = ascend(s.itrig)
 InteractiveUtils.edit(s::Suggested) = edit(s.itrig)
 
 """

@@ -960,7 +960,7 @@ end
 end
 
 if VERSION >= v"1.7"
-    using JET
+    using JET, Cthulhu
 end
 @static if VERSION >= v"1.7"
     @testset "JET integration" begin

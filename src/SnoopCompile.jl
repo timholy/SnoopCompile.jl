@@ -129,7 +129,10 @@ function __init__()
         @require PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d" include("report_invalidations.jl")
     end
     if isdefined(SnoopCompile, :report_callee) && !isdefined(Base, :get_extension)
-        @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("../ext/JETExt.jl")
+        @require Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f" begin
+            include("../ext/CthulhuExt.jl")
+            @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("../ext/JETExt.jl")
+        end
     end
     return nothing
 end
