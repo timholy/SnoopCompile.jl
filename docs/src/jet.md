@@ -137,5 +137,5 @@ Because SnoopCompile collected the runtime-dispatched `sum` call, we can pass it
 `report_callees` filters those calls which generate JET reports, allowing you to focus on potential errors.
 
 !!! note
-    JET integration is enabled only if JET.jl has been loaded into your main session.
-    This is why there's the `using JET` statement included in the example given.
+    JET integration is enabled only if JET.jl _and_ Cthulhu.jl have been loaded into your main session.
+    This is why there's the `using JET, Cthulhu` statement included in the example given.
