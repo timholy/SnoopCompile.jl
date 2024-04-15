@@ -1,4 +1,4 @@
-export uinvalidated, invalidation_trees, filtermod, findcaller, ascend
+export uinvalidated, invalidation_trees, filtermod, findcaller
 
 const have_verify_methods = Base.VERSION >= v"1.9.0-DEV.1512" || Base.VERSION >= v"1.8.4"
 

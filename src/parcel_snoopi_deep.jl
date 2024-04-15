@@ -716,6 +716,8 @@ julia> itrigs = inference_triggers(tinf)
 ```
 julia> edit(itrigs[1])     # opens an editor at the spot in the caller
 
+julia> using Cthulhu
+
 julia> ascend(itrigs[2])   # use Cthulhu to inspect the stacktrace (caller is the second item in the trace)
 Choose a call for analysis (q to quit):
  >   double(::Float64)

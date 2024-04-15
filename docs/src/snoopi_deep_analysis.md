@@ -159,7 +159,7 @@ julia> mtrig.itrigs[1]
 Inference triggered to call MethodInstance for (::Base.var"#cat_t##kw")(::NamedTuple{(:dims,), Tuple{Val{1}}}, ::typeof(Base.cat_t), ::Type{Int64}, ::UnitRange{Int64}, ::Vararg{Any, N} where N) from _cat (./abstractarray.jl:1630) inlined into MethodInstance for makeobjects() (/home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:37)
 ```
 
-This is useful if you want to analyze a method via [`ascend`](@ref ascend-itrig).
+This is useful if you want to analyze a method via [`Cthulhu.ascend`](@ref ascend-itrig).
 `Method`-based triggers, which may aggregate many different individual triggers, are particularly useful mostly because tools like [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl) show you the inference results for the entire `MethodInstance`, allowing you to fix many different inference problems at once.
 
 ### Trigger trees
@@ -281,10 +281,10 @@ MethodInstance for combine_eltypes(::Type, ::Tuple{Vector{Any}})
 
 julia> suggest(itree.children[2])
 ./broadcast.jl:905: regular invoke (perhaps precompile lotsa_containers() at OptimizeMe.jl:14)
-├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
-├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any, ::UInt64) consider `stacktrace(itrig)` or `ascend(itrig)`
-├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Core.Compiler.NativeInterpreter, ::Any, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
-├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for contains_is(::Core.SimpleVector, ::Any) consider `stacktrace(itrig)` or `ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any) consider `stacktrace(itrig)` or `Cthulhu.ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Any, ::Any, ::UInt64) consider `stacktrace(itrig)` or `Cthulhu.ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for return_type(::Core.Compiler.NativeInterpreter, ::Any, ::Any) consider `stacktrace(itrig)` or `Cthulhu.ascend(itrig)`
+├─ ./broadcast.jl:740: I've got nothing to say for MethodInstance for contains_is(::Core.SimpleVector, ::Any) consider `stacktrace(itrig)` or `Cthulhu.ascend(itrig)`
 └─ ./broadcast.jl:740: non-inferrable call, perhaps annotate combine_eltypes(f, args::Tuple) in Base.Broadcast at broadcast.jl:740 with type MethodInstance for promote_typejoin_union(::Type{Main.OptimizeMe.Container})
    If a noninferrable argument is a type or function, Julia's specialization heuristics may be responsible.
    immediate caller(s):
@@ -721,7 +721,7 @@ Later, we'll see how `parcel` can generate such precompile directives automatica
 
 Another `show` `MethodInstance`, `show(::IOContext{IOBuffer}, ::Tuple{String, Int64})`, seems too specific to be worth worrying about, so we call it quits here.
 
-### [Advanced analysis: `ascend`](@id ascend-itrig)
+### [Advanced analysis: `Cthulhu.ascend`](@id ascend-itrig)
 
 One thing that hasn't yet been covered is that when you really need more insight, you can use `ascend`:
 
