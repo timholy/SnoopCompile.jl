@@ -79,10 +79,6 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
     isgen = match(genrex, mname) !== nothing
     isanon = match(anonrex, mname) !== nothing || match(innerrex, mname) !== nothing
     isgen && (mkwbody = nothing)
-    if VERSION < v"1.4.0-DEV.215"  # before this version, we can't robustly look up kwbody callers (missing `nkw`)
-        isanon |= mkwbody !== nothing  # treat kwbody methods the same way we treat anonymous functions
-        mkwbody = nothing
-    end
     if mkw !== nothing
         # Keyword function
         fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
@@ -113,18 +109,11 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
                     getgen = "typeof(which($(caller.name),$csigstr).generator.gen)"
                     return add_if_evals!(list, topmod, getgen, paramrepr, tt; check_eval=check_eval, time=time)
                 else
-                    if VERSION >= v"1.4.0-DEV.215"
-                        getgen = "which(Core.kwfunc($(mkwc.captures[1])),$csigstr).generator.gen"
-                        ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval, kwargs...) #, getgen)
-                        if ret !== nothing
-                            push!(list, append_time(ret, time))
-                            return true
-                        end
-                    else
-                        # Bail and treat as if anonymous
-                        prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
-                        fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-                        return add_if_evals!(list, topmod, fstr, paramrepr, tt; prefix=prefix, check_eval=check_eval, time=time)
+                    getgen = "which(Core.kwfunc($(mkwc.captures[1])),$csigstr).generator.gen"
+                    ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval, kwargs...) #, getgen)
+                    if ret !== nothing
+                        push!(list, append_time(ret, time))
+                        return true
                     end
                 end
                 break
