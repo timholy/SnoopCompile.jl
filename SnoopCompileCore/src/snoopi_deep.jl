@@ -1,3 +1,5 @@
+export @snoopi_deep
+
 struct InferenceTiming
     mi_info::Core.Compiler.Timings.InferenceFrameInfo
     inclusive_time::Float64

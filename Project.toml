@@ -33,7 +33,7 @@ AbstractTrees = "0.4"
 Cthulhu = "2"
 FlameGraphs = "1"
 OrderedCollections = "1"
-SnoopCompileCore = "~2.10.0"
+SnoopCompileCore = "3"
 YAML = "0.4"
 julia = "1.10"
 
