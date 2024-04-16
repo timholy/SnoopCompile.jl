@@ -25,7 +25,7 @@ you should prefer them above the more limited tools available on earlier version
 - `invalidation_trees`: organize invalidation data into trees
 - `filtermod`: select trees that invalidate methods in particular modules
 - `findcaller`: find a path through invalidation trees reaching a particular method
-- `ascend`: interactive analysis of an invalidation tree
+- `ascend`: interactive analysis of an invalidation tree (with Cthulhu.jl)
 
 ### LLVM
 
@@ -40,7 +40,7 @@ you should prefer them above the more limited tools available on earlier version
 - `accumulate_by_source`: aggregate list items by their source
 - `inference_triggers`: extract data on the triggers of inference
 - `callerinstance`, `callingframe`, `skiphigherorder`, and `InferenceTrigger`: manipulate stack frames from `inference_triggers`
-- `ascend`: interactive analysis of an inference-triggering call chain
+- `ascend`: interactive analysis of an inference-triggering call chain (with Cthulhu.jl)
 - `runtime_inferencetime`: profile-guided deoptimization
 """
 module SnoopCompile
@@ -110,7 +110,7 @@ export read_snoopl
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr"))
     include("invalidations.jl")
-    export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller, ascend
+    export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller
 end
 
 if isdefined(SnoopCompileCore, Symbol("@snoopr")) && isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
@@ -129,7 +129,10 @@ function __init__()
         @require PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d" include("report_invalidations.jl")
     end
     if isdefined(SnoopCompile, :report_callee) && !isdefined(Base, :get_extension)
-        @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("../ext/JETExt.jl")
+        @require Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f" begin
+            include("../ext/CthulhuExt.jl")
+            @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("../ext/JETExt.jl")
+        end
     end
     return nothing
 end

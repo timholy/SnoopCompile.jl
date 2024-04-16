@@ -343,7 +343,7 @@ store its precompiled form.
 
 How to fix this?
 Fundamentally, the problem is that `vcat` call: if we can write `index_midsum` in a way so that inference succeeds, then all these problems go away.
-(You can use `ascend(mi)`, where `mi` was obtained above, to discover that `__cat` gets called from `vcat`. See [ascend](@ref) for more information.)
+(You can use `ascend(mi)`, with Cthulhu.jl, where `mi` was obtained above, to discover that `__cat` gets called from `vcat`. See [`Cthulhu.ascend`](@ref ascend-itrig) for more information.)
 It turns out that `vcat` is inferrable if all the arguments have the same type, so just changing `vcat(0, a)` to `vcat([zero(eltype(a))], a)` fixes the problem.
 (Alternatively, you could make a copy and then use `pushfirst!`.)
 In a fresh Julia session:
