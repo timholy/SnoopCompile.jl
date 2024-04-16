@@ -1,9 +1,4 @@
-# This is loaded conditionally via @require if PyPlot is loaded
-# COV_EXCL_START
-
 using .PyPlot: plt, PyCall
-
-export pgdsgui
 
 get_bystr(@nospecialize(by)) = by === inclusive ? "Inclusive" :
                                by === exclusive ? "Exclusive" : error("unknown ", by)
@@ -80,7 +75,3 @@ function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookup
     lookup_firstip!(lookups, pdata)
     return runtime_inferencetime(tinf, pdata; lidict, consts, by)
 end
-
-@deprecate specialization_plot pgdsgui
-
-# COV_EXCL_STOP

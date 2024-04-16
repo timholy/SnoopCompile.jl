@@ -5,19 +5,6 @@ The capabilities depend on your version of Julia; in general, the capabilities t
 require more recent Julia versions are also the most powerful and useful. When possible,
 you should prefer them above the more limited tools available on earlier versions.
 
-## All Julia versions
-
-- `@snoopc`: record Julia's code generation
-- `SnoopCompile.read`: parse data collected from `@snoopc`
-- `SnoopCompile.parcel`: split precompile statements into modules/packages
-- `SnoopCompile.write`: write module-specific precompile files (")
-
-## At least Julia 1.2
-
-- `@snoopi`: record entrances to Julia's type-inference (`parcel` and `write` work on these data, too)
-
-## At least Julia 1.6
-
 ### Invalidations
 
 - `@snoopr`: record invalidations
@@ -46,7 +33,6 @@ you should prefer them above the more limited tools available on earlier version
 module SnoopCompile
 
 using SnoopCompileCore
-export @snoopc
 # More exports are defined below in the conditional loading sections
 
 using Core: MethodInstance, CodeInfo
@@ -55,13 +41,8 @@ using Serialization
 using Printf
 using OrderedCollections
 import YAML  # For @snoopl
-using Requires
 
-if isdefined(Base, :specializations)
-    specializations(m::Method) = Base.specializations(m)
-else
-    specializations(m::Method) = m.specializations
-end
+using Base: specializations
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions
@@ -69,6 +50,8 @@ const kwrex = r"^#kw##(.*)$|^#([^#]*)##kw$"   # detect keyword-supplying functio
 const kwbodyrex = r"^##(\w[^#]*)#\d+"         # detect keyword body methods
 const genrex = r"^##s\d+#\d+$"                # detect generators for @generated functions
 const innerrex = r"^#[^#]+#\d+"               # detect inner functions
+
+include("utils.jl")
 
 # This is for SnoopCompile's own directives. You don't want to call this from packages because then
 # SnoopCompile becomes a dependency of your package. Instead, make sure that `writewarnpcfail` is set to `true`
@@ -86,55 +69,30 @@ macro warnpcfail(ex::Expr)
 end
 
 # Parcel
-include("parcel_snoopc.jl")
 
-if isdefined(SnoopCompileCore, Symbol("@snoopi"))
-    include("parcel_snoopi.jl")
-    export @snoopi
-end
+include("parcel_snoopi_deep.jl")
+include("deep_demos.jl")
+export @snoopi_deep, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
+export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
+export report_callee, report_caller, report_callees
 
-if isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
-    include("parcel_snoopi_deep.jl")
-    include("deep_demos.jl")
-    export @snoopi_deep, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
-    export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
-    export report_callee, report_caller, report_callees
-end
-
-if isdefined(SnoopCompileCore, Symbol("@snoopl"))
-    export @snoopl
-end
-# To support reading of results on an older Julia version, this isn't conditional
 include("parcel_snoopl.jl")
-export read_snoopl
+export read_snoopl, @snoopl
 
-if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-    include("invalidations.jl")
-    export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller
-end
+include("invalidations.jl")
+export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller
 
-if isdefined(SnoopCompileCore, Symbol("@snoopr")) && isdefined(SnoopCompileCore, Symbol("@snoopi_deep"))
-    include("invalidation_and_inference.jl")
-    export precompile_blockers
-end
+include("invalidation_and_inference.jl")
+export precompile_blockers
 
 # Write
-include("write.jl")
+# include("write.jl")
 
-function __init__()
-    if isdefined(SnoopCompile, :runtime_inferencetime)
-        @require PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee" include("visualizations.jl")
-    end
-    if isdefined(SnoopCompileCore, Symbol("@snoopr"))
-        @require PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d" include("report_invalidations.jl")
-    end
-    if isdefined(SnoopCompile, :report_callee) && !isdefined(Base, :get_extension)
-        @require Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f" begin
-            include("../ext/CthulhuExt.jl")
-            @require JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b" include("../ext/JETExt.jl")
-        end
-    end
-    return nothing
-end
+# For PyPlot extension
+function pgdsgui end
+export pgdsgui
+# For PrettyTables extension
+function report_invalidations end
+export report_invalidations
 
 end # module
