@@ -1,7 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.6.3-pre.1"
+julia_version = "1.10.2"
 manifest_format = "2.0"
+project_hash = "1f331eb61c74c988f4beff114cdb1cad01ce6052"
 
 [[deps.StaleA]]
 path = "StaleA"
