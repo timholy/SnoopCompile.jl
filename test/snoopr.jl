@@ -1,7 +1,6 @@
 using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
 import PrettyTables # so that the report_invalidations.jl file is loaded
 
-const qualify_mi = Base.VERSION >= v"1.7.0-DEV.5"  # julia PR #38608
 
 module SnooprTests
 f(x::Int)  = 1
@@ -47,7 +46,7 @@ end
 
 
 @testset "@snoopr" begin
-    prefix = qualify_mi ? "$(@__MODULE__).SnooprTests." : ""
+    prefix = "$(@__MODULE__).SnooprTests."
 
     c = Any[1]
     @test SnooprTests.callapplyf(c) == 1
@@ -240,9 +239,6 @@ end
     invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
     umis1 = uinvalidated(invs)
     umis2 = uinvalidated(invs; exclude_corecompiler=false)
-    if Base.VERSION < v"1.8.0-DEV"
-        @test length(umis2) > length(umis1) + 20
-    end
 
     # recursive filtermod
     list = Union{Int,String}[1,2]
@@ -256,75 +252,28 @@ end
 end
 
 @testset "Delayed invalidations" begin
-    if SnoopCompile.have_verify_methods
-        cproj = Base.active_project()
-        cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
-            Pkg.activate(pwd())
-            Pkg.develop(path="./PkgC")
-            Pkg.develop(path="./PkgD")
-            Pkg.precompile()
-            invalidations = @snoopr begin
-                @eval begin
-                    using PkgC
-                    PkgC.nbits(::UInt8) = 8
-                    using PkgD
-                end
-            end
-            tree = only(invalidation_trees(invalidations))
-            @test tree.reason == :inserting
-            @test tree.method.file == Symbol(@__FILE__)
-            @test isempty(tree.backedges)
-            sig, root = only(tree.mt_backedges)
-            @test sig.parameters[1] === typeof(PkgC.nbits)
-            @test sig.parameters[2] === Integer
-            @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
-        end
-        Pkg.activate(cproj)
-    elseif Base.VERSION >= v"1.7.0-DEV.254"   # julia#39132 (redirect to Pipe)
-        # "Natural" tests are performed in the "Stale" testset of "snoopi_deep.jl"
-        # because they are also used for precompile_blockers.
-        # Here we craft them artificially.
-        M = @eval Module() begin
-            fake1(x) = 1
-            fake2(x) = fake1(x)
-            fake3() = nothing
-            foo() = nothing
-            @__MODULE__
-        end
-        M.fake2('a')
-        M.fake3()
-        callee = methodinstance(M.fake1, (Char,))
-        caller = methodinstance(M.fake2, (Char,))
-        othercallee = methodinstance(M.fake3, ())
-        # failed attribution (no invalidations occurred prior to the backedges invalidations)
-        invalidations = Any[callee, "insert_backedges_callee", othercallee, "insert_backedges_callee", caller, "insert_backedges"]
-        pipe = Pipe()
-        redirect_stdout(pipe) do
-            @test_logs (:warn, "Could not attribute the following delayed invalidations:") begin
-                trees = invalidation_trees(invalidations)
-                @test isempty(trees)
+    cproj = Base.active_project()
+    cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
+        Pkg.activate(pwd())
+        Pkg.develop(path="./PkgC")
+        Pkg.develop(path="./PkgD")
+        Pkg.precompile()
+        invalidations = @snoopr begin
+            @eval begin
+                using PkgC
+                PkgC.nbits(::UInt8) = 8
+                using PkgD
             end
         end
-        close(pipe.in)
-        str = read(pipe.out, String)
-        @test occursin(r"fake1\(::Char\).*invalidated.*fake2\(::Char\)", str)
-
-        m = which(M.foo, ())
-        invalidations = Any[Any[caller, Int32(1), callee, "jl_method_table_insert", m, "jl_method_table_insert"]; invalidations]
-        tree = @test_nowarn only(invalidation_trees(invalidations))
-        @test tree.method == m
+        tree = only(invalidation_trees(invalidations))
         @test tree.reason == :inserting
-        mi1, mi2 = tree.mt_backedges[1]
-        @test mi1 == callee
-        @test mi2.mi == caller
-        @test Core.MethodInstance(tree.backedges[1]) == callee
-        io = IOBuffer()
-        print(io, tree)
-        str = String(take!(io))
-        @test occursin(r"fake1\(x\) (in|@).*formerly fake1\(x\) (in|@)", str)
-        Base.delete_method(callee.def)
-        print(io, tree)
-        str = String(take!(io))
-        @test occursin(r"\(unavailable\).*formerly fake1\(x\) (in|@)", str)
+        @test tree.method.file == Symbol(@__FILE__)
+        @test isempty(tree.backedges)
+        sig, root = only(tree.mt_backedges)
+        @test sig.parameters[1] === typeof(PkgC.nbits)
+        @test sig.parameters[2] === Integer
+        @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
     end
+
+    Pkg.activate(cproj)
 end

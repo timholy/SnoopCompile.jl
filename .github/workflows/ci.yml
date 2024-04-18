@@ -8,7 +8,7 @@ on:
 defaults:
   run:
     shell: bash
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 jobs:
@@ -20,10 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.0'
-          - '1.2'
-          - '1.4'
-          - '1.6'
+          - '1.10'
           - '1'
           - 'nightly'
         os:
@@ -50,13 +47,11 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
-      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopPrecompile")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
-      - run: julia --project=SnoopPrecompile -e 'using Pkg; Pkg.test(; coverage=true)'
       - uses: julia-actions/julia-processcoverage@v1
         with:
-          directories: src,SnoopCompileCore/src,SnoopPrecompile/src
+          directories: src,SnoopCompileCore/src
       - uses: codecov/codecov-action@v4
         with:
           file: lcov.info

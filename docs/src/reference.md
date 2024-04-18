@@ -5,8 +5,6 @@
 ```@docs
 @snoopr
 @snoopi_deep
-@snoopi
-@snoopc
 @snoopl
 ```
 

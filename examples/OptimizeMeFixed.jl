@@ -62,9 +62,7 @@ function main()
     display(makeobjects())
 end
 
-if Base.VERSION >= v"1.4.2"
-    precompile(Tuple{typeof(main)})   # time: 0.4204474
-    precompile(Tuple{typeof(warmup)})
-end
+precompile(Tuple{typeof(main)})   # time: 0.4204474
+precompile(Tuple{typeof(warmup)})
 
 end

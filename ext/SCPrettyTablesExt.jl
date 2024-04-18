@@ -1,10 +1,10 @@
-# This file is loaded conditionally via @require if PrettyTables is loaded
+module SCPrettyTablesExt
 
-import .PrettyTables
+using SnoopCompile
+using SnoopCompile: countchildren
+import PrettyTables
 
-export report_invalidations
-
-function report_invalidations(io::IO = stdout;
+function SnoopCompile.report_invalidations(io::IO = stdout;
         invalidations,
         n_rows::Int = 10,
         process_filename::Function = x -> x,
@@ -59,4 +59,6 @@ function report_invalidations(io::IO = stdout;
         crop = :none,
         alignment = [:l, :c, :c, :c],
     )
+end
+
 end

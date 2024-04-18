@@ -30,3 +30,13 @@ This version implements major changes in how `parcel` works on the output of `@s
 
 Other changes:
 - A convenience utility, `timesum`, was introduced (credit to aminya)
+
+## Version 3
+
+Version 3 is a greatly slimmed repository, focusing just on those tools that are relevant for modern Julia development.
+Users of tools that were removed should stick with SnoopCompile 2.x.
+
+- The old `@snoopc` has been deleted. Its functionality was largely subsumed into `julia --trace-compile`.
+-`@snoopi` has been deleted, as `@snoopi_deep` provides more comprehensive information and is available on all modern Julia versions.
+- SnoopCompileBot was deleted in favor of [CompileBot](https://github.com/aminya/CompileBot.jl)
+- SnoopPrecompile was deleted because it is now [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl)

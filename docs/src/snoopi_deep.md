@@ -7,9 +7,6 @@ Currently, `precompile` only caches results for type-inference, not other stages
 For that reason, efforts at reducing latency should be informed by measuring the amount of time spent on type-inference.
 Moreover, because all code needs to be type-inferred before undergoing later stages of code generation, monitoring this "entry point" can give you an overview of the entire compile chain.
 
-On older versions of Julia, [`@snoopi`](@ref) allows you to make fairly coarse measurements on inference;
-starting with Julia 1.6, the recommended tool is [`@snoopi_deep`](@ref), which collects a much more detailed picture of type-inference's actions.
-
 The rich data collected by `@snoopi_deep` are useful for several different purposes;
 on this page, we'll describe the basic tool and show how it can be used to profile inference.
 On later pages we'll show other ways to use the data to reduce the amount of type-inference or cache its results.

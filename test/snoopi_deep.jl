@@ -335,18 +335,6 @@ end
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
 
-    # UnspecType
-    if VERSION < v"1.9.0-DEV"   # on 1.9 there is no trigger assocated with the partial type call
-        M = Module()
-        @eval M begin
-            struct Container{L,T} x::T end
-            Container(x::T) where {T} = Container{length(x),T}(x)
-        end
-        cats = categories(@snoopi_deep M.Container([1,2,3]))
-        @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
-        SnoopCompile.show_suggest(io, cats, nothing, nothing)
-        @test occursin("partial type call", String(take!(io)))
-    end
     M = Module()
     @eval M begin
         struct Typ end
@@ -638,7 +626,7 @@ end
 
     fg = SnoopCompile.flamegraph(tinf)
     fgnodes = collect(AbstractTrees.PreOrderDFS(fg))
-    for tgtname in (VERSION < v"1.7" ? (:h, :i) : (:h, :i, :+))
+    for tgtname in (:h, :i, :+)
         @test mapreduce(|, fgnodes; init=false) do node
             node.data.sf.linfo.def.name == tgtname
         end
@@ -650,7 +638,7 @@ end
         @test leaf.data.span.stop in fg.data.span
         has_constprop |= leaf.data.status & FlameGraphs.gc_event != 0x0
     end
-    VERSION >= v"1.7" && @test has_constprop
+    @test has_constprop
 
     frame1, frame2 = frames[1], frames[2]
     t1, t2 = inclusive(frame1), inclusive(frame2)
@@ -805,18 +793,6 @@ end
     Ts = subtypes(Any)
     tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     tf_unspec = flatten(tinf_unspec)
-    if VERSION < v"1.8.0-DEV.1148"
-        # To ensure independent data, invalidate all compiled CodeInstances
-        mis = map(last, accumulate_by_source(MethodInstance, tf_unspec))
-        for mi in mis
-            SnoopCompile.isROOT(mi) && continue
-            visit(mi) do item
-                isa(item, Core.CodeInstance) || return true
-                item.max_world = 0
-                return true
-            end
-        end
-    end
     tinf_spec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     tf_spec = flatten(tinf_spec)
     @test length(tf_unspec) < length(Ts) ÷ 5
@@ -882,106 +858,91 @@ end
     tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
-    if VERSION > v"1.8.0-DEV.368"
-        root = only(filter(tree.backedges) do be
-            Core.MethodInstance(be).specTypes.parameters[end] === String
-        end)
-        @test convert(Core.MethodInstance, root.children[1]).def == which(StaleB.useA, ())
-        m2 = which(StaleB.useA2, ())
-        if any(item -> isa(item, Core.MethodInstance) && item.def == m2, invalidations) # requires julia#49449
-            @test convert(Core.MethodInstance, root.children[1].children[1]).def == m2
-        end
-        tinf = @snoopi_deep begin
-            StaleB.useA()
-            StaleC.call_buildstale("hi")
-        end
-        @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
-        healed = true
-        if VERSION < v"1.8"
-            healed = false
-            # On more recent Julia, the invalidation of StaleA.stale is "healed over" by re-inferrence
-            # within StaleC. Hence we should skip this test.
-            strees = precompile_blockers(invalidations, tinf)
-            tree = only(strees)
-            @test inclusive(tree) > 0
-            @test tree.method == which(StaleA.stale, (String,))
-            root, hits = only(tree.backedges)
-            @test Core.MethodInstance(root).def == which(StaleA.stale, (Any,))
-            @test Core.MethodInstance(only(hits)).def == which(StaleA.use_stale, (Vector{Any},))
-        end
-        # If we don't discount ones left in an invalidated state,
-        # we get mt_backedges with a MethodInstance middle entry too
-        strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
-        root, hits = only(only(strees2).backedges)
-        mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
-        @test Core.MethodInstance(root) == mi_stale
-        @test Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
-        # What happens when we can't find it in the tree?
-        if any(isequal("verify_methods"), invalidations)
-            # The 1.9+ format
-            invscopy = copy(invalidations)
-            idx = findlast(==("verify_methods"), invscopy)
-            invscopy[idx+1] = 22
-            redirect_stderr(devnull) do
-                broken_trees = invalidation_trees(invscopy)
-                @test isempty(precompile_blockers(broken_trees, tinf))
-            end
-        else
-            # The older format
-            idx = findfirst(isequal("jl_method_table_insert"), invalidations)
-            redirect_stdout(devnull) do
-                broken_trees = invalidation_trees(invalidations[idx+1:end])
-                @test isempty(precompile_blockers(broken_trees, tinf))
-            end
-        end
-        # IO
-        io = IOBuffer()
-        print(io, trees)
-        @test occursin(r"stale\(x::String\) (in|@) StaleC", String(take!(io)))
-        if !healed
-            print(io, strees)
-            str = String(take!(io))
-            @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
-            @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
-            @test endswith(str, "\n]")
-            print(IOContext(io, :compact=>true), strees)
-            str = String(take!(io))
-            @test endswith(str, ";]")
-            SnoopCompile.printdata(io, [hits; hits])
-            @test occursin("inclusive time for 2 nodes", String(take!(io)))
-        end
-        print(io, only(strees2))
-        str = String(take!(io))
-        @test occursin(r"inserting stale\(.* (in|@) StaleC.*invalidated:", str)
-        @test !occursin("mt_backedges", str)
-        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleB.useA", str)
+
+    root = only(filter(tree.backedges) do be
+        Core.MethodInstance(be).specTypes.parameters[end] === String
+    end)
+    @test convert(Core.MethodInstance, root.children[1]).def == which(StaleB.useA, ())
+    m2 = which(StaleB.useA2, ())
+    if any(item -> isa(item, Core.MethodInstance) && item.def == m2, invalidations) # requires julia#49449
+        @test convert(Core.MethodInstance, root.children[1].children[1]).def == m2
     end
+    tinf = @snoopi_deep begin
+        StaleB.useA()
+        StaleC.call_buildstale("hi")
+    end
+    @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
+    healed = true
+    # If we don't discount ones left in an invalidated state,
+    # we get mt_backedges with a MethodInstance middle entry too
+    strees2 = precompile_blockers(invalidations, tinf; min_world_exclude=0)
+    root, hits = only(only(strees2).backedges)
+    mi_stale = only(filter(mi -> endswith(String(mi.def.file), "StaleA.jl"), methodinstances(StaleA.stale, (String,))))
+    @test Core.MethodInstance(root) == mi_stale
+    @test Core.MethodInstance(only(hits)) == methodinstance(StaleB.useA, ())
+    # What happens when we can't find it in the tree?
+    if any(isequal("verify_methods"), invalidations)
+        # The 1.9+ format
+        invscopy = copy(invalidations)
+        idx = findlast(==("verify_methods"), invscopy)
+        invscopy[idx+1] = 22
+        redirect_stderr(devnull) do
+            broken_trees = invalidation_trees(invscopy)
+            @test isempty(precompile_blockers(broken_trees, tinf))
+        end
+    else
+        # The older format
+        idx = findfirst(isequal("jl_method_table_insert"), invalidations)
+        redirect_stdout(devnull) do
+            broken_trees = invalidation_trees(invalidations[idx+1:end])
+            @test isempty(precompile_blockers(broken_trees, tinf))
+        end
+    end
+    # IO
+    io = IOBuffer()
+    print(io, trees)
+    @test occursin(r"stale\(x::String\) (in|@) StaleC", String(take!(io)))
+    if !healed
+        print(io, strees)
+        str = String(take!(io))
+        @test occursin(r"inserting stale.* in StaleC.*invalidated:", str)
+        @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleA.use_stale", str)
+        @test endswith(str, "\n]")
+        print(IOContext(io, :compact=>true), strees)
+        str = String(take!(io))
+        @test endswith(str, ";]")
+        SnoopCompile.printdata(io, [hits; hits])
+        @test occursin("inclusive time for 2 nodes", String(take!(io)))
+    end
+    print(io, only(strees2))
+    str = String(take!(io))
+    @test occursin(r"inserting stale\(.* (in|@) StaleC.*invalidated:", str)
+    @test !occursin("mt_backedges", str)
+    @test occursin(r"blocked.*InferenceTimingNode: .*/.* on StaleB.useA", str)
+
     Pkg.activate(cproj)
 end
 
-if VERSION >= v"1.7"
-    using JET, Cthulhu
-end
-@static if VERSION >= v"1.7"
-    @testset "JET integration" begin
-        function mysum(c)   # vendor a simple version of `sum`
-            isempty(c) && return zero(eltype(c))
-            s = first(c)
-            for x in Iterators.drop(c, 1)
-                s += x
-            end
-            return s
-        end
-        call_mysum(cc) = mysum(cc[1])
+using JET, Cthulhu
 
-        cc = Any[Any[1,2,3]]
-        tinf = @snoopi_deep call_mysum(cc)
-        rpt = @report_call call_mysum(cc)
-        @test isempty(JET.get_reports(rpt))
-        itrigs = inference_triggers(tinf)
-        irpts = report_callees(itrigs)
-        @test only(irpts).first == last(itrigs)
-        @test !isempty(JET.get_reports(only(irpts).second))
-        @test  isempty(JET.get_reports(report_caller(itrigs[end])))
+@testset "JET integration" begin
+    function mysum(c)   # vendor a simple version of `sum`
+        isempty(c) && return zero(eltype(c))
+        s = first(c)
+        for x in Iterators.drop(c, 1)
+            s += x
+        end
+        return s
     end
+    call_mysum(cc) = mysum(cc[1])
+
+    cc = Any[Any[1,2,3]]
+    tinf = @snoopi_deep call_mysum(cc)
+    rpt = @report_call call_mysum(cc)
+    @test isempty(JET.get_reports(rpt))
+    itrigs = inference_triggers(tinf)
+    irpts = report_callees(itrigs)
+    @test only(irpts).first == last(itrigs)
+    @test !isempty(JET.get_reports(only(irpts).second))
+    @test  isempty(JET.get_reports(report_caller(itrigs[end])))
 end
