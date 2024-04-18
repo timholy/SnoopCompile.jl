@@ -28,23 +28,24 @@ code generation performs optimizations and ultimately generates the assembly
 language (native code) used on CPUs.
 Some aspects of this process are documented [here](https://docs.julialang.org/en/v1/devdocs/eval/).
 
-Every time you load a package in a fresh Julia session, the methods you use
-need to be JIT-compiled, and this contributes to the latency of using the package.
-In some circumstances, you can partially cache the results of compilation to a file
-(the `*.ji` files that live in your `~/.julia/compiled` directory) to reduce the burden
-when your package is used.
-This is called *precompilation*.
-Unfortunately, precompilation is not as comprehensive as one might hope.
-Currently, Julia is only able to save inference results (not native code) in the
-`*.ji` files, and thus precompilation only eliminates the time needed for type inference.
-Moreover, there are some significant constraints that sometimes prevent Julia from
-saving even the inference results--for example, currently you cannot cache inference results
-for "top level" calls to methods defined in Julia or other packages, even if you are calling them
-with types defined in your package.
-Finally, what does get saved can sometimes be invalidated by loading other packages.
+Every time you load a package in a fresh Julia session, the methods you use need
+to be JIT-compiled, and this contributes to the latency of using the package.
+In some circumstances, you can cache the results of compilation to files to
+reduce the latency when your package is used. These files are the the `*.ji` and
+`*.so` files that live in the `compiled` directory of the Julia depot, usually
+located at `~/.julia/compiled`. However, if these files become large, loading
+them can be another source for latency. Julia needs time both to load and
+validate the cached compiled code. Minimizing the latency of using a package
+involves focusing on caching the compilation of code that is both commonly used
+and takes time to compile.
 
-Despite these limitations, there are many cases where precompilation can substantially reduce
-latency.
+This is called *precompilation*. Julia is able to save inference results in the
+`*.ji` files and ([since Julia
+1.9](https://julialang.org/blog/2023/04/julia-1.9-highlights/#caching_of_native_code))
+native code in the `*.so` files, and thus precompilation can eliminate the time
+needed for type inference and native code compilation (though what does get
+saved can sometimes be invalidated by loading other packages).
+
 SnoopCompile is designed to try to allow you to analyze the costs of JIT-compilation, identify
 key bottlenecks that contribute to latency, and set up `precompile` directives to see whether
 it produces measurable benefits.
