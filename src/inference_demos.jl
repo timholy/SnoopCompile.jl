@@ -1,7 +1,7 @@
 """
     tinf = SnoopCompile.flatten_demo()
 
-A simple demonstration of [`@snoopi_deep`](@ref). This demo defines a module
+A simple demonstration of [`@snoop_inference`](@ref). This demo defines a module
 
 ```julia
 module FlattenDemo
@@ -24,7 +24,7 @@ to ensure that these MethodInstances do not need to be inferred when we collect 
 It then returns the results of
 
 ```julia
-@snoopi_deep FlattenDemo.packintypes(1)
+@snoop_inference FlattenDemo.packintypes(1)
 ```
 
 See [`flatten`](@ref) for an example usage.
@@ -46,7 +46,7 @@ function flatten_demo()
         end
     ))
     z = (1 + 1)*1 + 2*1 + 5
-    return @snoopi_deep Base.invokelatest(FlattenDemo.packintype, 1)
+    return @snoop_inference Base.invokelatest(FlattenDemo.packintype, 1)
 end
 
 """
@@ -74,7 +74,7 @@ Then it collects and returns inference data using
 
 ```julia
 cc1, cc2 = [Any[0x01]], [Any[1.0]]
-@snoopi_deep ItrigDemo.calleach([cc1, cc2])
+@snoop_inference ItrigDemo.calleach([cc1, cc2])
 ```
 
 This does not require any new inference for `calldouble2` or `calldouble1`, but it does force inference on `double` with two new types.
@@ -94,7 +94,7 @@ function itrigs_demo()
     Base.invokelatest(ItrigDemo.calleach, [cc,cc])
     # Now use UInt8 & Float64 elements to force inference on double, without forcing new inference on its callers
     cc1, cc2 = [Any[0x01]], [Any[1.0]]
-    return @snoopi_deep Base.invokelatest(ItrigDemo.calleach, [cc1, cc2])
+    return @snoop_inference Base.invokelatest(ItrigDemo.calleach, [cc1, cc2])
 end
 
 """
@@ -129,7 +129,7 @@ ItrigHigherOrderDemo.callmymap(Any[1, 2])
 Then it collects and returns inference data using
 
 ```julia
-@snoopi_deep ItrigHigherOrderDemo.callmymap(Any[1.0, 2.0])
+@snoop_inference ItrigHigherOrderDemo.callmymap(Any[1.0, 2.0])
 ```
 
 which forces inference for `double(::Float64)`.
@@ -154,6 +154,6 @@ function itrigs_higherorder_demo()
     #    `mymap!(::typeof(double), ::Vector{Any}, ::Vector{Any})` and `double(::Int)`
     Base.invokelatest(ItrigHigherOrderDemo.callmymap, Any[1, 2])
     src = Any[1.0, 2.0]   # double not yet inferred for Float64
-    return @snoopi_deep Base.invokelatest(ItrigHigherOrderDemo.callmymap, src)
+    return @snoop_inference Base.invokelatest(ItrigHigherOrderDemo.callmymap, src)
 end
 

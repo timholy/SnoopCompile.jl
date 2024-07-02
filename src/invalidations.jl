@@ -10,7 +10,7 @@ end
 """
     umis = uinvalidated(invlist)
 
-Return the unique invalidated MethodInstances. `invlist` is obtained from [`SnoopCompileCore.@snoopr`](@ref).
+Return the unique invalidated MethodInstances. `invlist` is obtained from [`SnoopCompileCore.@snoop_invalidations`](@ref).
 This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that it discards any tagged
 `"invalidate_mt_cache"`. These can typically be ignored because they are nearly inconsequential:
 they do not invalidate any compiled code, they only transiently affect an optimization of runtime dispatch.
@@ -282,7 +282,7 @@ new_backedge_table() = Dict{Union{Int32,MethodInstance},Union{Tuple{Any,Vector{A
 
 Print a tabular summary of invalidations given:
 
- - `invalidations` the output of [`SnoopCompileCore.@snoopr`](@ref)
+ - `invalidations` the output of [`SnoopCompileCore.@snoop_invalidations`](@ref)
 
 and (optionally)
 
@@ -298,7 +298,7 @@ and (optionally)
 
 ```julia
 import SnoopCompileCore
-invalidations = SnoopCompileCore.@snoopr begin
+invalidations = SnoopCompileCore.@snoop_invalidations begin
 
     # load packages & define any additional methods
 
@@ -316,7 +316,7 @@ function report_invalidations end
 """
     trees = invalidation_trees(list)
 
-Parse `list`, as captured by [`SnoopCompileCore.@snoopr`](@ref), into a set of invalidation trees, where parents nodes
+Parse `list`, as captured by [`SnoopCompileCore.@snoop_invalidations`](@ref), into a set of invalidation trees, where parents nodes
 were called by their children.
 
 # Example
@@ -341,7 +341,7 @@ julia> c = Any[1]
 julia> callapplyf(c)
 1
 
-julia> trees = invalidation_trees(@snoopr f(::AbstractFloat) = 3)
+julia> trees = invalidation_trees(@snoop_invalidations f(::AbstractFloat) = 3)
 1-element Array{SnoopCompile.MethodInvalidations,1}:
  inserting f(::AbstractFloat) in Main at REPL[36]:1 invalidated:
    mt_backedges: 1: signature Tuple{typeof(f),Any} triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific
@@ -740,7 +740,7 @@ You can find the specific source of invalidation as follows:
 f(data)                             # run once to force compilation
 m = @which f(data)
 using SnoopCompile
-trees = invalidation_trees(@snoopr using SomePkg)
+trees = invalidation_trees(@snoop_invalidations using SomePkg)
 methinvs = findcaller(m, trees)
 ```
 
@@ -751,7 +751,7 @@ next `using` statement slow. You can find the source of trouble with
 ```
 julia> using SnoopCompile
 
-julia> trees = invalidation_trees(@snoopr using SomePkg);
+julia> trees = invalidation_trees(@snoop_invalidations using SomePkg);
 
 julia> tinf = @snoopi using SomePkg            # this second `using` will need to recompile code invalidated above
 1-element Array{Tuple{Float64,Core.MethodInstance},1}:

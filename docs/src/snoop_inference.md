@@ -1,21 +1,21 @@
-# Snooping on inference: `@snoopi_deep`
+# Snooping on inference: `@snoop_inference`
 
 !!! compat
-    `@snoopi_deep` is available on `Julia 1.6.0-DEV.1190` or above, but the results can be relevant for all Julia versions.
+    `@snoop_inference` is available on `Julia 1.6.0-DEV.1190` or above, but the results can be relevant for all Julia versions.
 
 Currently, `precompile` only caches results for type-inference, not other stages in code generation.
 For that reason, efforts at reducing latency should be informed by measuring the amount of time spent on type-inference.
 Moreover, because all code needs to be type-inferred before undergoing later stages of code generation, monitoring this "entry point" can give you an overview of the entire compile chain.
 
-The rich data collected by `@snoopi_deep` are useful for several different purposes;
+The rich data collected by `@snoop_inference` are useful for several different purposes;
 on this page, we'll describe the basic tool and show how it can be used to profile inference.
 On later pages we'll show other ways to use the data to reduce the amount of type-inference or cache its results.
 
 ## Collecting the data
 
-Like [`@snoopr`](@ref), `@snoopi_deep` is exported by both `SnoopCompileCore` and `SnoopCompile`, but in this case there is not as much reason to do the data collection by a very minimal package.  Consequently here we'll just load `SnoopCompile` at the outset.
+Like [`@snoop_invalidations`](@ref), `@snoop_inference` is exported by both `SnoopCompileCore` and `SnoopCompile`, but in this case there is not as much reason to do the data collection by a very minimal package.  Consequently here we'll just load `SnoopCompile` at the outset.
 
-To see `@snoopi_deep` in action, we'll use the following demo:
+To see `@snoop_inference` in action, we'll use the following demo:
 
 ```jldoctest flatten-demo
 module FlattenDemo
@@ -45,12 +45,12 @@ The main call, `packintype`, stores the input in a `struct`, and then calls func
 To profile inference on this call, we simply do the following:
 
 ```jldoctest flatten-demo; setup=:(using SnoopCompile), filter=r"([0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\.\n)"
-julia> tinf = @snoopi_deep FlattenDemo.packintype(1)
+julia> tinf = @snoop_inference FlattenDemo.packintype(1)
 InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 direct children
 ```
 
 !!! tip
-    Inference gets called only on the *first* invocation of a method with those specific types. You have to redefine the `FlattenDemo` module (by just re-executing the command we used to define it) if you want to collect data with `@snoopi_deep` on the same code a second time.
+    Inference gets called only on the *first* invocation of a method with those specific types. You have to redefine the `FlattenDemo` module (by just re-executing the command we used to define it) if you want to collect data with `@snoop_inference` on the same code a second time.
 
     To make it easier to perform these demonstrations and use them for documentation purposes, `SnoopCompile` includes a function [`SnoopCompile.flatten_demo()`](@ref) that redefines the module and returns `tinf`.
 
@@ -59,14 +59,14 @@ This may not look like much, but there's a wealth of information hidden inside `
 ## A quick check for potential invalidations
 
 
-After running `@snoopi_deep`, it's generally recommended to check the output of [`staleinstances`](@ref):
+After running `@snoop_inference`, it's generally recommended to check the output of [`staleinstances`](@ref):
 ```julia
 julia> staleinstances(tinf)
 SnoopCompileCore.InferenceTiming[]
 ```
 
 If you see this, all's well.
-A non-empty list might indicate method invalidations, which can be checked (in a fresh session) by running the identical workload with [`@snoopr`](@ref).
+A non-empty list might indicate method invalidations, which can be checked (in a fresh session) by running the identical workload with [`@snoop_invalidations`](@ref).
 
 !!! warning
     Rampant invalidation can make the process of analyzing `tinf` more confusing: "why am I getting reinference of this `MethodInstance` when I `precompile`d it?" Routine use of `staleinstances` at the beginning can save you some head-scratching later.
@@ -74,14 +74,14 @@ A non-empty list might indicate method invalidations, which can be checked (in a
 !!! tip
     Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
     from `staleinstances`.
-    One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoopi_deep`, because it ensures the methods are in place
+    One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoop_inference`, because it ensures the methods are in place
     before your workload triggers compilation.
 
 If you do have a lot of invalidations, [`precompile_blockers`](@ref) may be an effective way to reveal those invalidations that affect your particular package and workload.
 
 ## Viewing the results
 
-Let's start unpacking the output of `@snoopi_deep` and see how to get more insight.
+Let's start unpacking the output of `@snoop_inference` and see how to get more insight.
 First, notice that the output is an `InferenceTimingNode`: it's the root element of a tree of such nodes, all connected by caller-callee relationships.
 Indeed, this particular node is for `Core.Compiler.Timings.ROOT()`, a "dummy" node that is the root of all such trees.
 

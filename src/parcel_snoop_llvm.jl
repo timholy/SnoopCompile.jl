@@ -1,5 +1,5 @@
 """
-    times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml"; tmin_secs=0.0)
+    times, info = SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml"; tmin_secs=0.0)
 
 Reads the log file produced by the compiler and returns the structured representations.
 
@@ -13,14 +13,14 @@ and after optimization, including number of instructions and number of basicbloc
 
 ## Example
 ```julia
-julia> @snoopl "func_names.csv" "llvm_timings.yaml" begin
+julia> @snoop_llvm "func_names.csv" "llvm_timings.yaml" begin
            using InteractiveUtils
            @eval InteractiveUtils.peakflops()
        end
 Launching new julia process to run commands...
 done.
 
-julia> times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml", tmin_secs = 0.025);
+julia> times, info = SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml", tmin_secs = 0.025);
 
 julia> times
 3-element Vector{Pair{Float64, Vector{String}}}:
@@ -35,8 +35,8 @@ Dict{String, NamedTuple{(:before, :after), Tuple{NamedTuple{(:instructions, :bas
   "Tuple{typeof(LinearAlgebra._generic_matmatmul!)… => (before = (instructions = 4796, basicblocks = 824), after = (instructions = 1421, basicblocks =…
 ```
 """
-function read_snoopl(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
-    func_csv = _read_snoopl_csv(func_csv_file)
+function read_snoop_llvm(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
+    func_csv = _read_snoop_llvm_csv(func_csv_file)
     llvm_yaml = YAML.load_file(llvm_yaml_file)
 
     jl_names = Dict(r[1]::String => r[2]::String for r in func_csv)
@@ -82,10 +82,10 @@ end
 
 
 """
-`SnoopCompile._read_snoopl_csv("compiledata.csv")` reads the log file produced by the
+`SnoopCompile._read_snoop_llvm_csv("compiledata.csv")` reads the log file produced by the
 compiler and returns the function names as an array of pairs.
 """
-function _read_snoopl_csv(filename)
+function _read_snoop_llvm_csv(filename)
     data = Vector{Pair{String,String}}()
     # Format is [^\t]+\t[^\t]+. That is, tab-separated entries. No quotations or other
     # whitespace are considered.

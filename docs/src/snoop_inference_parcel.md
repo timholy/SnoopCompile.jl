@@ -1,4 +1,4 @@
-# [Using `@snoopi_deep` results for precompilation](@id precompilation)
+# [Using `@snoop_inference` results for precompilation](@id precompilation)
 
 Improving inferrability, specialization, and precompilability may sometimes feel like "eating your vegetables": really good for you, but it sometimes feels like work.  (Depending on tastes, of course; I love vegetables.)
 While we've already gotten some payoff, now we're going to collect an additional reward for our hard work: the "dessert" of adding `precompile` directives.
@@ -210,6 +210,6 @@ It's also worth appreciating how much we have succeeded in reducing latency, wit
 
 ## Summary
 
-`@snoopi_deep` collects enough data to learn which methods are triggering inference, how heavily methods are being specialized, and so on.
+`@snoop_inference` collects enough data to learn which methods are triggering inference, how heavily methods are being specialized, and so on.
 Examining your code from the standpoint of inference and specialization may be unfamiliar at first, but like other aspects of package development (testing, documentation, and release compatibility management) it can lead to significant improvements in the quality-of-life for you and your users.
 By optimizing your packages and then adding `precompile` directives, you can often cut down substantially on latency.

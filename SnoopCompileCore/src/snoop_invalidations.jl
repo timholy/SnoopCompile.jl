@@ -1,7 +1,7 @@
-export @snoopr
+export @snoop_invalidations
 
 """
-    list = @snoopr expr
+    list = @snoop_invalidations expr
 
 Capture method cache invalidations triggered by evaluating `expr`.
 `list` is a sequence of invalidated `Core.MethodInstance`s together with "explanations," consisting
@@ -23,7 +23,7 @@ Method insertion results in the sequence
 
     [zero or more (depth0 tree, sig) pairs..., same info as with delete_method except loctag = "jl_method_table_insert"]
 """
-macro snoopr(expr)
+macro snoop_invalidations(expr)
     quote
         local list = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
         Expr(:tryfinally,
