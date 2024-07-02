@@ -168,20 +168,7 @@ We can illustrate this by returning to the `call2f` example above:
 ```jldoctest invalidations; filter=[r"(in Main at|@ Main) (REPL\[\d+\]|none)"]
 julia> call2f(["hello"])
 ERROR: MethodError: no method matching f(::String)
-
-Closest candidates are:
-  f(!Matched::Float64)
-   @ Main none:1
-  f(!Matched::Real)
-   @ Main none:1
-
-Stacktrace:
- [1] callf(container::Vector{String})
-   @ Main ./none:1
- [2] call2f(container::Vector{String})
-   @ Main ./none:1
- [3] top-level scope
-   @ none:1
+[...]
 
 julia> invalidations = @snoop_invalidations f(::AbstractString) = 2;
 
