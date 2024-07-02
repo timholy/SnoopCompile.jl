@@ -1,4 +1,4 @@
-export @snoopi_deep
+export @snoop_inference
 
 struct InferenceTiming
     mi_info::Core.Compiler.Timings.InferenceFrameInfo
@@ -81,11 +81,11 @@ function stop_deep_timing()
     Core.Compiler.Timings.close_current_timer()
 end
 
-function finish_snoopi_deep()
+function finish_snoop_inference()
     return InferenceTimingNode(Core.Compiler.Timings._timings[1])
 end
 
-function _snoopi_deep(cmd::Expr)
+function _snoop_inference(cmd::Expr)
     return quote
         start_deep_timing()
         try
@@ -93,12 +93,12 @@ function _snoopi_deep(cmd::Expr)
         finally
             stop_deep_timing()
         end
-        finish_snoopi_deep()
+        finish_snoop_inference()
     end
 end
 
 """
-    tinf = @snoopi_deep commands
+    tinf = @snoop_inference commands
 
 Produce a profile of julia's type inference, recording the amount of time spent inferring
 every `MethodInstance` processed while executing `commands`. Each fresh entrance to
@@ -122,19 +122,19 @@ See also:  `flamegraph`, `flatten`, `inference_triggers`, `SnoopCompile.parcel`,
 
 # Example
 ```jldoctest; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|\\d direct)"
-julia> tinf = @snoopi_deep begin
+julia> tinf = @snoop_inference begin
            sort(rand(100))  # Evaluate some code and profile julia's type inference
        end
 InferenceTimingNode: 0.110018224/0.131464476 on Core.Compiler.Timings.ROOT() with 2 direct children
 ```
 
 """
-macro snoopi_deep(cmd)
-    return _snoopi_deep(cmd)
+macro snoop_inference(cmd)
+    return _snoop_inference(cmd)
 end
 
 # These are okay to come at the top-level because we're only measuring inference, and
 # inference results will be cached in a `.ji` file.
 precompile(start_deep_timing, ())
 precompile(stop_deep_timing, ())
-precompile(finish_snoopi_deep, ())
+precompile(finish_snoop_inference, ())

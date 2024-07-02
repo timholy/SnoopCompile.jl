@@ -1,6 +1,6 @@
 """
 OptimizeMe is a demonstration module used in illustrating how to improve code and generate effective `precompile` directives.
-It has deliberate weaknesses in its design, and the analysis of these weaknesses via `@snoopi_deep` is discussed
+It has deliberate weaknesses in its design, and the analysis of these weaknesses via `@snoop_inference` is discussed
 in the documentation.
 """
 module OptimizeMeFixed

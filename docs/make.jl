@@ -9,9 +9,10 @@ makedocs(
     ),
     modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
     linkcheck = true,
+    # doctest = :fix,
     pages = ["index.md",
              "tutorial.md",
-             "Modern tools" => ["snoopr.md", "snoopi_deep.md", "pgdsgui.md", "snoopi_deep_analysis.md", "snoopi_deep_parcel.md", "jet.md"],
+             "Modern tools" => ["snoop_invalidations.md", "snoop_inference.md", "pgdsgui.md", "snoop_inference_analysis.md", "snoop_inference_parcel.md", "jet.md"],
              "reference.md"],
 )
 

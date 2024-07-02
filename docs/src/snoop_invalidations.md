@@ -1,7 +1,7 @@
-# [Snooping on and fixing invalidations: `@snoopr`](@id invalidations)
+# [Snooping on and fixing invalidations: `@snoop_invalidations`](@id invalidations)
 
 !!! compat
-    `@snoopr` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
+    `@snoop_invalidations` is available on `Julia 1.6.0-DEV.154` or above, but the results can be relevant for all Julia versions.
 
 Invalidations occur when there is a danger that new methods would supersede older methods in previously-compiled code.
 For safety, Julia's compiler *invalidates* that old code, marking it as unsuitable for use; the next time you call
@@ -39,14 +39,14 @@ DocTestSetup = quote
 end
 ```
 
-To record the invalidations caused by defining new methods, use [`@snoopr`](@ref).
-`@snoopr` is exported by `SnoopCompile`, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis.
+To record the invalidations caused by defining new methods, use [`@snoop_invalidations`](@ref).
+`@snoop_invalidations` is exported by `SnoopCompile`, but the recommended approach is to record invalidations using the minimalistic `SnoopCompileCore` package, and then load `SnoopCompile` to do the analysis.
 _**Remember**_ to run julia with the `--startup-file="no"` flag set, if you load packages such as [`Revise`](https://github.com/timholy/Revise.jl) in your startup file.
 Otherwise invalidations relating to those packages will also show up.
 
 ```julia
 using SnoopCompileCore
-invalidations = @snoopr begin
+invalidations = @snoop_invalidations begin
     # package loads and/or method definitions that might invalidate other code
 end
 using SnoopCompile   # now that we've collected the data, load the complete package to analyze the results
@@ -54,8 +54,8 @@ using SnoopCompile   # now that we've collected the data, load the complete pack
 
 !!! note
     `SnoopCompileCore` was split out from `SnoopCompile` to reduce the risk of invalidations from loading `SnoopCompile` itself.
-    Once a `MethodInstance` gets invalidated, it doesn't show up in future `@snoopr` results, so anything that
-    gets invalidated in order to provide `@snoopr` would be omitted from the results.
+    Once a `MethodInstance` gets invalidated, it doesn't show up in future `@snoop_invalidations` results, so anything that
+    gets invalidated in order to provide `@snoop_invalidations` would be omitted from the results.
     `SnoopCompileCore` is a very small package with no dependencies and which avoids extending any of Julia's own functions,
     so it cannot invalidate any other code.
 
@@ -92,12 +92,12 @@ julia> call2f(cabs)
     If you're following along, be sure you actually execute these methods, or you won't obtain the results below.
 
 Now we'll define a new `f` method, one specialized for `Float64`.
-So we can see the consequences for the compiled code, we'll make this definition while snooping on the compiler with `@snoopr`:
+So we can see the consequences for the compiled code, we'll make this definition while snooping on the compiler with `@snoop_invalidations`:
 
 ```jldoctest invalidations
 julia> using SnoopCompileCore
 
-julia> invalidations = @snoopr f(::Float64) = 2;
+julia> invalidations = @snoop_invalidations f(::Float64) = 2;
 ```
 
 As should be apparent, running `call2f` on `c64` should produce a different result than formerly, so Julia certainly
@@ -118,15 +118,15 @@ For that, it's best to use a tree structure, in which children are invalidated b
 ```jldoctest invalidations; filter=[r"(in Main at|@ Main) (REPL\[\d+\]|none)"]
 julia> trees = invalidation_trees(invalidations)
 1-element Vector{SnoopCompile.MethodInvalidations}:
- inserting f(::Float64) in Main at REPL[9]:1 invalidated:
-   backedges: 1: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::Float64) (2 children)
-              2: superseding f(::Real) in Main at REPL[2]:1 with MethodInstance for f(::AbstractFloat) (2 children)
+ inserting f(::Float64) @ Main none:1 invalidated:
+   backedges: 1: superseding f(::Real) @ Main none:1 with MethodInstance for f(::Float64) (2 children)
+              2: superseding f(::Real) @ Main none:1 with MethodInstance for f(::AbstractFloat) (2 children)
    1 mt_cache
 ```
 
 The output, `trees`, is a vector of `MethodInvalidations`, a data type defined in `SnoopCompile`; each of these is the set of invalidations triggered by a particular method definition.
 In this case, we only defined one method, so we can get at most one `MethodInvalidation`.
-`@snoopr using SomePkg` might result in a list of such objects, each connected to a particular method defined in a particular package (either `SomePkg` itself or one of its dependencies).
+`@snoop_invalidations using SomePkg` might result in a list of such objects, each connected to a particular method defined in a particular package (either `SomePkg` itself or one of its dependencies).
 
 In this case, "`inserting f(::Float64)`" indicates that we added a method with signature `f(::Float64)`, and that this method triggered invalidations.
 (Invalidations can also be triggered by method deletion, although this should not happen in typical usage.)
@@ -170,11 +170,11 @@ julia> call2f(["hello"])
 ERROR: MethodError: no method matching f(::String)
 [...]
 
-julia> invalidations = @snoopr f(::AbstractString) = 2;
+julia> invalidations = @snoop_invalidations f(::AbstractString) = 2;
 
 julia> trees = invalidation_trees(invalidations)
 1-element Vector{SnoopCompile.MethodInvalidations}:
- inserting f(::AbstractString) in Main at REPL[6]:1 invalidated:
+ inserting f(::AbstractString) @ Main none:1 invalidated:
    mt_backedges: 1: signature Tuple{typeof(f), String} triggered MethodInstance for callf(::Vector{String}) (1 children)
 
 
@@ -207,7 +207,7 @@ julia> using Revise
 
 julia> using SnoopCompileCore
 
-julia> invalidations = @snoopr using FillArrays;
+julia> invalidations = @snoop_invalidations using FillArrays;
 
 julia> using SnoopCompile
 
@@ -286,7 +286,7 @@ In that case, you might want to find just those invalidations triggered in your 
 You can find them with [`filtermod`](@ref):
 
 ```julia
-trees = invalidation_trees(@snoopr using PkgB)
+trees = invalidation_trees(@snoop_invalidations using PkgB)
 ftrees = filtermod(PkgA, trees)
 ```
 
@@ -300,7 +300,7 @@ A more selective yet exhaustive tool is [`findcaller`](@ref), which allows you t
 m = @which f(data)                  # look for the "path" that invalidates this method
 f(data)                             # run once to force compilation
 using SnoopCompile
-trees = invalidation_trees(@snoopr using SomePkg)
+trees = invalidation_trees(@snoop_invalidations using SomePkg)
 invs = findcaller(m, trees)         # select the branch that invalidated a compiled instance of `m`
 ```
 
@@ -333,14 +333,14 @@ call2f(c32)
 call2f(cabs)
 
 using SnoopCompileCore
-invalidations = @snoopr f(::Float64) = 2
+invalidations = @snoop_invalidations f(::Float64) = 2
 using SnoopCompile
 trees = invalidation_trees(invalidations)
 method_invalidations = trees[1]
 ```
 
 and `include` it into a fresh session.  (The full functionality of `ascend` doesn't work for methods defined at the REPL, but does if the methods are defined in a file.)
-In this demo, I called that file `/tmp/snoopr.jl`.
+In this demo, I called that file `/tmp/snoop_invalidations.jl`.
 
 
 We start with
@@ -378,7 +378,7 @@ Now hit `Enter` to select it:
 
 ```julia
 Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
- > "/tmp/snoopr.jl", callf: lines [2]
+ > "/tmp/snoop_invalidations.jl", callf: lines [2]
    Browse typed code
 ```
 
@@ -391,7 +391,7 @@ If you hit the down arrow
 
 ```julia
 Choose caller of MethodInstance for f(::AbstractFloat) or proceed to typed code:
-   "/tmp/snoopr.jl", callf: lines [2]
+   "/tmp/snoop_invalidations.jl", callf: lines [2]
  > Browse typed code
 ```
 
@@ -404,7 +404,7 @@ Variables
   container::Vector{AbstractFloat}
 
 Body::Int64
-    @ /tmp/snoopr.jl:2 within `callf'
+    @ /tmp/snoop_invalidations.jl:2 within `callf'
 1 ─ %1 = Base.getindex(container, 1)::AbstractFloat
 │   %2 = Main.f(%1)::Int64
 └──      return %2

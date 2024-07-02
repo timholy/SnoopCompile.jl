@@ -1,4 +1,4 @@
-# [Using `@snoopi_deep` results to improve inferrability](@id inferrability)
+# [Using `@snoop_inference` results to improve inferrability](@id inferrability)
 
 As indicated in the [workflow](@ref), the recommended steps to reduce latency are:
 
@@ -29,7 +29,7 @@ julia> cd(joinpath(pkgdir(SnoopCompile), "examples"))
 julia> include("OptimizeMe.jl")
 Main.OptimizeMe
 
-julia> tinf = @snoopi_deep OptimizeMe.main()
+julia> tinf = @snoop_inference OptimizeMe.main()
 lotsa containers:
 7-element Vector{Main.OptimizeMe.Container}:
  Main.OptimizeMe.Container{Int64}(1)
@@ -474,7 +474,7 @@ julia> stacktrace(itrig)
  vcat at abstractarray.jl:1698 [inlined]
  makeobjects() at OptimizeMe.jl:39
  main() at OptimizeMe.jl:48
- top-level scope at snoopi_deep.jl:53
+ top-level scope at snoop_inference.jl:53
  eval(m::Module, e::Any) at boot.jl:360
  eval_user_input(ast::Any, backend::REPL.REPLBackend) at REPL.jl:139
  repl_backend_loop(backend::REPL.REPLBackend) at REPL.jl:200
@@ -789,7 +789,7 @@ An improved version of `OptimizeMe` can be found in `OptimizeMeFixed.jl` in the 
 Let's see where we stand:
 
 ```julia
-julia> tinf = @snoopi_deep OptimizeMeFixed.main()
+julia> tinf = @snoop_inference OptimizeMeFixed.main()
 3.14 is great
 2.718 is jealous
 ...

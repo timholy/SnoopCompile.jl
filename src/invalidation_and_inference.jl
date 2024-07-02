@@ -1,4 +1,4 @@
-# Combining invalidation and snoopi_deep data
+# Combining invalidation and snoop_inference data
 
 struct StaleTree
     method::Method
@@ -50,10 +50,10 @@ This can allow one to identify specific blockers of precompilation for particula
 
 ```julia
 using SnoopCompileCore
-invalidations = @snoopr using PkgA, PkgB;
+invalidations = @snoop_invalidations using PkgA, PkgB;
 using SnoopCompile
 trees = invalidation_trees(invalidations)
-tinf = @snoopi_deep begin
+tinf = @snoop_inference begin
     some_workload()
 end
 staletrees = precompile_blockers(trees, tinf)
