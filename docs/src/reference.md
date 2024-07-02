@@ -3,9 +3,9 @@
 ## Data collection
 
 ```@docs
-@snoopr
-@snoopi_deep
-@snoopl
+@snoop_invalidations
+@snoop_inference
+@snoop_llvm
 ```
 
 ## GUIs
@@ -25,7 +25,7 @@ filtermod
 findcaller
 ```
 
-## Analysis of `@snoopi_deep`
+## Analysis of `@snoop_inference`
 
 ```@docs
 flatten
@@ -54,7 +54,7 @@ report_caller
 
 ```@docs
 SnoopCompile.read
-SnoopCompile.read_snoopl
+SnoopCompile.read_snoop_llvm
 SnoopCompile.format_userimg
 ```
 

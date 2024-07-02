@@ -7,8 +7,8 @@ you should prefer them above the more limited tools available on earlier version
 
 ### Invalidations
 
-- `@snoopr`: record invalidations
-- `uinvalidated`: collect unique method invalidations from `@snoopr`
+- `@snoop_invalidations`: record invalidations
+- `uinvalidated`: collect unique method invalidations from `@snoop_invalidations`
 - `invalidation_trees`: organize invalidation data into trees
 - `filtermod`: select trees that invalidate methods in particular modules
 - `findcaller`: find a path through invalidation trees reaching a particular method
@@ -16,14 +16,14 @@ you should prefer them above the more limited tools available on earlier version
 
 ### LLVM
 
-- `@snoopl`: record data about the actions of LLVM, the library used to generate native code
-- `read_snoopl`: parse data collected by `@snoopl`
+- `@snoop_llvm`: record data about the actions of LLVM, the library used to generate native code
+- `read_snoop_llvm`: parse data collected by `@snoop_llvm`
 
 ### "Deep" data on inference
 
-- `@snoopi_deep`: record more extensive data about type-inference (`parcel` and `write` work on these data, too)
-- `flamegraph`: prepare a visualization from `@snoopi_deep`
-- `flatten`: reduce the tree format recorded by `@snoopi_deep` to list format
+- `@snoop_inference`: record more extensive data about type-inference (`parcel` and `write` work on these data, too)
+- `flamegraph`: prepare a visualization from `@snoop_inference`
+- `flatten`: reduce the tree format recorded by `@snoop_inference` to list format
 - `accumulate_by_source`: aggregate list items by their source
 - `inference_triggers`: extract data on the triggers of inference
 - `callerinstance`, `callingframe`, `skiphigherorder`, and `InferenceTrigger`: manipulate stack frames from `inference_triggers`
@@ -40,7 +40,7 @@ using InteractiveUtils
 using Serialization
 using Printf
 using OrderedCollections
-import YAML  # For @snoopl
+import YAML  # For @snoop_llvm
 
 using Base: specializations
 
@@ -70,17 +70,17 @@ end
 
 # Parcel
 
-include("parcel_snoopi_deep.jl")
-include("deep_demos.jl")
-export @snoopi_deep, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
+include("parcel_snoop_inference.jl")
+include("inference_demos.jl")
+export @snoop_inference, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
 export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
 export report_callee, report_caller, report_callees
 
-include("parcel_snoopl.jl")
-export read_snoopl, @snoopl
+include("parcel_snoop_llvm.jl")
+export read_snoop_llvm, @snoop_llvm
 
 include("invalidations.jl")
-export @snoopr, uinvalidated, invalidation_trees, filtermod, findcaller
+export @snoop_invalidations, uinvalidated, invalidation_trees, filtermod, findcaller
 
 include("invalidation_and_inference.jl")
 export precompile_blockers

@@ -60,7 +60,7 @@ julia> using SnoopCompile
 
 julia> Ts = subtypes(Any);  # get a long list of different types
 
-julia> tinf = @snoopi_deep mappushes(spelltype, Ts)
+julia> tinf = @snoop_inference mappushes(spelltype, Ts)
 InferenceTimingNode: 4.476700/5.591207 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 587 direct children
 ```
 

@@ -2,9 +2,9 @@ using Test
 
 using SnoopCompile
 
-@testset "@snoopl" begin
+@testset "@snoop_llvm" begin
 
-    @snoopl "func_names.csv" "llvm_timings.yaml" begin
+    @snoop_llvm "func_names.csv" "llvm_timings.yaml" begin
         @eval module M
             i(x) = x+5
             h(a::Array) = i(a[1]::Integer) + 2
@@ -13,7 +13,7 @@ using SnoopCompile
         @eval M.g(3)
     end;
 
-    times, info = SnoopCompile.read_snoopl("func_names.csv", "llvm_timings.yaml")
+    times, info = SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml")
 
     @test length(times) == 3  # i(), h(), g()
     @test length(info) == 3  # i(), h(), g()

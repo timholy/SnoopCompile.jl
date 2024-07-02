@@ -2,8 +2,8 @@ module SnoopCompileCore
 
 using Core: MethodInstance, CodeInfo
 
-include("snoopi_deep.jl")
-include("snoopr.jl")
-include("snoopl.jl")
+include("snoop_inference.jl")
+include("snoop_invalidations.jl")
+include("snoop_llvm.jl")
 
 end

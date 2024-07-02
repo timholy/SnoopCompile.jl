@@ -10,7 +10,7 @@ module CthulhuExt
     Cthulhu.specTypes(node::InstanceNode) = Cthulhu.specTypes(node.mi)
     Cthulhu.instance(node::InstanceNode) = node.mi
 
-    # Originally from parcel_snoopi_deep.jl
+    # Originally from parcel_snoop_inference.jl
 
     Cthulhu.descend(itrig::InferenceTrigger; kwargs...) = descend(callerinstance(itrig); kwargs...)
     Cthulhu.instance(itrig::InferenceTrigger) = MethodInstance(itrig.node)
