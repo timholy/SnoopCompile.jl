@@ -62,7 +62,11 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test MethodInstance(tinfsg1[1]) == mig
     @test all(node -> Method(node) == mg, tinfsg)
 
+    display(frames)
     longest_frame_time = exclusive(frames[end])
+    @show longest_frame_time
+    display(flatten(tinf, tmin=longest_frame_time))
+    display(filter(!hasconstpropnumber, flatten(tinf, tmin=longest_frame_time)))
     @test length(flatten(tinf, tmin=longest_frame_time)) == 1
 
     frames_unsorted = filter(!hasconstpropnumber, flatten(tinf; sortby=nothing))
