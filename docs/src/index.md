@@ -88,7 +88,7 @@ what changes need to be made will be considerably enhanced by using the latest t
 For developers who can use Julia 1.6+, the recommended sequence is:
 
 1. Check for [invalidations](@ref), and if egregious make fixes before proceeding further
-2. Record inference data with [`@snoopi_deep`](@ref). Analyze the data to:
+2. Record inference data with [`@snoop_inference`](@ref). Analyze the data to:
     + adjust method specialization in your package or its dependencies (see [pgds](@ref))
     + fix problems in [inferrability](@ref)
     + add [precompilation](@ref)

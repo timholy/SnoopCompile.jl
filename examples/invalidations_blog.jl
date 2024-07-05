@@ -11,7 +11,7 @@ function hastv(typ)
     return false
 end
 
-trees = invalidation_trees(@snoopr using Revise)
+trees = invalidation_trees(@snoop_invalidations using Revise)
 
 function summary(trees)
     npartial = ngreater = nlesser = nambig = nequal = 0

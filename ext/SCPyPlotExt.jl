@@ -1,4 +1,8 @@
-using .PyPlot: plt, PyCall
+module SCPyPlotExt
+
+using SnoopCompile
+using SnoopCompile: MethodLoc, InferenceTimingNode, PGDSData, lookups
+using PyPlot: PyPlot, plt, PyCall
 
 get_bystr(@nospecialize(by)) = by === inclusive ? "Inclusive" :
                                by === exclusive ? "Exclusive" : error("unknown ", by)
@@ -74,4 +78,6 @@ end
 function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookups, consts, by, kwargs...)
     lookup_firstip!(lookups, pdata)
     return runtime_inferencetime(tinf, pdata; lidict, consts, by)
+end
+
 end

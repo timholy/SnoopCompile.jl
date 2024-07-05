@@ -49,7 +49,7 @@ julia> list = [5, "hello"];
 julia> mapfib(list) = map(fib, list)
 mapfib (generic function with 1 method)
 
-julia> tinf = @snoopi_deep try mapfib(list) catch end
+julia> tinf = @snoop_inference try mapfib(list) catch end
 InferenceTimingNode: 0.049825/0.071476 on Core.Compiler.Timings.ROOT() with 5 direct children
 
 julia> @report_call mapfib(list)
@@ -57,7 +57,7 @@ No errors detected
 ```
 
 JET did not catch the error because the call to `fib` is hidden behind runtime dispatch.
-However, when captured by `@snoopi_deep`, we get
+However, when captured by `@snoop_inference`, we get
 
 ```jldoctest jetfib; filter=[r"@ .*", r"REPL\\[\\d+\\]|none"]
 julia> report_callees(inference_triggers(tinf))

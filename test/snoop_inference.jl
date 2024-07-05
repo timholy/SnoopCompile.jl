@@ -17,7 +17,7 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
 hasconstpropnumber(f::SnoopCompileCore.InferenceTiming) = hasconstpropnumber(f.mi_info)
 hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t -> isa(t, Core.Const) && isa(t.val, Number), mi_info.slottypes)
 
-@testset "@snoopi_deep" begin
+@testset "@snoop_inference" begin
     # WARMUP (to compile all the small, reachable methods)
     M = Module()
     @eval M begin # Example with some functions that include type instability
@@ -36,7 +36,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
         g(y::Integer) = h(Any[y])
     end
 
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         M.g(2)
         M.g(true)
     end
@@ -101,7 +101,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    tinfmod = @snoopi_deep begin
+    tinfmod = @snoop_inference begin
         @eval @testset "Outer" begin
             @testset "Inner" begin
                 for i = 1:2 M.g(2) end
@@ -126,7 +126,7 @@ fdouble(x) = 2x
         x < 0.75 ? 0x01 : Float16(1)
     end
     g(c) = myplus(f(c[1]), f(c[2]))
-    tinf = @snoopi_deep g([0.7, 0.8])
+    tinf = @snoop_inference g([0.7, 0.8])
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf; exclude_toplevel=false)
     @test length(itrigs) == 2
@@ -176,7 +176,7 @@ fdouble(x) = 2x
     callercaller(cc) = caller(cc[1])
     callercaller([Any[1]])
     cc = [Any[0x01]]
-    tinf = @snoopi_deep callercaller(cc)
+    tinf = @snoop_inference callercaller(cc)
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -188,11 +188,11 @@ fdouble(x) = 2x
     s = suggest(itrig)
     @test !isignorable(s)
     print(io, s)
-    @test occursin(r"snoopi_deep\.jl:\d+: non-inferrable or unspecialized call.*::UInt8", String(take!(io)))
+    @test occursin(r"snoop_inference\.jl:\d+: non-inferrable or unspecialized call.*::UInt8", String(take!(io)))
 
     mysqrt(x) = sqrt(x)
     c = Any[1, 1.0, 0x01, Float16(1)]
-    tinf = @snoopi_deep map(mysqrt, c)
+    tinf = @snoop_inference map(mysqrt, c)
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itree = trigger_tree(itrigs)
@@ -241,7 +241,7 @@ fdouble(x) = 2x
     gline(x) = x[]
     fg(x) = fline(gline(x[]))
     cc = Ref{Any}(Ref{Base.RefValue}(Ref(3)))
-    tinf = @snoopi_deep fg(cc)
+    tinf = @snoop_inference fg(cc)
     itrigs = inference_triggers(tinf)
     loctrigs = accumulate_by_source(itrigs)
     @test length(loctrigs) == 2
@@ -258,7 +258,7 @@ fdouble(x) = 2x
     callmymap(x) = mymap(fdouble, x)
     callmymap(Any[1, 2])  # compile all for one set of types
     x = Any[1.0, 2.0]   # fdouble not yet inferred for Float64
-    tinf = @snoopi_deep callmymap(x)
+    tinf = @snoop_inference callmymap(x)
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -269,7 +269,7 @@ fdouble(x) = 2x
     callfdouble(c) = fdouble(c[1])
     callfdouble(Any[1])
     c = Any[Float16(1)]
-    tinf = @snoopi_deep callfdouble(c)
+    tinf = @snoop_inference callfdouble(c)
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -292,7 +292,7 @@ fdouble(x) = 2x
         end
     end
     c = Any["hey", 7]
-    tinf = @snoopi_deep M.f(c, " there")
+    tinf = @snoop_inference M.f(c, " there")
     itrigs = inference_triggers(tinf)
     @test length(itrigs) > 1
     mtrigs = accumulate_by_source(Method, itrigs)
@@ -312,7 +312,7 @@ end
         callee(x) = 2x
         caller(c) = callee(c[1])
     end
-    tinf = @snoopi_deep M.caller(Any[1])
+    tinf = @snoop_inference M.caller(Any[1])
     itrigs = inference_triggers(tinf; exclude_toplevel=false)
     @test length(itrigs) == 2
     s = suggest(itrigs[1])
@@ -322,7 +322,7 @@ end
     s = suggest(itrigs[2])
     @test s.categories == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecCall]
     show(io, s)
-    @test occursin(r"non-inferrable or unspecialized call.*annotate caller\(c::Vector\{Any\}\) at snoopi_deep.*callee\(::Int", String(take!(io)))
+    @test occursin(r"non-inferrable or unspecialized call.*annotate caller\(c::Vector\{Any\}\) at snoop_inference.*callee\(::Int", String(take!(io)))
 
     # Same test, but check the test harness & inlineable detection
     M = Module()
@@ -330,7 +330,7 @@ end
         callee(x) = 2x
         @inline caller(c) = callee(c[1])
     end
-    cats = categories(@snoopi_deep M.caller(Any[1]))
+    cats = categories(@snoop_inference M.caller(Any[1]))
     @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.UnspecCall]
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin("non-inferrable or unspecialized call", String(take!(io)))
@@ -343,7 +343,7 @@ end
         typeconstruct(c) = Container{3}(c[])
     end
     c = Ref{Any}(M.Typ())
-    cats = categories(@snoopi_deep M.typeconstruct(c))
+    cats = categories(@snoop_inference M.typeconstruct(c))
     @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.UnspecType]
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     # println(String(take!(io)))
@@ -355,7 +355,7 @@ end
         @noinline callf(@nospecialize(f::Function), x) = f(x)
         g(x) = callf(sqrt, x)
     end
-    tinf = @snoopi_deep M.g(3)
+    tinf = @snoop_inference M.g(3)
     itrigs = inference_triggers(tinf)
     if !isempty(itrigs)
         cats = categories(tinf)
@@ -372,7 +372,7 @@ end
         f(::Int) = 1
         g(x) = Base.invokelatest(f, x)
     end
-    cats = categories(@snoopi_deep M.g(3))
+    cats = categories(@snoop_inference M.g(3))
     @test SnoopCompile.FromInvokeLatest ∈ cats
     @test isignorable(cats[1])
 
@@ -384,7 +384,7 @@ end
         fref = Ref{Any}(rand() < 0.5 ? mysin : mycos)
         return docall(fref, x)
     end
-    cats = categories(@snoopi_deep callvar(0.2))
+    cats = categories(@snoop_inference callvar(0.2))
     @test cats == [SnoopCompile.CalleeVariable]
     SnoopCompile.show_suggest(io, cats, nothing, nothing)
     @test occursin(r"variable callee.*avoid assigning function to variable", String(take!(io)))
@@ -408,7 +408,7 @@ end
             return docall(f, x)
         end
     end
-    tinf = @snoopi_deep M.callvar(Ref{Any}(0.2))
+    tinf = @snoop_inference M.callvar(Ref{Any}(0.2))
     cats = suggest(inference_triggers(tinf)[end]).categories
     @test cats == [SnoopCompile.CalleeVariable]
     # CalleeVariable & varargs
@@ -422,7 +422,7 @@ end
             docallva(fref, args)
         end
     end
-    cats = categories(@snoopi_deep M.callsomething(Any['a', 2]))
+    cats = categories(@snoop_inference M.callsomething(Any['a', 2]))
     @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.CallerInlineable, SnoopCompile.CalleeVariable]
     M = Module()
     @eval M begin
@@ -434,7 +434,7 @@ end
             docallva(fref, args)
         end
     end
-    cats = categories(@snoopi_deep M.callsomething(Any['a', 2]))
+    cats = categories(@snoop_inference M.callsomething(Any['a', 2]))
     @test cats == [SnoopCompile.CalleeVariable]
 
     # CallerVararg
@@ -444,7 +444,7 @@ end
         c1(x...) = f1(x[2])
     end
     c = Any['c', 1]
-    cats = categories(@snoopi_deep M.c1(c...))
+    cats = categories(@snoop_inference M.c1(c...))
     @test SnoopCompile.CalleeVararg ∉ cats
     @test SnoopCompile.CallerVararg ∈ cats
     @test SnoopCompile.UnspecCall ∈ cats
@@ -457,7 +457,7 @@ end
         f2(x...) = 2*x[2]
         c2(x) = f2(x...)
     end
-    cats = categories(@snoopi_deep M.c2(c))
+    cats = categories(@snoop_inference M.c2(c))
     @test SnoopCompile.CallerVararg ∉ cats
     @test SnoopCompile.CalleeVararg ∈ cats
     @test SnoopCompile.UnspecCall ∈ cats
@@ -473,7 +473,7 @@ end
         Base.show(io::IO, ::BType) = print(io, "B")
         @noinline doprint(ref) = print(IOBuffer(), "a", ref[], 3.2)
     end
-    tinf = @snoopi_deep M.doprint(Ref{Union{M.AType,M.BType}}(M.AType()))
+    tinf = @snoop_inference M.doprint(Ref{Union{M.AType,M.BType}}(M.AType()))
     if !isempty(inference_triggers(tinf))
         cats = categories(tinf)
         @test cats == [SnoopCompile.FromTestCallee, SnoopCompile.InvokedCalleeVararg]
@@ -504,7 +504,7 @@ end
         ArrayWrapper{T}(data, args...) where T = ArrayWrapper{T,ndims(data),typeof(data),typeof(args)}(data, args)
         @noinline makewrapper(data::AbstractArray{T}, args) where T = ArrayWrapper{T}(data, args...)
     end
-    tinf = @snoopi_deep M.makewrapper(rand(2,2), ["a", 'b', 5])
+    tinf = @snoop_inference M.makewrapper(rand(2,2), ["a", 'b', 5])
     itrigs = inference_triggers(tinf)
     @test length(itrigs) == 2
     s = suggest(itrigs[1])
@@ -539,7 +539,7 @@ end
             return nothing
         end
     end
-    tinf = @snoopi_deep try M.checkstatus(false, M.MyType()) catch end
+    tinf = @snoop_inference try M.checkstatus(false, M.MyType()) catch end
     if !isempty(inference_triggers(tinf))
         # Exceptions do not trigger a fresh entry into inference on Julia 1.8+
         cats = categories(tinf)
@@ -563,7 +563,7 @@ end
         end
     end
     z = M.MyInt()
-    tinf = @snoopi_deep M.abmult(3, z)
+    tinf = @snoop_inference M.abmult(3, z)
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
     s = suggest(itrig)
@@ -576,7 +576,7 @@ end
 
     # Test one called from toplevel
     fromtask() = (while false end; 1)
-    tinf = @snoopi_deep wait(@async fromtask())
+    tinf = @snoop_inference wait(@async fromtask())
     @test isempty(staleinstances(tinf))
     itrigs = inference_triggers(tinf)
     itrig = only(itrigs)
@@ -618,7 +618,7 @@ end
         g(y::Integer) = h(Any[y])
     end
 
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         M.g(2)
     end
     @test isempty(staleinstances(tinf))
@@ -660,7 +660,7 @@ end
         h(a::Array) = i(a[1]::Integer) + 2
         g(y::Integer) = h(Any[y])
     end
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         M.g(2)
         M.g(true)
     end
@@ -687,7 +687,7 @@ end
         struct MyFloat x::Float64 end
         Base.isless(x::MyFloat, y::Float64) = isless(x.x, y)
     end
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         z = M.MyFloat(2.0)
         z < 3.0
     end
@@ -708,7 +708,7 @@ end
 include("testmodules/SnoopBench.jl")
 @testset "parcel" begin
     a = SnoopBench.A()
-    tinf = @snoopi_deep SnoopBench.f1(a)
+    tinf = @snoop_inference SnoopBench.f1(a)
     @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
@@ -720,7 +720,7 @@ include("testmodules/SnoopBench.jl")
     @test isempty(prs)
     @test ttot2 == ttot
 
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         fn = SnoopBench.sv()
         rm(fn)
     end
@@ -735,7 +735,7 @@ include("testmodules/SnoopBench.jl")
     @test !occursin("__lookup_kwbody__", str)
 
     A = [a]
-    tinf = @snoopi_deep SnoopBench.mappushes(identity, A)
+    tinf = @snoop_inference SnoopBench.mappushes(identity, A)
     @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     mod, (tmod, tmis) = only(prs)
@@ -749,7 +749,7 @@ include("testmodules/SnoopBench.jl")
     @test occursin(r"typeof\(mappushes!\),typeof\(identity\),Vector\{Any\},Vector\{A\}", str)
 
     list = Any[1, 1.0, Float16(1.0), a]
-    tinf = @snoopi_deep SnoopBench.mappushes(isequal(Int8(1)), list)
+    tinf = @snoop_inference SnoopBench.mappushes(isequal(Int8(1)), list)
     @test isempty(staleinstances(tinf))
     ttot, prs = SnoopCompile.parcel(tinf)
     @test length(prs) == 2
@@ -791,9 +791,9 @@ end
 
 @testset "Specialization" begin
     Ts = subtypes(Any)
-    tinf_unspec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
+    tinf_unspec = @snoop_inference SnoopBench.mappushes(SnoopBench.spell_unspec, Ts)
     tf_unspec = flatten(tinf_unspec)
-    tinf_spec = @snoopi_deep SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
+    tinf_spec = @snoop_inference SnoopBench.mappushes(SnoopBench.spell_spec, Ts)
     tf_spec = flatten(tinf_spec)
     @test length(tf_unspec) < length(Ts) ÷ 5
     @test any(tmi -> occursin("spell_unspec(::Any)", repr(MethodInstance(tmi))), tf_unspec)
@@ -845,7 +845,7 @@ end
         Pkg.activate(pwd())
         Pkg.precompile()
     end
-    invalidations = @snoopr begin
+    invalidations = @snoop_invalidations begin
         using StaleA, StaleC
         using StaleB
     end
@@ -867,7 +867,7 @@ end
     if any(item -> isa(item, Core.MethodInstance) && item.def == m2, invalidations) # requires julia#49449
         @test convert(Core.MethodInstance, root.children[1].children[1]).def == m2
     end
-    tinf = @snoopi_deep begin
+    tinf = @snoop_inference begin
         StaleB.useA()
         StaleC.call_buildstale("hi")
     end
@@ -937,7 +937,7 @@ using JET, Cthulhu
     call_mysum(cc) = mysum(cc[1])
 
     cc = Any[Any[1,2,3]]
-    tinf = @snoopi_deep call_mysum(cc)
+    tinf = @snoop_inference call_mysum(cc)
     rpt = @report_call call_mysum(cc)
     @test isempty(JET.get_reports(rpt))
     itrigs = inference_triggers(tinf)

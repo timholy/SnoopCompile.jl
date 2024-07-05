@@ -51,7 +51,7 @@ end
 """
     flatten(tinf; tmin = 0.0, sortby=exclusive)
 
-Flatten the execution graph of `InferenceTimingNode`s returned from `@snoopi_deep` into a Vector of `InferenceTiming`
+Flatten the execution graph of `InferenceTimingNode`s returned from `@snoop_inference` into a Vector of `InferenceTiming`
 frames, each encoding the time needed for inference of a single `MethodInstance`.
 By default, results are sorted by `exclusive` time (the time for inferring the `MethodInstance` itself, not including
 any inference of its callees); other options are `sortedby=inclusive` which includes the time needed for the callees,
@@ -59,7 +59,7 @@ or `nothing` to obtain them in the order they were inferred (depth-first order).
 
 # Example
 
-We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
 
 ```jldoctest flatten; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()
@@ -145,21 +145,21 @@ that it is being inferred for many specializations (which might include speciali
 
 # Example
 
-We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
 
-```jldoctest accum1; setup=:(using SnoopCompile), filter=[r"(in|@)", r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|:[0-9]+\\)|at .*/deep_demos.jl:\\d+|at Base\\.jl:\\d+|at compiler/typeinfer\\.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"]
+```jldoctest accum1; setup=:(using SnoopCompile), filter=[r"(in|@)", r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|:[0-9]+\\)|at .*/inference_demos.jl:\\d+|at Base\\.jl:\\d+|at compiler/typeinfer\\.jl:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"]
 julia> tinf = SnoopCompile.flatten_demo()
-InferenceTimingNode: 0.002148974/0.002767166 on Core.Compiler.Timings.ROOT() with 1 direct children
+InferenceTimingNode: 0.004978/0.005447 on Core.Compiler.Timings.ROOT() with 1 direct children
 
 julia> accumulate_by_source(flatten(tinf))
 7-element Vector{Tuple{Float64, Union{Method, Core.MethodInstance}}}:
- (6.0012999999999996e-5, getproperty(x, f::Symbol) in Base at Base.jl:33)
- (6.7714e-5, extract(y::SnoopCompile.FlattenDemo.MyType) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:35)
- (9.421e-5, dostuff(y) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:44)
- (0.000112057, SnoopCompile.FlattenDemo.MyType{T}(x) where T in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:34)
- (0.000133895, domath(x) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:40)
- (0.000154382, packintype(x) in SnoopCompile.FlattenDemo at /pathto/SnoopCompile/src/deep_demos.jl:36)
- (0.003165266, ROOT() in Core.Compiler.Timings at compiler/typeinfer.jl:75)
+ (4.6294999999999996e-5, getproperty(x, f::Symbol) @ Base Base.jl:37)
+ (5.8965e-5, dostuff(y) @ SnoopCompile.FlattenDemo ~/.julia/dev/SnoopCompile/src/inference_demos.jl:45)
+ (6.4141e-5, extract(y::SnoopCompile.FlattenDemo.MyType) @ SnoopCompile.FlattenDemo ~/.julia/dev/SnoopCompile/src/inference_demos.jl:36)
+ (8.9997e-5, (var"#ctor-self#"::Type{SnoopCompile.FlattenDemo.MyType{T}} where T)(x) @ SnoopCompile.FlattenDemo ~/.julia/dev/SnoopCompile/src/inference_demos.jl:35)
+ (9.2256e-5, domath(x) @ SnoopCompile.FlattenDemo ~/.julia/dev/SnoopCompile/src/inference_demos.jl:41)
+ (0.000117514, packintype(x) @ SnoopCompile.FlattenDemo ~/.julia/dev/SnoopCompile/src/inference_demos.jl:37)
+ (0.004977755, ROOT() @ Core.Compiler.Timings compiler/typeinfer.jl:79)
 ```
 
 Compared to the output from [`flatten`](@ref), the two inferences passes on `getproperty` have been consolidated into a single aggregate call.
@@ -203,15 +203,15 @@ end
 
 Return a list of `InferenceTimingNode`s corresponding to `MethodInstance`s that have "stale" code
 (specifically, `CodeInstance`s with outdated `max_world` world ages).
-These may be a hint that invalidation occurred while running the workload provided to `@snoopi_deep`,
+These may be a hint that invalidation occurred while running the workload provided to `@snoop_inference`,
 and consequently an important origin of (re)inference.
 
 !!! warning
     `staleinstances` only looks *retrospectively* for stale code; it does not distinguish whether the code became
-    stale while running `@snoopi_deep` from whether it was already stale before execution commenced.
+    stale while running `@snoop_inference` from whether it was already stale before execution commenced.
 
 While `staleinstances` is recommended as a useful "sanity check" to run before performing a detailed analysis of inference,
-any serious examination of invalidation should use [`@snoopr`](@ref).
+any serious examination of invalidation should use [`@snoop_invalidations`](@ref).
 
 For more information about world age, see https://docs.julialang.org/en/v1/manual/methods/#Redefining-Methods.
 """
@@ -355,7 +355,7 @@ See also: [`SnoopCompile.write`](@ref).
 
 # Example
 
-We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
 
 ```jldoctest parceltree; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module ItrigDemo\\.\\n|UInt8|Float64|SnoopCompile\\.ItrigDemo\\.)"
 julia> tinf = SnoopCompile.itrigs_demo()
@@ -462,7 +462,7 @@ PGDSData() = PGDSData(0.0, 0.0, 0.0, 0)
 Compare runtime and inference-time on a per-method basis. `ridata[m::Method]` returns `(trun, tinfer, nspecializations)`,
 measuring the approximate amount of time spent running `m`, inferring `m`, and the number of type-specializations, respectively.
 `trun` is estimated from profiling data, which the user is responsible for capturing before the call.
-Typically `tinf` is collected via `@snoopi_deep` on the first call (in a fresh session) to a workload,
+Typically `tinf` is collected via `@snoop_inference` on the first call (in a fresh session) to a workload,
 and the profiling data collected on a subsequent call. In some cases you may need to repeat the workload
 several times to collect enough profiling samples.
 
@@ -701,16 +701,16 @@ All the entries in `itrigs` are previously uninferred, or are freshly-inferred f
 
 # Example
 
-We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.itrigs_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
 
-```jldoctest triggers; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|.*/deep_demos\\.jl:\\d+|WARNING: replacing module ItrigDemo\\.\\n)"
+```jldoctest triggers; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|.*/inference_demos\\.jl:\\d+|WARNING: replacing module ItrigDemo\\.\\n)"
 julia> tinf = SnoopCompile.itrigs_demo()
 InferenceTimingNode: 0.004490576/0.004711168 on Core.Compiler.Timings.ROOT() with 2 direct children
 
 julia> itrigs = inference_triggers(tinf)
 2-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/deep_demos.jl:86) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/deep_demos.jl:87)
- Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/deep_demos.jl:86) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/deep_demos.jl:87)
+ Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/inference_demos.jl:86) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/inference_demos.jl:87)
+ Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/inference_demos.jl:86) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/inference_demos.jl:87)
 ```
 
 ```
@@ -721,8 +721,8 @@ julia> using Cthulhu
 julia> ascend(itrigs[2])   # use Cthulhu to inspect the stacktrace (caller is the second item in the trace)
 Choose a call for analysis (q to quit):
  >   double(::Float64)
-       calldouble1 at /pathto/SnoopCompile/src/deep_demos.jl:86 => calldouble2(::Vector{Vector{Any}}) at /pathto/SnoopCompile/src/deep_demos.jl:87
-         calleach(::Vector{Vector{Vector{Any}}}) at /pathto/SnoopCompile/src/deep_demos.jl:88
+       calldouble1 at /pathto/SnoopCompile/src/inference_demos.jl:86 => calldouble2(::Vector{Vector{Any}}) at /pathto/SnoopCompile/src/inference_demos.jl:87
+         calleach(::Vector{Vector{Vector{Any}}}) at /pathto/SnoopCompile/src/inference_demos.jl:88
 ...
 ```
 """
@@ -779,10 +779,10 @@ We collect data using the [`SnoopCompile.itrigs_demo`](@ref):
 
 ```julia
 julia> itrig = inference_triggers(SnoopCompile.itrigs_demo())[1]
-Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
+Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:763)
 
 julia> itrigcaller = callingframe(itrig)
-Inference triggered to call MethodInstance for double(::UInt8) from calleach (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:764) with specialization MethodInstance for calleach(::Vector{Vector{Vector{Any}}})
+Inference triggered to call MethodInstance for double(::UInt8) from calleach (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:764) with specialization MethodInstance for calleach(::Vector{Vector{Vector{Any}}})
 ```
 """
 function callingframe(itrig::InferenceTrigger)
@@ -818,13 +818,13 @@ We collect data using the [`SnoopCompile.itrigs_higherorder_demo`](@ref):
 
 ```julia
 julia> itrig = inference_triggers(SnoopCompile.itrigs_higherorder_demo())[1]
-Inference triggered to call MethodInstance for double(::Float64) from mymap! (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:706) with specialization MethodInstance for mymap!(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any}, ::Vector{Any})
+Inference triggered to call MethodInstance for double(::Float64) from mymap! (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:706) with specialization MethodInstance for mymap!(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any}, ::Vector{Any})
 
 julia> callingframe(itrig)      # step out one (non-inlined) frame
-Inference triggered to call MethodInstance for double(::Float64) from mymap (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:710) with specialization MethodInstance for mymap(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any})
+Inference triggered to call MethodInstance for double(::Float64) from mymap (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:710) with specialization MethodInstance for mymap(::typeof(SnoopCompile.ItrigHigherOrderDemo.double), ::Vector{Any})
 
 julia> skiphigherorder(itrig)   # step out to frame that doesn't have `double` as a function-argument
-Inference triggered to call MethodInstance for double(::Float64) from callmymap (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:711) with specialization MethodInstance for callmymap(::Vector{Any})
+Inference triggered to call MethodInstance for double(::Float64) from callmymap (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:711) with specialization MethodInstance for callmymap(::Vector{Any})
 ```
 
 !!! warn
@@ -1078,12 +1078,12 @@ We collect data using the [`SnoopCompile.itrigs_demo`](@ref):
 ```julia
 julia> itrigs = inference_triggers(SnoopCompile.itrigs_demo())
 2-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
- Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoopi_deep.jl:763)
+ Inference triggered to call MethodInstance for double(::UInt8) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:763)
+ Inference triggered to call MethodInstance for double(::Float64) from calldouble1 (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:762) inlined into MethodInstance for calldouble2(::Vector{Vector{Any}}) (/pathto/SnoopCompile/src/parcel_snoop_inference.jl:763)
 
 julia> accumulate_by_source(itrigs)
 1-element Vector{SnoopCompile.LocationTriggers}:
-    calldouble1 at /pathto/SnoopCompile/src/parcel_snoopi_deep.jl:762 (2 callees from 1 callers)
+    calldouble1 at /pathto/SnoopCompile/src/parcel_snoop_inference.jl:762 (2 callees from 1 callers)
 ```
 """
 function accumulate_by_source(itrigs::AbstractVector{InferenceTrigger}; bycallee::Bool=true)
@@ -1302,7 +1302,7 @@ end
 
 function coreboxmsg(io::IO)
     printstyled(io, "has Core.Box"; color=:red)
-    print(io, " (fix this before tackling other problems, see https://timholy.github.io/SnoopCompile.jl/stable/snoopr/#Fixing-Core.Box)")
+    print(io, " (fix this before tackling other problems, see https://timholy.github.io/SnoopCompile.jl/stable/snoop_invalidations/#Fixing-Core.Box)")
 end
 
 """
@@ -1677,7 +1677,7 @@ stripifi(args...) = strip_prefix(args..., "InferenceFrameInfo for ")
 """
     flamegraph(tinf::InferenceTimingNode; tmin=0.0, excluded_modules=Set([Main]), mode=nothing)
 
-Convert the call tree of inference timings returned from `@snoopi_deep` into a FlameGraph.
+Convert the call tree of inference timings returned from `@snoop_inference` into a FlameGraph.
 Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
 type inference.
 
@@ -1695,7 +1695,7 @@ each method will cause the number of specializations to be included in the frame
 
 # Example
 
-We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoopi_deep` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
 
 ```jldoctest flamegraph; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|at.*typeinfer\\.jl:\\d+|0:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()

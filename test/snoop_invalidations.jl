@@ -45,7 +45,7 @@ module Outer
 end
 
 
-@testset "@snoopr" begin
+@testset "@snoop_invalidations" begin
     prefix = "$(@__MODULE__).SnooprTests."
 
     c = Any[1]
@@ -57,7 +57,7 @@ end
     @test length(uinvalidated([mi1, "verify_methods", mi2])) == 1
     @test length(uinvalidated([mi1, "invalidate_mt_cache"])) == 0
 
-    invs = @snoopr SnooprTests.f(::AbstractFloat) = 3
+    invs = @snoop_invalidations SnooprTests.f(::AbstractFloat) = 3
     @test !isempty(invs)
     umis = uinvalidated(invs)
     @test !isempty(umis)
@@ -92,7 +92,7 @@ end
     mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
     @test mi1.backedges == [mi2]
     mi3 = methodinstance(SnooprTests.f, (AbstractFloat,))
-    invs = @snoopr SnooprTests.f(::Float32) = 4
+    invs = @snoop_invalidations SnooprTests.f(::Float32) = 4
     @test !isempty(invs)
     trees = invalidation_trees(invs)
 
@@ -178,7 +178,7 @@ end
     @test SnooprTests.mccc2(cai, 1) == 11
     @test SnooprTests.mccc2(cai, 2) == 10
     @test SnooprTests.mccc2(cas, 1) == 10
-    trees = invalidation_trees(@snoopr SnooprTests.mc(x::AbstractFloat, y::Int) = x == y)
+    trees = invalidation_trees(@snoop_invalidations SnooprTests.mc(x::AbstractFloat, y::Int) = x == y)
     root = only(trees).backedges[1]
     @test length(root.children) == 2
     m = which(SnooprTests.mccc1, (Any, Any))
@@ -191,14 +191,14 @@ end
 
     # Method deletion
     m = which(SnooprTests.f, (Bool,))
-    invs = @snoopr Base.delete_method(m)
+    invs = @snoop_invalidations Base.delete_method(m)
     trees = invalidation_trees(invs)
     tree = only(trees)
     @test tree.reason === :deleting
     @test tree.method == m
 
     # Method overwriting
-    invs = @snoopr begin
+    invs = @snoop_invalidations begin
         @eval Module() begin
             Base.@irrational twoπ 6.2831853071795864769 2*big(π)
             Base.@irrational twoπ 6.2831853071795864769 2*big(π)
@@ -221,7 +221,7 @@ end
     @test occursin(r"deleting Float32\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float32\(::Irrational{:twoπ}\)", str)
     @test occursin(r"deleting BigFloat\(::Irrational{:twoπ}; precision\).*invalidated:\n.*backedges: 1: .*with MethodInstance for BigFloat\(::Irrational{:twoπ}\) \(1 children\)", str)
     # #268
-    invs = @snoopr begin
+    invs = @snoop_invalidations begin
         @eval Module() begin
             @noinline Base.throw_boundserror(A, I) = throw(BoundsError(A, I))
         end
@@ -236,14 +236,14 @@ end
     end
 
     # Exclusion of Core.Compiler methods
-    invs = @snoopr (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
+    invs = @snoop_invalidations (::Type{T})(x::SnooprTests.MyInt) where T<:Integer = T(x.x)
     umis1 = uinvalidated(invs)
     umis2 = uinvalidated(invs; exclude_corecompiler=false)
 
     # recursive filtermod
     list = Union{Int,String}[1,2]
     Outer.runop(list)
-    invs = @snoopr Inner.op(a, b::String) = a + length(b)
+    invs = @snoop_invalidations Inner.op(a, b::String) = a + length(b)
     trees = invalidation_trees(invs)
     @test length(trees) == 1
     @test length(filtermod(Inner, trees)) == 1
@@ -258,7 +258,7 @@ end
         Pkg.develop(path="./PkgC")
         Pkg.develop(path="./PkgD")
         Pkg.precompile()
-        invalidations = @snoopr begin
+        invalidations = @snoop_invalidations begin
             @eval begin
                 using PkgC
                 PkgC.nbits(::UInt8) = 8
