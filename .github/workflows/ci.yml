@@ -22,7 +22,7 @@ jobs:
         version:
           - '1.10'
           - '1'
-          - 'nightly'
+          - 'pre'
         os:
           - ubuntu-latest
           - macOS-latest
