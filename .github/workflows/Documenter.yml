@@ -9,7 +9,7 @@ defaults:
   run:
     shell: bash
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
@@ -26,7 +26,7 @@ jobs:
           version: '1'
       - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore"))])'
       - uses: julia-actions/julia-buildpkg@latest
-      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore"))]); Pkg.instantiate()'
+      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore")), PackageSpec(path=joinpath(pwd()))]); Pkg.instantiate()'
       - uses: julia-actions/julia-docdeploy@releases/v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
