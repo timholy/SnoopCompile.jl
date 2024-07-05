@@ -119,7 +119,7 @@ See also: [`accumulate_by_source`](@ref).
 function flatten(tinf::InferenceTimingNode; tmin = 0.0, sortby::Union{typeof(exclusive),typeof(inclusive),Nothing}=exclusive)
     out = InferenceTiming[]
     flatten!(sortby === nothing ? exclusive : sortby, out, tinf, tmin)
-    return sortby===nothing ? out : sort(out; by=sortby)
+    return sortby===nothing ? out : sort!(out; by=sortby)
 end
 
 function flatten!(gettime::Union{typeof(exclusive),typeof(inclusive)}, out, node, tmin)
