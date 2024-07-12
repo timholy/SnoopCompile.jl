@@ -1,23 +1,23 @@
-# Snooping on inference: `@snoop_inference`
+# Tutorial on `@snoop_inference`
 
-!!! compat
-    `@snoop_inference` is available on `Julia 1.6.0-DEV.1190` or above, but the results can be relevant for all Julia versions.
+Inference may occur when you *run* code. Inference is the first step of *type-specialized* compilation. `@snoop_inference` collects data on what inference is doing, giving you greater insight into what is being inferred and how long it takes.
 
-Currently, `precompile` only caches results for type-inference, not other stages in code generation.
-For that reason, efforts at reducing latency should be informed by measuring the amount of time spent on type-inference.
-Moreover, because all code needs to be type-inferred before undergoing later stages of code generation, monitoring this "entry point" can give you an overview of the entire compile chain.
+Compilation is needed only for "fresh" code; running the demos below on code you've already used will yield misleading results. When analyzing inference, you're advised to always start from a fresh session.
 
-The rich data collected by `@snoop_inference` are useful for several different purposes;
-on this page, we'll describe the basic tool and show how it can be used to profile inference.
-On later pages we'll show other ways to use the data to reduce the amount of type-inference or cache its results.
+### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
 
-## Collecting the data
+Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/). (With the exception of `AbstractTrees`, these "developer tool" packages should not be added to the Project file of any real packages unless you're extending the tool itself.)
 
-Like [`@snoop_invalidations`](@ref), `@snoop_inference` is exported by both `SnoopCompileCore` and `SnoopCompile`, but in this case there is not as much reason to do the data collection by a very minimal package.  Consequently here we'll just load `SnoopCompile` at the outset.
+```@repl
+using Pkg
+Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "ProfileView"])
+```
+
+## Setting up the demo
 
 To see `@snoop_inference` in action, we'll use the following demo:
 
-```jldoctest flatten-demo
+```jldoctest flatten-demo; filter=r"Main\.var\"Main\"\."
 module FlattenDemo
     struct MyType{T} x::T end
 
@@ -42,22 +42,28 @@ FlattenDemo
 ```
 
 The main call, `packintype`, stores the input in a `struct`, and then calls functions that extract the field value and performs arithmetic on the result.
-To profile inference on this call, we simply do the following:
 
-```jldoctest flatten-demo; setup=:(using SnoopCompile), filter=r"([0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\.\n)"
-julia> tinf = @snoop_inference FlattenDemo.packintype(1)
+## [Collecting the data](@id sccshow)
+
+To profile inference on this call, do the following:
+
+```jldoctest flatten-demo; filter=r"([0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?|WARNING: replacing module FlattenDemo\.\n)"
+julia> using SnoopCompileCore
+
+julia> tinf = @snoop_inference FlattenDemo.packintype(1);
+
+julia> using SnoopCompile
+
+julia> tinf
 InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 direct children
 ```
 
 !!! tip
-    Inference gets called only on the *first* invocation of a method with those specific types. You have to redefine the `FlattenDemo` module (by just re-executing the command we used to define it) if you want to collect data with `@snoop_inference` on the same code a second time.
-
-    To make it easier to perform these demonstrations and use them for documentation purposes, `SnoopCompile` includes a function [`SnoopCompile.flatten_demo()`](@ref) that redefines the module and returns `tinf`.
+    Don't omit the semicolon on the `tinf = @snoop_inference ...` line, or you may get an enormous amount of output. The compact display on the final line is possible only because `SnoopCompile` defines nice `Base.show` methods for the data returned by `@snoop_inference`. These methods cannot be defined in `SnoopCompileCore` because it has a fundamental design constraint: loading `SnoopCompileCore` is not allowed to invalidate any code. Moving those `Base.show` methods to `SnoopCompileCore` would violate that guarantee.
 
 This may not look like much, but there's a wealth of information hidden inside `tinf`.
 
 ## A quick check for potential invalidations
-
 
 After running `@snoop_inference`, it's generally recommended to check the output of [`staleinstances`](@ref):
 ```julia
@@ -66,16 +72,7 @@ SnoopCompileCore.InferenceTiming[]
 ```
 
 If you see this, all's well.
-A non-empty list might indicate method invalidations, which can be checked (in a fresh session) by running the identical workload with [`@snoop_invalidations`](@ref).
-
-!!! warning
-    Rampant invalidation can make the process of analyzing `tinf` more confusing: "why am I getting reinference of this `MethodInstance` when I `precompile`d it?" Routine use of `staleinstances` at the beginning can save you some head-scratching later.
-
-!!! tip
-    Your workload may load packages and/or (re)define methods; these can be sources of invalidation and therefore non-empty output
-    from `staleinstances`.
-    One trick that may circumvent some invalidation is to load the packages and make the method definitions before launching `@snoop_inference`, because it ensures the methods are in place
-    before your workload triggers compilation.
+A non-empty list might indicate method invalidations, which can be checked (in a fresh session) using the tools described in [Tutorial on `@snoop_invalidations`](@ref).
 
 If you do have a lot of invalidations, [`precompile_blockers`](@ref) may be an effective way to reveal those invalidations that affect your particular package and workload.
 
@@ -89,7 +86,7 @@ You may have noticed that this `ROOT` node prints with two numbers.
 It will be easier to understand their meaning if we first display the whole tree.
 We can do that with the [AbstractTrees](https://github.com/JuliaCollections/AbstractTrees.jl) package:
 
-```jldoctest flatten-demo; filter=r"[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?"
+```jldoctest flatten-demo; filter=[r"[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?", r"Main\.var\"Main\"\."]
 julia> using AbstractTrees
 
 julia> print_tree(tinf)
@@ -105,7 +102,7 @@ InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 di
 
 This tree structure reveals the caller-callee relationships, showing the specific types that were used for each `MethodInstance`.
 Indeed, as the calls to `getproperty` reveal, it goes beyond the types and even shows the results of [constant propagation](https://en.wikipedia.org/wiki/Constant_folding);
-the `getproperty(::MyType{Int64}, x::Symbol)` (note `x::Symbol` instead of just plain `::Symbol`) means that the call was `getproperty(y, :x)`, which corresponds to `y.x` in the definition of `extract`.
+the `getproperty(::MyType{Int64}, x::Symbol)` corresponds to `y.x` in the definition of `extract`.
 
 !!! note
     Generally we speak of [call graphs](https://en.wikipedia.org/wiki/Call_graph) rather than call trees.
@@ -147,7 +144,7 @@ julia> ProfileView.view(fg)
 
 You should see something like this:
 
-![flamegraph](assets/flamegraph-flatten-demo.png)
+![flamegraph](../assets/flamegraph-flatten-demo.png)
 
 Users are encouraged to read the ProfileView documentation to understand how to interpret this, but briefly:
 
@@ -165,5 +162,4 @@ You can explore this flamegraph and compare it to the output from `print_tree`.
 Finally, [`flatten`](@ref), on its own or together with [`accumulate_by_source`](@ref), allows you to get an sense for the cost of individual `MethodInstance`s or `Method`s.
 
 The tools here allow you to get an overview of where inference is spending its time.
-Sometimes, this information alone is enough to show you how to change your code to reduce latency: perhaps your code is spending a lot of time inferring cases that are not needed in practice and could be simplified.
-However, most efforts at latency reduction will probably leverage additional tools (described next) that help identify the main opportunities for intervention.
+This gives you insight into the major contributors to latency.

@@ -2,7 +2,8 @@
 
 ## What are invalidations?
 
-Invalidations result from unanticipated interactions between packages, or between packages and Base Julia. They are essential for ensuring that Julia runs fast and behaves correctly, but they make latency worse by "throwing away" precompiled code.
+Invalidations result from interactions between different "chunks" of code. They are essential for ensuring that Julia runs fast and behaves correctly, but they make latency worse by "throwing away" compiled code.
+Invalidations are triggered by defining new methods, which most commonly happens from *loading* packages.
 A good developer can often design packages to minimize the number and/or impact of invalidations.
 
 ## Learning to observe, diagnose, and fix invalidations
@@ -187,6 +188,8 @@ Choose a call for analysis (q to quit):
 ```
 
 This is an interactive REPL-menu, described more completely (via text and video) at [ascend](https://github.com/JuliaDebug/Cthulhu.jl?tab=readme-ov-file#usage-ascend).
+
+There are quite a few other tools for working with `invs` and `trees`, see the [Invalidations reference](@ref). If your list of invalidations is dauntingly large, you may be interested in [Combining data streams to focus on important invalidations](@ref).
 
 ### Why the invalidations occur
 
