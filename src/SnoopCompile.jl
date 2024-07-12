@@ -72,15 +72,15 @@ end
 
 include("parcel_snoop_inference.jl")
 include("inference_demos.jl")
-export @snoop_inference, exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
+export exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
 export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
 export report_callee, report_caller, report_callees
 
 include("parcel_snoop_llvm.jl")
-export read_snoop_llvm, @snoop_llvm
+export read_snoop_llvm
 
 include("invalidations.jl")
-export @snoop_invalidations, uinvalidated, invalidation_trees, filtermod, findcaller
+export uinvalidated, invalidation_trees, filtermod, findcaller
 
 include("invalidation_and_inference.jl")
 export precompile_blockers
