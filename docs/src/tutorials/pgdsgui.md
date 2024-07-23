@@ -22,6 +22,17 @@ a language like Julia which specializes by default.
 While PGO is sometimes an automatic part of the compiler that optimizes code midstream during execution, SnoopCompile's PGDS is a tool for making static changes (edits) to code.
 Again, this seems appropriate for a language where specialization typically happens prior to the first execution of the code.
 
+### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
+
+We'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/) so you can use them while in the package environment:
+
+```
+using Pkg
+Pkg.add(["SnoopCompileCore", "SnoopCompile", "PyPlot"]);
+```
+
+PyPLot is used for the PGDS interface in part to reduce interference with native-Julia plotting packages like Makie--it's a little awkward to depend on a package that you might be simultaneously modifying!
+
 ## Using the PGDS graphical user interface
 
 To illustrate the use of PGDS, we'll examine an example in which some methods get specialized for hundreds of types.
