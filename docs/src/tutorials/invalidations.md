@@ -133,7 +133,6 @@ Here are the steps executed by the code below
 using SnoopCompileCore
 invs = @snoop_invalidations using Blackjack, BlackjackFacecards;
 using SnoopCompile, AbstractTrees
-Pkg.activate(oldproj)   # hide
 ```
 
 !!! tip
@@ -277,3 +276,7 @@ before defining any `score` methods. You can read the documentation on `@max_met
 If you can't prevent the invalidation, an alternative approach is to recompile the invalidated code. For example, one could repeat the precompile workload from `Blackjack` in `BlackjackFacecards`. While this will mean that the whole "stack" will be compiled twice and cached twice (which is wasteful), it should be effective in reducing latency for users.
 
 PrecompileTools also has a `@recompile_invalidations`. This isn't generally recommended for use in package (you can end up with long compile times for things you don't need), but it can be useful in personal "Startup packages" where you want to reduce latency for a particular project you're working on. See the PrecompileTools documentation for details.
+
+```@repl tutorial-invalidations
+Pkg.activate(oldproj)   # hide
+```
