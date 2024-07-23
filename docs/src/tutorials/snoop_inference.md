@@ -2,13 +2,13 @@
 
 Inference may occur when you *run* code. Inference is the first step of *type-specialized* compilation. `@snoop_inference` collects data on what inference is doing, giving you greater insight into what is being inferred and how long it takes.
 
-Compilation is needed only for "fresh" code; running the demos below on code you've already used will yield misleading results. When analyzing inference, you're advised to always start from a fresh session. See also the [comparison between SnoopCompile and JET](@ref).
+Compilation is needed only for "fresh" code; running the demos below on code you've already used will yield misleading results. When analyzing inference, you're advised to always start from a fresh session. See also the [comparison between SnoopCompile and JET](@ref JET).
 
 ### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
 
 Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/). (With the exception of `AbstractTrees`, these "developer tool" packages should not be added to the Project file of any real packages unless you're extending the tool itself.)
 
-```@repl
+```
 using Pkg
 Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "ProfileView"]);
 ```

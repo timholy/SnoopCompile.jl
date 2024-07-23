@@ -8,7 +8,7 @@ Julia uses the [LLVM compiler](https://llvm.org/) to generate machine code. Typi
 
 Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/).
 
-```@repl
+```
 using Pkg
 Pkg.add(["SnoopCompileCore", "SnoopCompile"]);
 ```

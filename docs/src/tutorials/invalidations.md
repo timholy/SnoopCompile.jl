@@ -23,7 +23,7 @@ We'll illustrate invalidations by creating two packages, where loading the secon
 
 Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/). (With the exception of `AbstractTrees`, these "developer tool" packages should not be added to the Project file of any real packages unless you're extending the tool itself.)
 
-```@repl
+```
 using Pkg
 Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "Cthulhu"]);
 ```
