@@ -1,21 +1,5 @@
 # [Using `@snoop_inference` results to improve inferrability](@id inferrability)
 
-As indicated in the [workflow](@ref), the recommended steps to reduce latency are:
-
-- check for invalidations
-- adjust method specialization in your package or its dependencies
-- fix problems in type inference
-- add `precompile` directives
-
-The importance of fixing "problems" in type-inference was indicated in the [tutorial](@ref): successful precompilation requires a chain of ownership, but runtime dispatch (when inference cannot predict the callee) results in breaks in this chain.  By improving inferrability, you can convert short, unconnected call-trees into a smaller number of large call-trees that all link back to your package(s).
-
-In practice, it also turns out that opportunities to adjust specialization are often revealed by analyzing inference failures, so this page is complementary to the previous one.
-
-Finally, improving inference may also yield improvements in runtime performance, itself an excellent outcome.
-
-!!! note
-    [JET also detects inference failures](https://aviatesk.github.io/JET.jl/dev/optanalysis/), but JET and SnoopCompile use different mechanisms: JET performs *static* analysis of a particular call, while SnoopCompile performs *dynamic* analysis of new inference. As a consequence, JET's detection of inference failures is reproducible (you can run the same analysis repeatedly and get the same result) but terminates at any non-inferrable node of the call graph: you will miss runtime dispatch in any non-inferrable callees. Conversely, SnoopCompile's detection of inference failures can explore the entire callgraph, but only for those portions that have not been previously inferred, and the analysis cannot be repeated in the same session.
-
 Throughout this page, we'll use the `OptimizeMe` demo, which ships with `SnoopCompile`.
 
 !!! note
@@ -56,7 +40,7 @@ Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:2713559552))
 
 If you visualize `fg` with ProfileView, you'll see something like this:
 
-![flamegraph-OptimizeMe](assets/flamegraph-OptimizeMe.png)
+![flamegraph-OptimizeMe](../assets/flamegraph-OptimizeMe.png)
 
 From the standpoint of precompilation, this has some obvious problems:
 
@@ -630,6 +614,7 @@ The call to `show` comes from `show(io, mime, x[])`.
 This implementation uses a clever trick, wrapping `x` in a `Ref{Any}(x)`, to prevent specialization of the method defined by the `do` block on the specific type of `x`.
 This trick is designed to limit the number of `MethodInstance`s inferred for this `display` method.
 
+
 Unfortunately, from the standpoint of precompilation we have something of a conundrum.
 It turns out that this trigger corresponds to the first of the big red flames in the flame graph.
 `show(::IOContext{Base.TTY}, ::MIME{Symbol("text/plain")}, ::Vector{Main.OptimizeMe.Container{Any}})` is not precompilable because `Base` owns the `show` method for `Vector`;
@@ -664,7 +649,7 @@ precompile(warmup, ())
 We handled not just `Vector{Container{Any}}` but also `Vector{Object}`, since that turns out to correspond to the other wide block of red bars.
 If you make this change, start a fresh session, and recreate the flame graph, you'll see that the wide red flames are gone:
 
-![flamegraph-OptimizeMeFixed](assets/flamegraph-OptimizeMeFixed.png)
+![flamegraph-OptimizeMeFixed](../assets/flamegraph-OptimizeMeFixed.png)
 
 
 !!! info

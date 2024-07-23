@@ -2,7 +2,7 @@
 
 ## What are invalidations?
 
-Invalidations result from interactions between different pieces of code. Invalidations are essential to make Julia fast, interactive, and correct: you *need* invalidations if you want to be able to define some methods, run (compile) some code, and then in the same session define new methods and get answers that account for the new methods.
+In this context, *invalidation* means discarding previously-compiled code. Invalidations occur because of interactions between independent pieces of code. Invalidations are essential to make Julia fast, interactive, and correct: you *need* invalidations if you want to be able to define some methods, run (compile) some code, and then in the same session define new methods that might lead to different answers if you were to recompile the code in the presence of the new methods.
 
 Invalidations can happen just from loading packages. Packages are precompiled in isolation, but you can load many packages into a single interactive session. It's impossible for the individual packages to anticipate the full "world of methods" in your interactive session, so sometimes Julia has to discard code that was compiled in a smaller world because it's at risk for being incorrect in the larger world.
 
@@ -25,7 +25,7 @@ Here, we'll add these packages to your [default environment](https://pkgdocs.jul
 
 ```@repl
 using Pkg
-Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "Cthulhu"])
+Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "Cthulhu"]);
 ```
 
 ### Create the demonstration packages
@@ -43,7 +43,7 @@ cd(mktempdir())
 using Pkg
 Pkg.generate("Blackjack");
 Pkg.activate("Blackjack")
-Pkg.add("PrecompileTools")
+Pkg.add("PrecompileTools");
 Pkg.generate("BlackjackFacecards");
 Pkg.activate("BlackjackFacecards")
 Pkg.develop(PackageSpec(path=joinpath(pwd(), "Blackjack")));
@@ -195,7 +195,7 @@ Choose a call for analysis (q to quit):
 
 This is an interactive REPL-menu, described more completely (via text and video) at [ascend](https://github.com/JuliaDebug/Cthulhu.jl?tab=readme-ov-file#usage-ascend).
 
-There are quite a few other tools for working with `invs` and `trees`, see the [Invalidations reference](@ref). If your list of invalidations is dauntingly large, you may be interested in [Combining data streams to focus on important invalidations](@ref).
+There are quite a few other tools for working with `invs` and `trees`, see the [Reference](@ref). If your list of invalidations is dauntingly large, you may be interested in [Combining data streams to focus on important invalidations](@ref).
 
 ### Why the invalidations occur
 

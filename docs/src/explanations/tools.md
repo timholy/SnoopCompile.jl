@@ -20,10 +20,10 @@ and wait to load SnoopCompile until after you've finished collecting the data.
 
 ## JET
 
-[JET](https://github.com/aviatesk/JET.jl) is perhaps the main alternative to SnoopCompile. The packages have some overlap in what they can tell you about your code, but their mechanisms of action are fundamentally different:
+[JET](https://github.com/aviatesk/JET.jl) is a powerful developer tool that in some ways is an alternative to SnoopCompile. While the two have different goals, the packages have some overlap in what they can tell you about your code. However, their mechanisms of action are fundamentally different:
 
-- JET is a "static analyzer," which means that it analyzes the code itself. JET can tell you about inference failures (runtime dispatch) much like SnoopCompile, with one major advantage: SnoopCompileCore requires you to use `@snoop_inference` in a fresh session and omits information about any callees that have been compiled previously, whereas JET's `@report_opt` provides exhaustive information about the entire *inferable* callgraph (i.e., the part of the callgraph that inference can predict from the initial call).
+- JET is a "static analyzer," which means that it analyzes the code itself. JET can tell you about inference failures (runtime dispatch) much like SnoopCompile, with a major advantage: SnoopCompileCore omits information about any callees that are already compiled, but JET's `@report_opt` provides *exhaustive* information about the entire *inferable* callgraph (i.e., the part of the callgraph that inference can predict from the initial call) regardless of whether it has been previously compiled. With JET, you don't have to remember to run each analysis in a fresh session.
 
-- SnoopCompileCore collects data by watching normal inference at work. On code that hasn't been compiled previously, this can yield results similar to JET's, with a different major advantage: SnoopCompileCore can "see through" runtime dispatch, and provide insights about callees that are invisible to JET.
+- SnoopCompileCore collects data by watching normal inference at work. On code that hasn't been compiled previously, this can yield results similar to JET's, with a different major advantage: JET can't "see through" runtime dispatch, but SnoopCompileCore can. With SnoopCompile, you can immediately get a wholistic view of your entire callgraph.
 
-Perhaps surprisingly, combining JET and SnoopCompile can provide insights that are difficult to obtain with either package in isolation. See the [Tutorial on JET integration](@ref).
+Combining JET and SnoopCompile can provide insights that are difficult to obtain with either package in isolation. See the [Tutorial on JET integration](@ref).

@@ -1,4 +1,5 @@
 using Documenter
+using SnoopCompileCore
 using SnoopCompile
 import PyPlot   # so that the visualizations.jl file is loaded
 
@@ -8,13 +9,13 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
-    linkcheck = false,   # FIXME make true
+    linkcheck = true,   # the link check is slow, set to false if you're building frequently
     # doctest = :fix,
-    warnonly=true,
+    warnonly=true,    # delete when https://github.com/JuliaDocs/Documenter.jl/issues/2541 is fixed
     pages = ["index.md",
              "Basic tutorials" => ["tutorials/invalidations.md", "tutorials/snoop_inference.md", "tutorials/snoop_llvm.md", "tutorials/pgdsgui.md", "tutorials/jet.md"],
              "Advanced tutorials" => ["tutorials/snoop_inference_analysis.md", "tutorials/snoop_inference_parcel.md"],
-             "Explanations" => ["tools.md", "gotchas.md", "explanations/fixing_inference.md"],
+             "Explanations" => ["explanations/tools.md", "explanations/gotchas.md", "explanations/fixing_inference.md"],
              "reference.md",
     ]
 )

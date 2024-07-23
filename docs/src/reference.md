@@ -3,9 +3,9 @@
 ## Data collection
 
 ```@docs
-@snoop_invalidations
-@snoop_inference
-@snoop_llvm
+SnoopCompileCore.@snoop_invalidations
+SnoopCompileCore.@snoop_inference
+SnoopCompileCore.@snoop_llvm
 ```
 
 ## GUIs
@@ -23,6 +23,7 @@ invalidation_trees
 precompile_blockers
 filtermod
 findcaller
+report_invalidations
 ```
 
 ## Analysis of `@snoop_inference`

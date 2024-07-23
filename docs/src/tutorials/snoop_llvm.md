@@ -10,7 +10,7 @@ Here, we'll add these packages to your [default environment](https://pkgdocs.jul
 
 ```@repl
 using Pkg
-Pkg.add(["SnoopCompileCore", "SnoopCompile"])
+Pkg.add(["SnoopCompileCore", "SnoopCompile"]);
 ```
 
 ## Collecting the data
