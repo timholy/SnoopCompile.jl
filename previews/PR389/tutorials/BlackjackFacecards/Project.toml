@@ -1,11 +1,11 @@
 name = "BlackjackFacecards"
-uuid = "6101d4ce-4b2c-4340-81fb-149a331b5301"
+uuid = "286bd5e9-3e95-4838-8d5a-abb4a707965f"
 authors = ["runner "]
 version = "0.1.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-Blackjack = "98f39bb6-ab43-4ec4-b8d8-6cdcc80310c9"
+Blackjack = "3387e631-a6b1-44c5-8bd4-58d910c25630"
 ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
 SnoopCompile = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
 SnoopCompileCore = "e2b509da-e806-4183-be48-004708413034"

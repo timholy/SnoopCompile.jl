@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "8631592220b13d3e5172e48db92222be472be0df"
+project_hash = "9d7c5e85da1b89a34e826b794df853ac4083807a"
 
 [[deps.ATK_jll]]
 deps = ["Artifacts", "Glib_jll", "JLLWrappers", "Libdl"]
@@ -28,7 +28,7 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 [[deps.Blackjack]]
 deps = ["PrecompileTools"]
 path = "/home/runner/work/SnoopCompile.jl/SnoopCompile.jl/docs/build/tutorials/Blackjack"
-uuid = "98f39bb6-ab43-4ec4-b8d8-6cdcc80310c9"
+uuid = "3387e631-a6b1-44c5-8bd4-58d910c25630"
 version = "0.1.0"
 
 [[deps.Bzip2_jll]]
