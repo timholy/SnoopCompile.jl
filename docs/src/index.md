@@ -1,14 +1,14 @@
 # SnoopCompile.jl
 
-Julia is fast, but its execution speed depends on optimizing code through *compilation*. Code must be compiled before you can use it, and unfortunately compilation is slow. This can cause *latency* the first time you use code: this latency is often called *time-to-first-plot* (TTFP) or more generally *time-to-first-execution* (TTFX). If something feels slow the first time you use it, and fast thereafter, you're probably experiencing the latency of compilation.
+Julia is fast, but its execution speed depends on optimizing code through *compilation*. Code must be compiled before you can use it, and unfortunately compilation is slow. This can cause *latency* the first time you use code: this latency is often called *time-to-first-plot* (TTFP) or more generally *time-to-first-execution* (TTFX). If something feels slow the first time you use it, and fast thereafter, you're probably experiencing the latency of compilation. Note that TTFX is distinct from time-to-load (TTL, which refers to the time you spend waiting for `using MyPkg` to finish), even though both contribute to latency.
 
 Modern versions of Julia can store compiled code to disk (*precompilation*) to reduce or eliminate latency. Users and developers who are interested in reducing TTFX should first head to [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl), read its documentation thoroughly, and try using it to solve latency problems.
 
 This package, **SnoopCompile**, should be considered when:
 
-- precompilation doesn't reduce latency as much as you wish
+- precompilation doesn't reduce TTFX as much as you wish
 - precompilation "works," but only in isolation: as soon as you load (certain) additional packages, TTFX is bad again
-- you're wondering if you can reduce the amount of time needed to precompile your package and/or the size of the shared library files
+- you're wondering if you can reduce the amount of time needed to precompile your package and/or the size of the precompilation cache files
 
 In other words, SnoopCompile is a diagonostic package that helps reveal the causes of latency. Historically, it proceeded PrecompileTools, and indeed PrecompileTools was split out from SnoopCompile. Today, SnoopCompile is generally needed only when PrecompileTools fails to deliver the desired benefits.
 
@@ -20,7 +20,7 @@ SnoopCompile "snoops" on the Julia compiler, collecting information that may be 
 - trace *inference*, to learn what code is being newly (or freshly) analyzed in an early stage of the compilation pipeline ([Tutorial on `@snoop_inference`](@ref))
 - trace *code generation by LLVM*, a late stage in the compilation pipeline ([Tutorial on `@snoop_llvm`](@ref))
 - reveal methods with excessive numbers of compiler-generated specializations, a.k.a.*profile-guided despecialization* ([Tutorial on PGDS](@ref pgds))
-- integrate with tools like [JET](https://github.com/aviatesk/JET.jl) to help reduce the risk that your lovingly-precompiled code will be invalidated by loading other packages ([Tutorial on JET integration](@ref))
+- integrate with tools like [JET](https://github.com/aviatesk/JET.jl) to further reduce the risk that your lovingly-precompiled code will be invalidated by loading other packages ([Tutorial on JET integration](@ref))
 
 ## Background information
 

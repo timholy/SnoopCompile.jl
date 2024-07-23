@@ -1,22 +1,17 @@
 # Tutorial on JET integration
 
-[JET](https://github.com/aviatesk/JET.jl) is a powerful tool for analyzing call graphs.
-Some of its functionality overlaps that of SnoopCompile's, that is, JET also provides mechanisms to detect potential errors.
-Conversely, JET is a purely static-analysis tool and lacks SnoopCompile's ability to "bridge" across runtime dispatch.
-In summary, JET doesn't need Julia to restart to find inference failures, but JET will only find the first inference failure.
-SnoopCompile has to run in a fresh session, but finds all inference failures.
-
-For this reason, the combination of the tools provides capabilities that neither package has on its own.
-Specifically, one can use SnoopCompile to collect data on the callgraph and JET to perform the error analysis.
+[JET](https://github.com/aviatesk/JET.jl) is a powerful tool for analyzing your code.
+As described [elsewhere](@ref JET), some of its functionality overlaps SnoopCompile, but its mechanism of action is very different. The combination JET and SnoopCompile provides capabilities that neither package has on its own.
+Specifically, one can use SnoopCompile to collect data on the full callgraph and JET to perform the exhaustive analysis of individual nodes.
 
 The integration between the two packages is bundled into SnoopCompile, specifically [`report_callee`](@ref),
-[`report_callees`](@ref), and [`report_caller`](@ref). These take [`InferenceTrigger`](@ref) (see the page on [inference failures](@ref inferrability)) and use them to generate JET reports.
+[`report_callees`](@ref), and [`report_caller`](@ref). These take [`InferenceTrigger`](@ref) (see the page on [inference failures](@ref inferrability)) and use them to generate JET reports. These tools focus on error-analysis rather than optimization, as SnoopCompile can already identify runtime dispatch.
 
 We can demonstrate both the need and use of these tools with a simple extended example.
 
 ## JET usage
 
-JET provides a useful report for the following call:
+As a basic introduction to JET, let's analyze the following call from JET's own documentation:
 
 ```jldoctest jet; filter=[r"@ reduce.*", r"(in|@)", r"(REPL\[\d+\]|none)"]
 julia> using JET
@@ -62,7 +57,7 @@ ERROR: MethodError: no method matching zero(::Type{Any})
 
 (This can be circumvented with `sum(Any[]; init=0)`.)
 
-This is the kind of bug that can "lurk" undetected for a long time, and JET excels at exposing them.
+This is the kind of bug that can lurk undetected for a long time, and JET excels at exposing them.
 
 ## JET limitations
 
@@ -85,15 +80,13 @@ Because we "hid" the type of `list` from inference, JET couldn't tell what speci
 
 ## JET/SnoopCompile integration
 
-The resolution to this problem is to use SnoopCompile to do the "data collection" and JET to do the analysis.
+A resolution to this problem is to use SnoopCompile to do the "data collection" and JET to do the analysis.
 The key reason is that SnoopCompile is a dynamic analyzer, and is capable of bridging across runtime dispatch.
 As always, you need to do the data collection in a fresh session where the calls have not previously been inferred.
 After restarting Julia, we can do this:
 
 ```julia
-julia> using SnoopCompile, JET, Cthulhu
-
-julia> using JET # this is necessary to enable the integration
+julia> using SnoopCompileCore
 
 julia> list = Any[1,2,3];
 
@@ -101,8 +94,9 @@ julia> lc = Any[list];   # "hide" `list` inside a Vector{Any}
 
 julia> callsum(listcontainer) = sum(listcontainer[1]);
 
-julia> tinf = @snoop_inference callsum(lc)
-InferenceTimingNode: 0.039239/0.046793 on Core.Compiler.Timings.ROOT() with 2 direct children
+julia> tinf = @snoop_inference callsum(lc);
+
+julia> using SnoopCompile, JET, Cthulhu
 
 julia> tinf.children
 2-element Vector{SnoopCompileCore.InferenceTimingNode}:
@@ -133,7 +127,7 @@ julia> report_callees(inference_triggers(tinf))
 ││││││││││││││││└────────────────────
 ```
 
-Because SnoopCompile collected the runtime-dispatched `sum` call, we can pass it to JET.
+Because SnoopCompileCore collected the runtime-dispatched `sum` call, we can pass it to JET.
 `report_callees` filters those calls which generate JET reports, allowing you to focus on potential errors.
 
 !!! note

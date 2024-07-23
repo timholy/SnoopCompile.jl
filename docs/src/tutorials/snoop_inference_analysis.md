@@ -729,7 +729,6 @@ v                      display(::REPL.REPLDisplay, ::MIME{Symbol("text/plain")},
 
 ```
 
-`ascend` was covered in much greater detail in [fixing invalidations](@ref invalidations), and you can read about using it on that page.
 Here, one twist is that some lines contain content like
 
 ```

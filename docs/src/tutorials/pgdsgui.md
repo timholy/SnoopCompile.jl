@@ -171,8 +171,8 @@ end
 ```
 
 !!! warning
-    `where` type-parameters force specialization: regardless of `@nospecialize`: in `spelltype(@nospecialize(::Type{T})) where T`, the `@nospecialize` has no impact and you'll get full specialization on `T`.
-    Instead, use `@nospecialize(T::Type)` as shown.
+    `where` type-parameters force specialization: in `spelltype(@nospecialize(::Type{T})) where T`, the `@nospecialize` has no impact and you'll get full specialization on `T`.
+    Instead, use `@nospecialize(T::Type)` (without the `where` statement) as shown.
 
 If we now rerun that demo, you should see a plot of the same kind as shown above, but with different costs for each dot.
 The differences are best appreciated comparing them side-by-side ([`pgdsgui`](@ref) allows you to specify a particular axis into

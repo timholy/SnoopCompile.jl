@@ -21,7 +21,7 @@ We'll illustrate invalidations by creating two packages, where loading the secon
 
 ### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
 
-Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/). (With the exception of `AbstractTrees`, these "developer tool" packages should not be added to the Project file of any real packages unless you're extending the tool itself.)
+Here, we'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/). (With the exception of `AbstractTrees`, these "developer tool" packages should not be added to the Project file of any real packages unless you're extending the tool itself.) From your default environment (i.e., in package mode you should see something like `(@v1.10) pkg>`), do
 
 ```
 using Pkg
