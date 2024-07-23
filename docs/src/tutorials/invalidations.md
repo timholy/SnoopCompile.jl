@@ -39,6 +39,7 @@ To create the (empty) packages, the code below executes the following steps:
 - make the second package (`BlackjackFacecards`) depend on the first one (`Blackjack`)
 
 ```@repl tutorial-invalidations
+oldproj = Base.active_project()   # hide
 cd(mktempdir())
 using Pkg
 Pkg.generate("Blackjack");
@@ -132,7 +133,13 @@ Here are the steps executed by the code below
 using SnoopCompileCore
 invs = @snoop_invalidations using Blackjack, BlackjackFacecards;
 using SnoopCompile, AbstractTrees
+Pkg.activate(oldproj)   # hide
 ```
+
+!!! tip
+    If you get errors like `Package SnoopCompileCore not found in current path`, a likely explanation is that
+    you didn't add it to your default environment. In the example above, we're in the `BlackjackFacecards` environment
+    so we can develop the package, but you also need access to `SnoopCompile` and `SnoopCompileCore`. Having these in your [default environment](https://docs.julialang.org/en/v1/manual/code-loading/#Environment-stacks) lets them be found even if they aren't part of the current environment.
 
 ### Analyzing invalidations
 

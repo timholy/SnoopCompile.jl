@@ -6,9 +6,9 @@ import PyPlot   # so that the visualizations.jl file is loaded
 makedocs(
     sitename = "SnoopCompile",
     format = Documenter.HTML(
-        prettyurls = get(ENV, "CI", nothing) == "true"
+        prettyurls = true,
     ),
-    modules = [SnoopCompile.SnoopCompileCore, SnoopCompile],
+    modules = [SnoopCompileCore, SnoopCompile],
     linkcheck = true,   # the link check is slow, set to false if you're building frequently
     # doctest = :fix,
     warnonly=true,    # delete when https://github.com/JuliaDocs/Documenter.jl/issues/2541 is fixed
