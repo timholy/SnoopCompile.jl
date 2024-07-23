@@ -12,11 +12,10 @@ makedocs(
     # doctest = :fix,
     warnonly=true,
     pages = ["index.md",
-             "Basic tutorials" => ["tutorials/invalidations.md", "tutorials/snoop_inference.md"],
-             "Advanced tutorials" => ["tutorials/fixing_inference.md",],
-            #  "tutorial.md",
-            #  "Modern tools" => ["snoop_invalidations.md", "snoop_inference.md", "pgdsgui.md", "snoop_inference_analysis.md", "snoop_inference_parcel.md", "jet.md"],
-            #  "reference.md"],
+             "Basic tutorials" => ["tutorials/invalidations.md", "tutorials/snoop_inference.md", "tutorials/snoop_llvm.md", "tutorials/pgdsgui.md", "tutorials/jet.md"],
+             "Advanced tutorials" => ["tutorials/snoop_inference_analysis.md", "tutorials/snoop_inference_parcel.md"],
+             "Explanations" => ["tools.md", "gotchas.md", "explanations/fixing_inference.md"],
+             "reference.md",
     ]
 )
 

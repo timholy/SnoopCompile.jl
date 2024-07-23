@@ -24,7 +24,11 @@ SnoopCompile "snoops" on the Julia compiler, collecting information that may be 
 
 ## Background information
 
-Confused? Some of the core concepts are explained in [Understanding SnoopCompile and Julia's compilation pipeline](@ref).
+If nothing else, you should know this:
+- invalidations occur when you *load* code (e.g., `using MyPkg`) or otherwise define new methods
+- inference and other stages of compilation occur the first time you *run* code for a particular combination of input types
+
+The individual tutorials briefly explain core concepts. More detail can be found in [Understanding SnoopCompile and Julia's compilation pipeline](@ref).
 
 ## Who should use this package
 

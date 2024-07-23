@@ -1,4 +1,4 @@
-# [JET integration](@id JET)
+# Tutorial on JET integration
 
 [JET](https://github.com/aviatesk/JET.jl) is a powerful tool for analyzing call graphs.
 Some of its functionality overlaps that of SnoopCompile's, that is, JET also provides mechanisms to detect potential errors.

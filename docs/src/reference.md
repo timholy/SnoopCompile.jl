@@ -50,12 +50,10 @@ report_callees
 report_caller
 ```
 
-## Other utilities
+## Analysis of LLVM
 
 ```@docs
-SnoopCompile.read
 SnoopCompile.read_snoop_llvm
-SnoopCompile.format_userimg
 ```
 
 ## Demos

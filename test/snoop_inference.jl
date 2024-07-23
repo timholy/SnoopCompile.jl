@@ -730,7 +730,7 @@ include("testmodules/SnoopBench.jl")
     SnoopCompile.write(io, tmis; tmin=0.0)
     str = String(take!(io))
     @test occursin("__lookup_kwbody__", str)
-    SnoopCompile.write(io, tmis; tmin=0.0, has_bodyfunction=true)
+    SnoopCompile.write(io, tmis; tmin=0.0)
     str = String(take!(io))
     @test !occursin("__lookup_kwbody__", str)
 

@@ -2,9 +2,15 @@
 
 ## What are invalidations?
 
-Invalidations result from interactions between different "chunks" of code. They are essential for ensuring that Julia runs fast and behaves correctly, but they make latency worse by "throwing away" compiled code.
-Invalidations are triggered by defining new methods, which most commonly happens from *loading* packages.
-A good developer can often design packages to minimize the number and/or impact of invalidations.
+Invalidations result from interactions between different pieces of code. Invalidations are essential to make Julia fast, interactive, and correct: you *need* invalidations if you want to be able to define some methods, run (compile) some code, and then in the same session define new methods and get answers that account for the new methods.
+
+Invalidations can happen just from loading packages. Packages are precompiled in isolation, but you can load many packages into a single interactive session. It's impossible for the individual packages to anticipate the full "world of methods" in your interactive session, so sometimes Julia has to discard code that was compiled in a smaller world because it's at risk for being incorrect in the larger world.
+
+The downside of invalidations is that they make latency worse, as code must be recompiled when you first run it. The benefits of precompilation are partially lost, and the work done during precompilation is partially wasted.
+
+While some invalidations are unavoidable, in practice a good developer can often design packages to minimize the number and/or impact of invalidations. Invalidation-resistant code is often faster, with smaller binary size, than code that is vulnerable to invalidation.
+
+A good first step is to measure what's being invalidated, and why.
 
 ## Learning to observe, diagnose, and fix invalidations
 
@@ -24,7 +30,7 @@ Pkg.add(["SnoopCompileCore", "SnoopCompile", "AbstractTrees", "Cthulhu"])
 
 ### Create the demonstration packages
 
-We're going to implement a toy version of the card game [blackjack](), where players take cards with the aim of collecting 21 points. The higher you go the better, *unless* you go over 21 points, in which case you "go bust" (i.e., you lose). Because our real goal is to illustrate invalidations, we'll create a "blackjack ecosystem" that involves an interaction between two packages.
+We're going to implement a toy version of the card game [blackjack](https://www.wikihow.com/Play-Blackjack), where players take cards with the aim of collecting 21 points. The higher you go the better, *unless* you go over 21 points, in which case you "go bust" (i.e., you lose). Because our real goal is to illustrate invalidations, we'll create a "blackjack ecosystem" that involves an interaction between two packages.
 
 While [PkgTemplates](https://github.com/JuliaCI/PkgTemplates.jl) is recommended for creating packages, here we'll just use the basic capabilities in `Pkg`.
 To create the (empty) packages, the code below executes the following steps:
@@ -111,7 +117,7 @@ write(joinpath("BlackjackFacecards", "src", "BlackjackFacecards.jl"), """
 ```
 
 !!! warning
-    Because `BlackjackFacecards` "owns" neither `Char` nor `score`, this is [piracy]((https://docs.julialang.org/en/v1/manual/style-guide/#Avoid-type-piracy-1)) and should generally be avoided. Piracy is one way to cause invalidations, but it's not the only one. `BlackjackFacecards` could avoid committing piracy by defining a `struct Facecard ... end` and defining `score(card::Facecard)` instead of `score(card::Char)`, but this would *not* fix the invalidations--all the factors described below are unchanged.
+    Because `BlackjackFacecards` "owns" neither `Char` nor `score`, this is [piracy](https://docs.julialang.org/en/v1/manual/style-guide/#Avoid-type-piracy-1) and should generally be avoided. Piracy is one way to cause invalidations, but it's not the only one. `BlackjackFacecards` could avoid committing piracy by defining a `struct Facecard ... end` and defining `score(card::Facecard)` instead of `score(card::Char)`. However, this would *not* fix the invalidations--all the factors described below are unchanged.
 
 Now we're ready!
 
@@ -159,7 +165,7 @@ First let's look at the the problematic method `sig`nature:
 sig
 ```
 
-This is a type-tuple, i.e., `Tuple{typeof(f), typesof(args)...}`. We see that `score` was called on an object of (inferred) type `Any`. Calling a function with unknown argument types makes code vulnerable to invalidation, and insertion of the new `score` method "exploited" this vulnerability.
+This is a type-tuple, i.e., `Tuple{typeof(f), typesof(args)...}`. We see that `score` was called on an object of (inferred) type `Any`. **Calling a function with unknown argument types makes code vulnerable to invalidation, and insertion of the new `score` method "exploited" this vulnerability.**
 
 `victim` shows which compiled code got invalidated:
 
@@ -203,8 +209,13 @@ Thus, invalidations arise from optimization based on what methods and types are 
 
 ### Fixing invalidations
 
-In broad strokes, there are three ways to prevent invalidation. The first is to ensure that
-the full range of possibilties (the entire "world of code") is present before any compilation occurs. In this case, probably the best approach would be to merge the `BlackjackFacecards` package into `Blackjack` itself. Or, if you are a maintainer of the "Blackjack ecosystem" and have reasons for thinking that keeping the packages separate makes sense, you could alternatively move the `PrecompileTools` workload to `BlackjackFacecards`. Either approach should prevent the invalidations from occuring.
+In broad strokes, there are three ways to prevent invalidation.
+
+#### Method 1: defer compilation until the full world is known
+
+The first and simplest technique is to ensure that the full range of possibilties (the entire "world of code") is present before any compilation occurs. In this case, probably the best approach would be to merge the `BlackjackFacecards` package into `Blackjack` itself. Or, if you are a maintainer of the "Blackjack ecosystem" and have reasons for thinking that keeping the packages separate makes sense, you could alternatively move the `PrecompileTools` workload to `BlackjackFacecards`. Either approach should prevent the invalidations from occuring.
+
+#### Method 2: improve inferability
 
 The second way to prevent invalidations is to improve the inferability of the victim(s). If `Int` and `Char` really are the only possible kinds of cards, then in `playgame` it would be better to declare
 
@@ -213,15 +224,21 @@ myhand = Union{Int,Char}[]
 ```
 and similarly for `deck` itself. That untyped `[]` is what makes `myhand` (and thus `cards`, when passed to `tallyscore`) a `Vector{Any}`, and the possibilities for `card` are endless. By constraining the possible types, we allow inference to know more clearly what methods might be called. More tips on fixing invalidations through improving inference can be found in [Techniques for fixing inference problems](@ref).
 
-In this particular case, just annotating `Union{Int,Char}[]` isn't sufficient on its own, because the `score` method for `Char` doesn't yet exist, so Julia doesn't know what to call. However, in most real-world cases this change alone would be sufficient: usually all the needed methods exist, it's just a question of Julia knowing that no other options are possible.
+In this particular case, just annotating `Union{Int,Char}[]` isn't sufficient on its own, because the `score` method for `Char` doesn't yet exist, so Julia doesn't know what to call. However, in most real-world cases this change alone would be sufficient: usually all the needed methods exist, it's just a question of reassuring Julia that no other options are even possible.
 
 !!! note
-    This fix exploits [union-splitting](), which is closely related to "world-splitting." However, union-splitting is far more effective at fixing inference problems, as it guarantees that no other possibilities will *ever* exist, no matter how many other methods get defined.
+    This fix leverages [union-splitting](https://julialang.org/blog/2018/08/union-splitting/), which is conceptually related to "world-splitting." However, union-splitting is far more effective at fixing inference problems, as it guarantees that no other possibilities will *ever* exist, no matter how many other methods get defined.
 
 !!! tip
-    Many vulnerabilities can be fixed by improving inference. In complex code, it's easy to unwittingly write things in ways that defeat Julia's type inference. Not only is well-inferred code resistant to invalidation, it typically runs faster too.
+    Many vulnerabilities can be fixed by improving inference. In complex code, it's easy to unwittingly write things in ways that defeat Julia's type inference. Tools that help you discover inference problems, like SnoopCompile and [JET](@ref), help you discover these unwitting "mistakes."
 
-    While in real life it's usually a bad idea to "blame the victim," it's typically the right attitude for fixing invalidations. Keep in mind, though, that the source of the problem may not be the immediate victim: in this case, it was a poor container choice in `playgame` that put `tallyscore` in the bad position of having to operate on a `Vector{Any}`. Redesigning the call chain to be more inferable is often an ideal fix. However, there are cases where there is no good way to make the code inferable, in which case other strategies are needed.
+While in real life it's usually a bad idea to "blame the victim," it's typically the right attitude for fixing invalidations. Keep in mind, though, that the source of the problem may not be the immediate victim: in this case, it was a poor container choice in `playgame` that put `tallyscore` in the bad position of having to operate on a `Vector{Any}`.
+
+Improving inferability is probably the most broadly-applicable technique, and when applicable it usually gives the best outcomes: not only is your code more resistant to invalidation, but it's likely faster and compiles to smaller binaries. However, of the three approaches it is also the one that requires the deepest understanding of Julia's type system, and thus may be difficult for some coders to use.
+
+There are cases where there is no good way to make the code inferable, in which case other strategies are needed.
+
+#### Method 3: disable Julia's speculative optimization
 
 The third option is to prevent Julia's speculative optimization: one could replace `score(card)` with `invokelatest(score, card)`:
 
@@ -235,7 +252,7 @@ function tallyscores(cards)
 end
 ```
 
-This forces Julia to always look up the appropriate method of `score` while the code is running, and thus prevents the speculative optimizations that leave the code vulnerable to invalidation. However, the cost is that your code may run somewhat more slowly.
+This forces Julia to always look up the appropriate method of `score` while the code is running, and thus prevents the speculative optimizations that leave the code vulnerable to invalidation. However, the cost is that your code may run somewhat more slowly, particularly here where the call is inside a loop.
 
 If you plan to define at least two `score` methods, another way to turn off this optimization would be to declare
 
@@ -252,4 +269,4 @@ before defining any `score` methods. You can read the documentation on `@max_met
 
 If you can't prevent the invalidation, an alternative approach is to recompile the invalidated code. For example, one could repeat the precompile workload from `Blackjack` in `BlackjackFacecards`. While this will mean that the whole "stack" will be compiled twice and cached twice (which is wasteful), it should be effective in reducing latency for users.
 
-PrecompileTools also has a `@recompile_invalidations`. This isn't generally recommended for use in package (you can end up with long compile times for things you don't need), but it can be useful in personal "Startup packages." See the PrecompileTools documentation for details.
+PrecompileTools also has a `@recompile_invalidations`. This isn't generally recommended for use in package (you can end up with long compile times for things you don't need), but it can be useful in personal "Startup packages" where you want to reduce latency for a particular project you're working on. See the PrecompileTools documentation for details.

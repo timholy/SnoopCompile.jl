@@ -128,7 +128,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
     return add_if_evals!(list, topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval, time=time)
 end
 
-function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true, has_bodyfunction::Bool=false)
+function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
     nameparent = Symbol(match(r"^#([^#]*)#", String(m.name)).captures[1])
     if !isdefined(m.module, nameparent)
         @debug "Module $topmod: skipping $m due to inability to look up kwbody parent" # see example related to issue #237
@@ -140,17 +140,12 @@ function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; c
     can1, exc1 = can_eval(topmod, whichstr, check_eval)
     if can1
         ttstr = tuplestring(paramrepr)
-        pcstr = has_bodyfunction ? """
+        pcstr = """
             let fbody = try Base.bodyfunction($whichstr) catch missing end
                 if !ismissing(fbody)
                     precompile($fstr, $ttstr)
                 end
-            end""" : """
-            let fbody = try __lookup_kwbody__($whichstr) catch missing end
-                if !ismissing(fbody)
-                    precompile($fstr, $ttstr)
-                end
-            end"""  # extra indentation because `write` will indent 1st line
+            end"""
         can2, exc2 = can_eval(topmod, pcstr, check_eval)
         if can2
             return pcstr

@@ -1,65 +1,21 @@
-# [Using `@snoop_inference` results for precompilation](@id precompilation)
+# [Using `@snoop_inference` to emit manual precompile directives](@id precompilation)
 
-Improving inferrability, specialization, and precompilability may sometimes feel like "eating your vegetables": really good for you, but it sometimes feels like work.  (Depending on tastes, of course; I love vegetables.)
-While we've already gotten some payoff, now we're going to collect an additional reward for our hard work: the "dessert" of adding `precompile` directives.
-It's worth emphasing that if we hadn't done the analysis of inference triggers and made improvements to our package, the benefit of adding `precompile` directives would have been substantially smaller.
+In a few cases, it may be inconvenient or impossible to precompile using a [workload](https://julialang.github.io/PrecompileTools.jl/stable/#Tutorial:-forcing-precompilation-with-workloads). Some examples might be:
+- an application that opens graphical windows
+- an application that connects to a database
+- an application that creates, deletes, or rewrites files on disk
 
-## Running work
+In such cases, one alternative is to create a manual list of precompile directives using Julia's `precompile(f, argtypes)` function.
 
-One of the simplest ways to force precompilation is to execute code. This has several advantages:
+!!! warning
+    Manual precompile directives are much more likely to "go stale" as the package is developed---`precompile` does not throw an error if a method for the given `argtypes` cannot be found. They are also more likely to be dependent on the Julia version, operating system, or CPU architecture. Whenever possible, it's safer to use a workload.
 
-- It is typically more robust across Julia versions
-- It automatically handles architecture differences like 32- vs 64-bit machines
-- It precompiles even the runtime-dispatch dependencies of a command
-  if the dependent methods are in the same package. This typically
-  results in much shorter precompile files than those that explicitly
-  use `precompile`.
-
-This approach looks like the following:
-
-```
-module MyPkg
-
-# All of your code that defines `MyPkg` goes here
-
-# precompile as the final step of the module definition:
-if ccall(:jl_generating_output, Cint, ()) == 1   # if we're precompiling the package
-    let
-        x = rand(Int, 5)
-        my_function(x)  # this will force precompilation `my_function(::Vector{Int}`)
-    end
-end
-
-end   # module MyPkg
-```
-
-When your module is being precompiled (`[ Info: Precompiling MyPkg [...]`), just before the module "closes" your block of work will be executed. This forces compilation, and these compiled MethodInstances will be cached.
-
-After adding such directives, it's recommended to check the flamegraph again and see if there are any major omissions.  You may need to add similar directives to some of the packages you depend on: precompilation is only effective if performed from the module that owns the method.  (One advantage of `parcel` is that it automatically assigns `precompile` directives to the appropriate package.)
-
-!!! note
-    The work done inside this block is only executed when the package is
-    being precompiled, not when it is loaded with `using
-    MyPkg`. Precompilation essentially takes a "snapshot" of the
-    module; `using` just reloads that snapshot, it does not re-execute
-    all the commands used to produce that snapshot.
-
-    The only role for the `ccall` is to prevent this work from being done
-    if you've started Julia with `--compiled-modules=no`.
-
-!!! warn
-    This style of precompilation may be undesirable or impossible if
-    your statements have side effects like opening new windows. In such
-    cases, you may be able to use it for lower-level calls.
-
-## Parcel
-
-`precompile` directives have to be emitted by the module that owns the method.
+`precompile` directives have to be emitted by the module that owns the method and/or types.
 SnoopCompile comes with a tool, `parcel`, that splits out the "root-most" precompilable MethodInstances into their constituent modules.
-In our case, since we've made almost every call precompilable, this will typically correspond to the bottom row of boxes in the flame graph.
+This will typically correspond to the bottom row of boxes in the [flame graph](@ref flamegraph).
 In cases where you have some non-precompilable MethodInstances, they will include MethodInstances from higher up in the call tree.
 
-Let's use `SnoopCompile.parcel` on `OptimizeMeFixed` in its current state:
+Let's use `SnoopCompile.parcel` on [`OptimizeMeFixed`](@ref inferrability):
 
 ```julia
 julia> ttot, pcs = SnoopCompile.parcel(tinf);
@@ -111,11 +67,6 @@ Base.Ryu: precompiled 0.15733664599999997 out of 0.15733664599999997
 Main.OptimizeMeFixed: precompiled 0.4204474180000001 out of 0.4204474180000001
 ```
 
-!!! tip
-    For packages that support just Julia 1.6 and higher, you may be able to slim down the precompile file by
-    adding `has_bodyfunction=true` to the arguments for `write`.
-    This setting applies for all packges in `pcs`, so you may need to call `write` twice (with both `false` and `true`) and select the appropriate precompile file for each package.
-
 You'll now find a directory `/tmp/precompiles_OptimizeMe`, and inside you'll find three files, for `Base`, `Base.Ryu`, and `OptimizeMeFixed`, respectively.
 The contents of the last of these should be recognizable:
 
@@ -131,27 +82,6 @@ The first `ccall` line ensures we only pay the cost of running these `precompile
 
 This file is ready to be moved into the `OptimizeMe` repository and `include`d into your module definition.
 Since we added `warmup` manually, you could consider moving `precompile(warmup, ())` into this function.
-
-In general, it's recommended to run precompilation from inside a block
-
-```julia
-if Base.VERSION >= v"1.4.2"
-    include("precompile.jl")
-    _precompile_()
-end
-```
-
-because earlier versions of Julia occasionally crashed on certain precompile directives.
-It's also perfectly fine to omit the function call, and use
-
-```julia
-if Base.VERSION >= v"1.4.2"
-    Base.precompile(Tuple{typeof(main)})   # time: 0.4204474
-    precompile(warmup, ())
-end
-```
-
-directly in the `OptimizeMeFixed` module, usually as the last block of the module definition.
 
 You might also consider submitting some of the other files (or their `precompile` directives) to the packages you depend on.
 In some cases, the specific argument type combinations may be too "niche" to be worth specializing; one such case is found here, a `show` method for `Tuple{String, Int64}` for `Base`.
@@ -212,4 +142,3 @@ It's also worth appreciating how much we have succeeded in reducing latency, wit
 
 `@snoop_inference` collects enough data to learn which methods are triggering inference, how heavily methods are being specialized, and so on.
 Examining your code from the standpoint of inference and specialization may be unfamiliar at first, but like other aspects of package development (testing, documentation, and release compatibility management) it can lead to significant improvements in the quality-of-life for you and your users.
-By optimizing your packages and then adding `precompile` directives, you can often cut down substantially on latency.

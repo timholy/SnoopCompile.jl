@@ -2,7 +2,7 @@
 
 Inference may occur when you *run* code. Inference is the first step of *type-specialized* compilation. `@snoop_inference` collects data on what inference is doing, giving you greater insight into what is being inferred and how long it takes.
 
-Compilation is needed only for "fresh" code; running the demos below on code you've already used will yield misleading results. When analyzing inference, you're advised to always start from a fresh session.
+Compilation is needed only for "fresh" code; running the demos below on code you've already used will yield misleading results. When analyzing inference, you're advised to always start from a fresh session. See also the [comparison between SnoopCompile and JET](@ref jet).
 
 ### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
 
@@ -76,7 +76,7 @@ A non-empty list might indicate method invalidations, which can be checked (in a
 
 If you do have a lot of invalidations, [`precompile_blockers`](@ref) may be an effective way to reveal those invalidations that affect your particular package and workload.
 
-## Viewing the results
+## [Viewing the results](@id flamegraph)
 
 Let's start unpacking the output of `@snoop_inference` and see how to get more insight.
 First, notice that the output is an `InferenceTimingNode`: it's the root element of a tree of such nodes, all connected by caller-callee relationships.
