@@ -3,49 +3,47 @@ OptimizeMeFixed is the "improved" version of OptimizeMe. See the file in this sa
 """
 module OptimizeMeFixed
 
+using PrecompileTools
+
 struct Container{T}
     value::T
 end
+Base.show(io::IO, c::Container) = print(io, "Container(", c.value, ")")
 
-function lotsa_containers()
-    list = Any[1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]
+function lotsa_containers(io::IO)
+    list = [1, 0x01, 0xffff, 2.0f0, 'a', [0], ("key", 42)]
     cs = Container{Any}.(list)
-    println("lotsa containers:")
-    display(cs)
+    println(io, "lotsa containers:")
+    show(io, MIME("text/plain"), cs)
 end
 
-concat_string(c1::Container, c2::Container) = string(c1.value) * ' ' * string(c2.value)
+howbig(str::AbstractString) = length(str)
+howbig(x::Char) = 1
+howbig(x::Unsigned) = x
+howbig(x::Real) = abs(x)
 
-function contain_concrete(item1, item2)
-    c1 = Container(item1)
-    c2 = Container(item2)
-    return concat_string(c1, c2)
-end
-
-function contain_list(list)
-    length(list) == 2 || throw(DimensionMismatch("list must have length 2"))
-    item1 = convert(Float64, list[1])::Float64
-    item2 = list[2]::String
-    return contain_concrete(item1, item2)
-end
-
-struct Object
-    x::Int
-end
-Base.show(io::IO, o::Object) = print(io, "Object x: ", o.x)
-
-function makeobjects()
-    xs = [1:5; 7:7]
-    return Object.(xs)
+function abmult(r::Int, ys)
+    if r < 0
+        r = -r
+    end
+    let r = r    # Julia #15276
+        return map(x -> howbig(r * x), ys)
+    end
 end
 
 function main()
-    lotsa_containers()
-    println(contain_concrete(3.14, "is great"))
-    list = [2.718, "is jealous"]
-    println(contain_list(list))
-    display(makeobjects())
+    lotsa_containers(stdout)
+    return abmult(rand(-5:5), rand(3))
 end
 
+
+@compile_workload begin
+    lotsa_containers(devnull)  # use `devnull` to suppress output
+    abmult(rand(-5:5), rand(3))
+end
+# since `devnull` is not a `Base.TTY`--the standard type of `stdout`--let's also
+# use an explicit `precompile` directive. (Note this does not trigger any visible output).
+# This doesn't "follow" runtime dispatch but at least it precompiles the entry point.
+precompile(lotsa_containers, (Base.TTY,))
 
 end

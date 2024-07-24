@@ -1053,7 +1053,7 @@ function Location(itrig::InferenceTrigger)
 end
 
 Base.show(io::IO, loc::Location) = print(io, loc.func, " at ", loc.file, ':', loc.line)
-InteractiveUtils.edit(loc::Location) = edit(string(loc.file), loc.line)
+InteractiveUtils.edit(loc::Location) = edit(Base.fixup_stdlib_path(string(loc.file)), loc.line)
 
 const LocationTriggers = TaggedTriggers{Location}
 
@@ -1168,6 +1168,8 @@ function Base.show(io::IO, s::Suggested)
     rtcallee = MethodInstance(s.itrig.node)
     show_suggest(io, s.categories, rtcallee, sf)
 end
+
+Base.haskey(s::Suggested, k::Suggestion) = k in s.categories
 
 function show_suggest(io::IO, categories, rtcallee, sf)
     showcaller = true
@@ -1660,7 +1662,14 @@ function suggest!(stree, node)
     return stree
 end
 
-Base.show(io::IO, node::SuggestNode) = print_tree(io, node)
+function Base.show(io::IO, node::SuggestNode)
+    if node.s === nothing
+        print(io, "no inference trigger")
+    else
+        show(io, node.s)
+    end
+    print(" (", string(length(node.children)), " children)")
+end
 
 function strip_prefix(io::IO, obj, prefix)
     print(io, obj)

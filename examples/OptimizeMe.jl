@@ -17,28 +17,21 @@ function lotsa_containers()
     display(cs)
 end
 
-concat_string(c1::Container, c2::Container) = string(c1.value) * ' ' * string(c2.value)
+howbig(str::AbstractString) = length(str)
+howbig(x::Char) = 1
+howbig(x::Unsigned) = x
+howbig(x::Real) = abs(x)
 
-function contain_concrete(item1, item2)
-    c1 = Container(item1)
-    c2 = Container(item2)
-    return concat_string(c1, c2)
-end
-
-function contain_list(list)
-    cs = Container.(list)
-    return concat_string(cs...)
-end
-
-struct Object
-    x::Int
+function abmult(r::Int, ys)
+    if r < 0
+        r = -r
+    end
+    return map(x -> howbig(r * x), ys)
 end
 
 function main()
     lotsa_containers()
-    println(contain_concrete(3.14, "is great"))
-    list = [2.718, "is jealous"]
-    println(contain_list(list))
+    return abmult(rand(-5:5), rand(3))
 end
 
 end
