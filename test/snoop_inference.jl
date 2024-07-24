@@ -729,10 +729,7 @@ include("testmodules/SnoopBench.jl")
     io = IOBuffer()
     SnoopCompile.write(io, tmis; tmin=0.0)
     str = String(take!(io))
-    @test occursin("__lookup_kwbody__", str)
-    SnoopCompile.write(io, tmis; tmin=0.0, has_bodyfunction=true)
-    str = String(take!(io))
-    @test !occursin("__lookup_kwbody__", str)
+    @test occursin("bodyfunction", str)
 
     A = [a]
     tinf = @snoop_inference SnoopBench.mappushes(identity, A)

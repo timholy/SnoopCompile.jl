@@ -26,6 +26,11 @@ jobs:
           version: '1'
       - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore"))])'
       - uses: julia-actions/julia-buildpkg@latest
+      # To access the developer tools from within a package's environment, they should be in the default environment
+      - run: julia -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore")), PackageSpec(path=joinpath(pwd()))]); Pkg.instantiate()'
+      # Additional packages we'll need
+      - run: julia -e 'using Pkg; Pkg.add(["AbstractTrees", "Cthulhu"])'  # pyplot would be nice but it often errors
+      # Documenter wants them to be in the local environment
       - run: julia --project=docs/ -e 'using Pkg; Pkg.develop([PackageSpec(path=joinpath(pwd(), "SnoopCompileCore")), PackageSpec(path=joinpath(pwd()))]); Pkg.instantiate()'
       - uses: julia-actions/julia-docdeploy@releases/v1
         env:

@@ -3,11 +3,10 @@ export @snoop_llvm
 using Serialization
 
 """
-```
-@snoop_llvm "func_names.csv" "llvm_timings.yaml" begin
-    # Commands to execute, in a new process
-end
-```
+    @snoop_llvm "func_names.csv" "llvm_timings.yaml" begin
+        # Commands to execute, in a new process
+    end
+
 causes the julia compiler to log timing information for LLVM optimization during the
 provided commands to the files "func_names.csv" and "llvm_timings.yaml". These files can
 be used for the input to `SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml")`.

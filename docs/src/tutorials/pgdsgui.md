@@ -1,6 +1,14 @@
 # [Profile-guided despecialization](@id pgds)
 
-As indicated in the [workflow](@ref), one of the important early steps is to evaluate and potentially adjust method specialization.
+Julia's multiple dispatch allows developers to create methods for specific argument types. On top of this, the Julia compiler performs *automatic specialization*:
+
+```
+function countnonzeros(A::AbstractArray)
+    ...
+end
+```
+
+will be compiled separately for `Vector{Int}`, `Matrix{Float64}`, `SubArray{...}`, and so on, if it gets called for each of these types.
 Each specialization (each `MethodInstance` with different argument types) costs extra inference and code-generation time,
 so while specialization often improves runtime performance, that has to be weighed against the cost in latency.
 There are also cases in which [overspecialization can hurt both run-time and compile-time performance](https://docs.julialang.org/en/v1/manual/performance-tips/#The-dangers-of-abusing-multiple-dispatch-(aka,-more-on-types-with-values-as-parameters)).
@@ -11,8 +19,19 @@ The name is a reference to a related technique, [profile-guided optimization](ht
 Both PGO and PGDS use runtime profiling to help guide decisions about code optimization.
 PGO is often used in languages whose default mode is to avoid specialization, whereas PGDS seems more appropriate for
 a language like Julia which specializes by default.
-While PGO is sometimes an automatic part of the compiler that optimizes code midstream during execution, PGDS is a tool for making static changes in code.
+While PGO is sometimes an automatic part of the compiler that optimizes code midstream during execution, SnoopCompile's PGDS is a tool for making static changes (edits) to code.
 Again, this seems appropriate for a language where specialization typically happens prior to the first execution of the code.
+
+### Add SnoopCompileCore, SnoopCompile, and helper packages to your environment
+
+We'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/) so you can use them while in the package environment:
+
+```
+using Pkg
+Pkg.add(["SnoopCompileCore", "SnoopCompile", "PyPlot"]);
+```
+
+PyPLot is used for the PGDS interface in part to reduce interference with native-Julia plotting packages like Makie--it's a little awkward to depend on a package that you might be simultaneously modifying!
 
 ## Using the PGDS graphical user interface
 
@@ -20,7 +39,7 @@ To illustrate the use of PGDS, we'll examine an example in which some methods ge
 To keep this example short, we'll create functions that operate on types themselves.
 
 !!! note
-    For a `DataType` `T`, `T.name` returns a `Core.TypeName`, and `T.name.name` returns the name as a `Symbol`.
+    As background to this example, for a `DataType` `T`, `T.name` returns a `Core.TypeName`, and `T.name.name` returns the name as a `Symbol`.
     `Base.unwrap_unionall(T)` preserves `DataType`s as-is, but converts a `UnionAll` type into a `DataType`.
 
 ```julia
@@ -56,12 +75,11 @@ mappushes(f, src) = mappushes!(f, [], src)
 There are two stages to PGDS: first (and preferrably starting in a fresh Julia session), we profile type-inference:
 
 ```julia
-julia> using SnoopCompile
+julia> using SnoopCompileCore
 
 julia> Ts = subtypes(Any);  # get a long list of different types
 
-julia> tinf = @snoop_inference mappushes(spelltype, Ts)
-InferenceTimingNode: 4.476700/5.591207 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 587 direct children
+julia> tinf = @snoop_inference mappushes(spelltype, Ts);
 ```
 
 Then, *in the same session*, profile the runtime:
@@ -78,6 +96,8 @@ get a realistic view of where your code spends its time during actual use.
 Now let's launch the PDGS GUI:
 
 ```julia
+julia> using SnoopCompile
+
 julia> import PyPlot        # the GUI is dependent on PyPlot, must load it before the next line
 
 julia> mref, ax = pgdsgui(tinf);
@@ -85,7 +105,7 @@ julia> mref, ax = pgdsgui(tinf);
 
 You should see something like this:
 
-![pgdsgui](assets/pgds_spec.png)
+![pgdsgui](../assets/pgds_spec.png)
 
 In this graph, each dot corresponds to a single method; for this method, we plot inference time (vertical axis) against the run time (horizontal axis).
 The coloration of each dot encodes the number of specializations (the number of distinct `MethodInstance`s) for that method;
@@ -151,14 +171,14 @@ end
 ```
 
 !!! warning
-    `where` type-parameters force specialization, regardless of `@nospecialize`: in `spelltype(@nospecialize(::Type{T})) where T`, the `@nospecialize` has no impact and you'll get full specialization on `T`.
-    Instead, use `@nospecialize(T::Type)` as shown.
+    `where` type-parameters force specialization: in `spelltype(@nospecialize(::Type{T})) where T`, the `@nospecialize` has no impact and you'll get full specialization on `T`.
+    Instead, use `@nospecialize(T::Type)` (without the `where` statement) as shown.
 
 If we now rerun that demo, you should see a plot of the same kind as shown above, but with different costs for each dot.
 The differences are best appreciated comparing them side-by-side ([`pgdsgui`](@ref) allows you to specify a particular axis into
 which to plot):
 
-![pgdsgui-compare](assets/pgds_compareplots.png)
+![pgdsgui-compare](../assets/pgds_compareplots.png)
 
 The results with `@nospecialize` are shown on the right. You can see that:
 
@@ -173,10 +193,29 @@ Reducing specialization, when appropriate, can often yield your biggest reductio
 !!! tip
     When you add `@nospecialize`, sometimes it's beneficial to compensate for the loss of inferrability by adding some type assertions.
     This topic will be discussed in greater detail in the next section, but for the example above we can improve runtime performance by annotating the return type of `Base.unwrap_unionall(T)`: `name = (Base.unwrap_unionall(T)::DataType).name.name`.
-    Then, later lines in `spell` know that `name` is a `Symbol`.
+    Then, later lines in `spelltype` know that `name` is a `Symbol`.
 
     With this change, the unspecialized variant outperforms the specialized variant in *both compile-time and run-time*.
     The reason is that the specialized variant of `spell` needs to be called by runtime dispatch, whereas for the unspecialized variant there's only one `MethodInstance`, so its dispatch is handled at compile time.
+
+### Blocking inference: `Base.@nospecializeinfer`
+
+Perhaps surprisingly, `@nospecialize` doesn't prevent Julia's type-inference from inspecting a method. The reason is that it's sometimes useful if the *caller* knows what type will be returned, even if the *callee* doesn't exploit this information. In our `mappushes` example, this isn't an issue, because `Ts` is a `Vector{Any}` and this already defeats inference. But in other cases, the caller may be inferable but (to save inference time) you'd prefer to block inference from inspecting the method.
+
+Beginning with Julia 1.10, you can prevent even inference from "looking at" `@nospecialize`d arguments with `Base.@nospecializeinfer`:
+
+```
+Base.@nospecializeinfer function spelltype(@nospecialize(T::Type))
+    name = (Base.unwrap_unionall(T)::DataType).name.name
+    str = ""
+    for c in string(name)
+        str *= c
+    end
+    return str
+end
+```
+
+Note that the `::DataType` annotation described in the tip above is still effective and recommended. `@nospecializeinfer` directly affects only arguments that are marked with `@nospecialize`, and in this case the type-assertion prevents type uncertainty from propagating to the remainder of the function.
 
 ### Argument standardization
 
@@ -204,7 +243,7 @@ The "standardizing method" `foo(x, y)` is short and therefore quick to compile, 
     Without it, `foo(x, y)` might call itself in an infinite loop, ultimately triggering a StackOverflowError.
     StackOverflowErrors are a particularly nasty form of error, and the typeassert ensures that you get a simple `TypeError` instead.
 
-    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred (this will be discussed in more detail [later](@ref typeasserts)), but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
+    In other contexts, such typeasserts would also have the effect of fixing inference problems even if the type of `x` is not well-inferred, but in this case dispatch to `foo(x::X, y::Y)` would have ensured the same outcome.
 
 There are of course cases where you can't implement your code in this way: after all, part of the power of Julia is the ability of generic methods to "do the right thing" for a wide variety of types. But in cases where you're doing a standard task, e.g., writing some data to a file, there's really no good reason to recompile your `save` method for a filename encoded as a `String` and again for a `SubString{String}` and again for a `SubstitutionString` and again for an `AbstractString` and ...: after all, the core of the `save` method probably isn't sensitive to the precise encoding of the filename.  In such cases, it should be safe to convert all filenames to `String`, thereby reducing the diversity of input arguments for expensive-to-compile methods.
 
