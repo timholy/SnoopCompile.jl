@@ -5,17 +5,17 @@ This file contains information about major updates since 1.0.
 ## Version 3
 
 Version 3 is a greatly slimmed repository, focusing just on those tools that are relevant for modern Julia development.
-Users of tools that were removed should stick with SnoopCompile 2.x.
+If you are still using old tools, you should stick with SnoopCompile 2.x.
 
-- The old `@snoopc` has been deleted. Its functionality was largely subsumed into `julia --trace-compile`.
--`@snoopi` has been deleted, as `@snoopi_deep` (now renamed to `@snoop_inference`) provides more comprehensive information and is available on all modern Julia versions.
-- SnoopCompileBot was deleted in favor of [CompileBot](https://github.com/aminya/CompileBot.jl)
-- SnoopPrecompile was deleted because it is now [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl)
-
-Additionally:
+Major changes:
+- `@snoopi_deep` has been renamed `@snoop_inference`
 - `@snoopr` has been renamed `@snoop_invalidations`.
 - `@snoopl` has been renamed `@snoop_llvm`.
-
+- The old `@snoopc` has been deleted. Its functionality was largely subsumed into `julia --trace-compile`.
+-`@snoopi` has been deleted, as `@snoopi_deep` provided more comprehensive information and is available on all modern Julia versions.
+- SnoopCompileBot was deleted in favor of [CompileBot](https://github.com/aminya/CompileBot.jl)
+- SnoopPrecompile was deleted because it is now [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl)
+- JET, Cthulhu, PrettyTables, and PyPlot are all integrated via package extensions. As a consequence, users now have to load them manually.
 
 ## Version 1.1
 
