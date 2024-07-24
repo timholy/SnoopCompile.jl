@@ -7,8 +7,7 @@ Throughout this page, we'll use the `OptimizeMe` demo, which ships with `SnoopCo
 
 ```@repl fix-inference
 using SnoopCompileCore, SnoopCompile # here we need the SnoopCompile path for the next line (normally you should wait until after data collection is complete)
-cd(joinpath(pkgdir(SnoopCompile), "examples"))
-include("OptimizeMe.jl")
+include(joinpath(pkgdir(SnoopCompile), "examples", "OptimizeMe.jl"))
 tinf = @snoop_inference OptimizeMe.main();
 fg = flamegraph(tinf)
 ```
@@ -79,7 +78,7 @@ You can still "dig deep" into individual triggers:
 itrig = mtrig.itrigs[1]
 ```
 
-This is useful if you want to analyze with [`Cthulhu.ascend`](@ref ascend-itrig).
+This is useful if you want to analyze with `Cthulhu.ascend`.
 `Method`-based triggers, which may aggregate many different individual triggers, can be useful because tools like [Cthulhu.jl](https://github.com/JuliaDebug/Cthulhu.jl) show you the inference results for the entire `MethodInstance`, allowing you to fix many different inference problems at once.
 
 ### Trigger trees
