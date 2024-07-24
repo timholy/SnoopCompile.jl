@@ -154,7 +154,7 @@ Users are encouraged to read the ProfileView documentation to understand how to 
 - right-clicking on a box opens the corresponding method in your editor
 - ctrl-click can be used to zoom in
 - empty horizontal spaces correspond to activities other than type-inference
-- any boxes colored red (there are none in this particular example, but you'll see some later) correspond to *non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module.
+- any boxes colored red (there are none in this particular example, but you'll see some later) correspond to *naively non-precompilable* `MethodInstance`s, in which the method is owned by one module but the types are from another unrelated module. Such `MethodInstance`s are omitted from the precompile cache file unless they've been "marked" by `PrecompileTools.@compile_workload` or an explicit `precompile` directive.
 - any boxes colored orange-yellow (there is one in this demo) correspond to methods inferred for specific constants (constant propagation)
 
 You can explore this flamegraph and compare it to the output from `print_tree`.

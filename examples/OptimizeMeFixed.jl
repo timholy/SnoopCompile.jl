@@ -1,7 +1,5 @@
 """
-OptimizeMe is a demonstration module used in illustrating how to improve code and generate effective `precompile` directives.
-It has deliberate weaknesses in its design, and the analysis of these weaknesses via `@snoop_inference` is discussed
-in the documentation.
+OptimizeMeFixed is the "improved" version of OptimizeMe. See the file in this same directory for details.
 """
 module OptimizeMeFixed
 
@@ -41,19 +39,6 @@ function makeobjects()
     return Object.(xs)
 end
 
-# "Stub" callers for precompilability
-function warmup()
-    mime = MIME("text/plain")
-    io = Base.stdout::Base.TTY
-    v = [Container{Any}(0)]
-    show(io, mime, v)
-    show(IOContext(io), mime, v)
-    v = [Object(0)]
-    show(io, mime, v)
-    show(IOContext(io), mime, v)
-    return nothing
-end
-
 function main()
     lotsa_containers()
     println(contain_concrete(3.14, "is great"))
@@ -62,7 +47,5 @@ function main()
     display(makeobjects())
 end
 
-precompile(Tuple{typeof(main)})   # time: 0.4204474
-precompile(Tuple{typeof(warmup)})
 
 end

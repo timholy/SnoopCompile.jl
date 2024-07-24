@@ -5,37 +5,12 @@ Throughout this page, we'll use the `OptimizeMe` demo, which ships with `SnoopCo
 !!! note
     To understand what follows, it's essential to refer to [`OptimizeMe` source code](https://github.com/timholy/SnoopCompile.jl/blob/master/examples/OptimizeMe.jl) as you follow along.
 
-```julia
-julia> using SnoopCompile
-
-julia> cd(joinpath(pkgdir(SnoopCompile), "examples"))
-
-julia> include("OptimizeMe.jl")
-Main.OptimizeMe
-
-julia> tinf = @snoop_inference OptimizeMe.main()
-lotsa containers:
-7-element Vector{Main.OptimizeMe.Container}:
- Main.OptimizeMe.Container{Int64}(1)
- Main.OptimizeMe.Container{UInt8}(0x01)
- Main.OptimizeMe.Container{UInt16}(0xffff)
- Main.OptimizeMe.Container{Float32}(2.0f0)
- Main.OptimizeMe.Container{Char}('a')
- Main.OptimizeMe.Container{Vector{Int64}}([0])
- Main.OptimizeMe.Container{Tuple{String, Int64}}(("key", 42))
-3.14 is great
-2.718 is jealous
-6-element Vector{Main.OptimizeMe.Object}:
- Main.OptimizeMe.Object(1)
- Main.OptimizeMe.Object(2)
- Main.OptimizeMe.Object(3)
- Main.OptimizeMe.Object(4)
- Main.OptimizeMe.Object(5)
- Main.OptimizeMe.Object(7)
-InferenceTimingNode: 1.423913/2.713560 on InferenceFrameInfo for Core.Compiler.Timings.ROOT() with 77 direct children
-
-julia> fg = flamegraph(tinf)
-Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:2713559552))
+```@repl fix-inference
+using SnoopCompileCore, SnoopCompile # here we need the SnoopCompile path for the next line (normally you should wait until after data collection is complete)
+cd(joinpath(pkgdir(SnoopCompile), "examples"))
+include("OptimizeMe.jl")
+tinf = @snoop_inference OptimizeMe.main();
+fg = flamegraph(tinf)
 ```
 
 If you visualize `fg` with ProfileView, you'll see something like this:
@@ -45,68 +20,39 @@ If you visualize `fg` with ProfileView, you'll see something like this:
 From the standpoint of precompilation, this has some obvious problems:
 
 - even though we called a single method, `OptimizeMe.main()`, there are many distinct flames separated by blank spaces. This indicates that many calls are being made by runtime dispatch:  each separate flame is a fresh entrance into inference.
-- several of the flames are marked in red, indicating that they are not precompilable. While SnoopCompile does have the capability to automatically emit `precompile` directives for the non-red bars that sit on top of the red ones, in some cases the red extends to the highest part of the flame. In such cases there is no available precompile directive, and therefore no way to avoid the cost of type-inference.
+- several of the flames are marked in red, indicating that they are not naively precompilable (see the [Tutorial on `@snoop_inference`](@ref)). While `@compile_workload` can handle these flames, an even more robust solution is to eliminate them altogether.
 
-Our goal will be to improve the design of `OptimizeMe` to make it more precompilable.
+Our goal will be to improve the design of `OptimizeMe` to make it more readily precompilable.
 
 ## Analyzing inference triggers
 
 We'll first extract the "triggers" of inference, which is just a repackaging of part of the information contained within `tinf`.
 Specifically an [`InferenceTrigger`](@ref) captures callee/caller relationships that straddle a fresh entrance to type-inference, allowing you to identify which calls were made by runtime dispatch and what `MethodInstance` they called.
 
-```julia
-julia> itrigs = inference_triggers(tinf)
-76-element Vector{InferenceTrigger}:
- Inference triggered to call MethodInstance for vect(::Int64, ::Vararg{Any, N} where N) from lotsa_containers (/pathto/SnoopCompile/examples/OptimizeMe.jl:13) with specialization MethodInstance for lotsa_containers()
- Inference triggered to call MethodInstance for promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N) from vect (./array.jl:126) with specialization MethodInstance for vect(::Int64, ::Vararg{Any, N} where N)
- Inference triggered to call MethodInstance for promote_typeof(::UInt8, ::UInt16, ::Vararg{Any, N} where N) from promote_typeof (./promotion.jl:272) with specialization MethodInstance for promote_typeof(::Int64, ::UInt8, ::Vararg{Any, N} where N)
- ⋮
+```@repl fix-inference
+itrigs = inference_triggers(tinf)
 ```
 
-This indicates that a whopping 76 calls were (1) made by runtime dispatch and (2) the callee had not previously been inferred.
-(There was a 77th call that had to be inferred, the original call to `main()`, but by default [`inference_triggers`](@ref) excludes calls made directly from top-level. You can change that through keyword arguments.)
+The number of elements in this `Vector{InferenceTrigger}` tells you how many calls were (1) made by runtime dispatch and (2) the callee had not previously been inferred.
 
 !!! tip
     In the REPL, `SnoopCompile` displays `InferenceTrigger`s with yellow coloration for the callee, red for the caller method, and blue for the caller specialization. This makes it easier to quickly identify the most important information.
 
-In some cases, this might indicate that you'll need to fix 76 separate callers; fortunately, in many cases fixing the origin of inference problems can fix a number of later callees.
+In some cases, this might indicate that you'll need to fix each case separately; fortunately, in many cases fixing one problem addresses many other.
 
 ### [Method triggers](@id methtrigs)
 
 Most often, it's most convenient to organize them by the method triggering the need for inference:
 
-```julia
-julia> mtrigs = accumulate_by_source(Method, itrigs)
-18-element Vector{SnoopCompile.TaggedTriggers{Method}}:
- print_matrix_row(io::IO, X::AbstractVecOrMat{T} where T, A::Vector{T} where T, i::Integer, cols::AbstractVector{T} where T, sep::AbstractString) in Base at arrayshow.jl:96 (1 callees from 1 callers)
- show(io::IO, x::T, forceuntyped::Bool, fromprint::Bool) where T<:Union{Float16, Float32, Float64} in Base.Ryu at ryu/Ryu.jl:111 (1 callees from 1 callers)
- Pair(a, b) in Base at pair.jl:15 (1 callees from 1 callers)
- vect(X...) in Base at array.jl:125 (1 callees from 1 callers)
- makeobjects() in Main.OptimizeMe at /pathto/SnoopCompile/examples/OptimizeMe.jl:36 (1 callees from 1 callers)
- show_delim_array(io::IO, itr, op, delim, cl, delim_one, i1, n) in Base at show.jl:1058 (1 callees from 1 callers)
- typeinfo_prefix(io::IO, X) in Base at arrayshow.jl:515 (2 callees from 1 callers)
- (::REPL.var"#38#39")(io) in REPL at /home/tim/src/julia-master/usr/share/julia/stdlib/v1.6/REPL/src/REPL.jl:214 (2 callees from 1 callers)
- _cat_t(dims, ::Type{T}, X...) where T in Base at abstractarray.jl:1633 (2 callees from 1 callers)
- contain_list(list) in Main.OptimizeMe at /pathto/SnoopCompile/examples/OptimizeMe.jl:27 (4 callees from 1 callers)
- promote_typeof(x, xs...) in Base at promotion.jl:272 (4 callees from 4 callers)
- combine_eltypes(f, args::Tuple) in Base.Broadcast at broadcast.jl:740 (5 callees from 1 callers)
- lotsa_containers() in Main.OptimizeMe at /pathto/SnoopCompile/examples/OptimizeMe.jl:12 (7 callees from 1 callers)
- alignment(io::IO, x) in Base at show.jl:2528 (7 callees from 7 callers)
- var"#sprint#386"(context, sizehint::Integer, ::typeof(sprint), f::Function, args...) in Base at strings/io.jl:100 (8 callees from 2 callers)
- alignment(io::IO, X::AbstractVecOrMat{T} where T, rows::AbstractVector{T} where T, cols::AbstractVector{T} where T, cols_if_complete::Integer, cols_otherwise::Integer, sep::Integer) in Base at arrayshow.jl:60 (8 callees from 2 callers)
- copyto_nonleaf!(dest, bc::Base.Broadcast.Broadcasted, iter, state, count) in Base.Broadcast at broadcast.jl:1070 (9 callees from 3 callers)
- _show_default(io::IO, x) in Base at show.jl:397 (12 callees from 1 callers)
+```@repl fix-inference
+mtrigs = accumulate_by_source(Method, itrigs)
 ```
 
 The methods triggering the largest number of inference runs are shown at the bottom.
-You can select methods from a particular module:
+You can also select methods from a particular module:
 
-```julia
-julia> modtrigs = filtermod(OptimizeMe, mtrigs)
-3-element Vector{SnoopCompile.TaggedTriggers{Method}}:
- makeobjects() in Main.OptimizeMe at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:36 (1 callees from 1 callers)
- contain_list(list) in Main.OptimizeMe at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:27 (4 callees from 1 callers)
- lotsa_containers() in Main.OptimizeMe at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:12 (7 callees from 1 callers)
+```@repl fix-inference
+modtrigs = filtermod(OptimizeMe, mtrigs)
 ```
 
 Rather than filter by a single module, you can alternatively call `SnoopCompile.parcel(mtrigs)` to split them out by module.
@@ -115,28 +61,20 @@ However, many of the failures in `Base` were nevertheless indirectly due to `Opt
 Fortunately, we'll see that using more careful design in `OptimizeMe` can avoid many of those problems.
 
 !!! tip
-    If you have a longer list of inference triggers than you feel comfortable tackling, filtering by your package's module is probably the best way to start.
+    If you have a longer list of inference triggers than you feel comfortable tackling, filtering by your package's module or using [`precompile_blockers`](@ref) can be a good way to start.
     Fixing issues in the package itself can end up resolving many of the "indirect" triggers too.
     Also be sure to note the ability to filter out likely "noise" from [test suites](@ref test-suites).
 
-If you're hoping to fix inference problems, one of the most efficient things you can do is call `summary`:
+If you're hoping to fix inference problems, one tool that's sometimes useful is `summary`:
 
-```julia
-julia> mtrig = modtrigs[1]
-makeobjects() in Main.OptimizeMe at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:36 (1 callees from 1 callers)
-
-julia> summary(mtrig)
-makeobjects() in Main.OptimizeMe at /home/tim/.julia/dev/SnoopCompile/examples/OptimizeMe.jl:36 had 1 specializations
-Triggering calls:
-Inlined _cat at ./abstractarray.jl:1630: calling cat_t##kw (1 instances)
+```@repl fix-inference
+mtrig = modtrigs[1]
+summary(mtrig)
 ```
 
 Sometimes from these hints alone you can figure out how to fix the problem.
-(`Inlined _cat` means that the inference trigger did not come directly from a source line of `makeobjects` but from a call, `_cat`, that got inlined into the compiled version.
-Below we'll see more concretely how to interpret this hint.)
-
 You can also say `edit(mtrig)` and be taken directly to the method you're analyzing in your editor.
-Finally, you can recover the individual triggers:
+But often, you have to "dig deep" into individual triggers:
 
 ```julia
 julia> mtrig.itrigs[1]

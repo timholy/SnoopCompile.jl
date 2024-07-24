@@ -1,7 +1,8 @@
 """
-OptimizeMe is a demonstration module used in illustrating how to improve code and generate effective `precompile` directives.
-It has deliberate weaknesses in its design, and the analysis of these weaknesses via `@snoop_inference` is discussed
-in the documentation.
+OptimizeMe is a module used to demonstrate how to make code more precompilable
+and more resistant to invalidation. It has deliberate weaknesses in its design,
+and the analysis and resolution of these weaknesses via `@snoop_inference` is
+discussed in the documentation.
 """
 module OptimizeMe
 
@@ -33,17 +34,11 @@ struct Object
     x::Int
 end
 
-function makeobjects()
-    xs = [1:5; 7]
-    return Object.(xs)
-end
-
 function main()
     lotsa_containers()
     println(contain_concrete(3.14, "is great"))
     list = [2.718, "is jealous"]
     println(contain_list(list))
-    display(makeobjects())
 end
 
 end
