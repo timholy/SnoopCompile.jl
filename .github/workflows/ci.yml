@@ -49,6 +49,7 @@ jobs:
       - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
+      - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["cthulhu"], coverage=true)'
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: src,SnoopCompileCore/src

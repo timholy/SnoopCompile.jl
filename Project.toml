@@ -43,6 +43,7 @@ PyPlot = "2"
 Random = "1"
 Serialization = "1"
 SnoopCompileCore = "3"
+REPL = "1"
 Test = "1"
 YAML = "0.4"
 julia = "1.10"
@@ -55,7 +56,8 @@ MethodAnalysis = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Cthulhu", "PrettyTables", "Documenter", "JET", "MethodAnalysis", "Pkg", "Random", "Test"]
+test = ["Cthulhu", "PrettyTables", "Documenter", "JET", "MethodAnalysis", "Pkg", "Random", "REPL", "Test"]
