@@ -56,9 +56,9 @@ g(c) = myplus(f(c[1]), f(c[2]))
                     @with_try_stderr out ascend(term, root; interruptexc=false)
                 end
                 lines = String(readavailable(out))   # this gets the header
-                @show lines
+                sleep(0.1)   # some platforms seem to need this
                 lines = String(readavailable(out))
-                @show lines
+                sleep(0.1)
                 @test occursin("call_nbits", lines)
                 @test occursin("map_nbits(::Vector{Integer})", lines)
                 # the job of the extension is done  once we've written the menu, so we can quit here
@@ -80,9 +80,9 @@ g(c) = myplus(f(c[1]), f(c[2]))
                 @with_try_stderr out ascend(term, itrig; interruptexc=false)
             end
             lines = String(readavailable(out))   # this gets the header
-            @show lines
+            sleep(0.1)
             lines = String(readavailable(out))
-            @show lines
+            sleep(0.1)
             @test occursin("myplus(::UInt8, ::Float16)", lines)
             @test occursin("g(::Vector{Float64})", lines)
             # the job of the extension is done  once we've written the menu, so we can quit here
