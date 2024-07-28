@@ -3,7 +3,7 @@
     "julia_NamedTuple_105":
         instructions: 30
         basicblocks: 1
-  time_ns: 632045
+  time_ns: 580524
   optlevel: 2
   after: 
     "julia_NamedTuple_105":
@@ -14,7 +14,7 @@
     "julia_peakflops_107":
         instructions: 18
         basicblocks: 1
-  time_ns: 656580
+  time_ns: 661505
   optlevel: 1
   after: 
     "julia_peakflops_107":
@@ -25,7 +25,7 @@
     "julia_#peakflops#81_109":
         instructions: 49
         basicblocks: 1
-  time_ns: 489699
+  time_ns: 498390
   optlevel: 1
   after: 
     "julia_#peakflops#81_109":
@@ -36,7 +36,7 @@
     "julia_Signed_111":
         instructions: 31
         basicblocks: 7
-  time_ns: 568366
+  time_ns: 540249
   optlevel: 2
   after: 
     "julia_Signed_111":
@@ -47,7 +47,7 @@
     "julia_getproperty_113":
         instructions: 38
         basicblocks: 3
-  time_ns: 892918
+  time_ns: 865035
   optlevel: 2
   after: 
     "julia_getproperty_113":
@@ -58,7 +58,7 @@
     "julia_reduce_empty_115":
         instructions: 21
         basicblocks: 2
-  time_ns: 465785
+  time_ns: 469607
   optlevel: 2
   after: 
     "julia_reduce_empty_115":
@@ -69,7 +69,7 @@
     "julia_throw_boundserror_129":
         instructions: 28
         basicblocks: 3
-  time_ns: 491322
+  time_ns: 475488
   optlevel: 2
   after: 
     "julia_throw_boundserror_129":
@@ -80,7 +80,7 @@
     "julia_mapreduce_impl_126":
         instructions: 404
         basicblocks: 85
-  time_ns: 8572243
+  time_ns: 8498748
   optlevel: 2
   after: 
     "julia_mapreduce_impl_126":
@@ -91,7 +91,7 @@
     "julia__mapreduce_123":
         instructions: 116
         basicblocks: 11
-  time_ns: 3523876
+  time_ns: 3437368
   optlevel: 2
   after: 
     "julia__mapreduce_123":
@@ -102,7 +102,7 @@
     "julia_#peakflops#253_120":
         instructions: 201
         basicblocks: 39
-  time_ns: 4245516
+  time_ns: 4168643
   optlevel: 2
   after: 
     "julia_#peakflops#253_120":
@@ -113,7 +113,7 @@
     "julia_peakflops_117":
         instructions: 24
         basicblocks: 1
-  time_ns: 539472
+  time_ns: 479576
   optlevel: 2
   after: 
     "julia_peakflops_117":
@@ -124,7 +124,7 @@
     "julia_ones_131":
         instructions: 80
         basicblocks: 13
-  time_ns: 3386029
+  time_ns: 3413313
   optlevel: 2
   after: 
     "julia_ones_131":
@@ -135,7 +135,7 @@
     "julia_in_133":
         instructions: 25
         basicblocks: 1
-  time_ns: 750614
+  time_ns: 1058948
   optlevel: 2
   after: 
     "julia_in_133":
@@ -146,7 +146,7 @@
     "julia_ntuple_135":
         instructions: 27
         basicblocks: 1
-  time_ns: 513785
+  time_ns: 543254
   optlevel: 2
   after: 
     "julia_ntuple_135":
@@ -157,7 +157,7 @@
     "julia_CartesianIndex_137":
         instructions: 27
         basicblocks: 1
-  time_ns: 559290
+  time_ns: 561619
   optlevel: 2
   after: 
     "julia_CartesianIndex_137":
@@ -168,7 +168,7 @@
     "julia__chkstride1_139":
         instructions: 25
         basicblocks: 4
-  time_ns: 658042
+  time_ns: 605681
   optlevel: 2
   after: 
     "julia__chkstride1_139":
@@ -179,7 +179,7 @@
     "julia_max_141":
         instructions: 37
         basicblocks: 1
-  time_ns: 572574
+  time_ns: 555217
   optlevel: 2
   after: 
     "julia_max_141":
@@ -190,7 +190,7 @@
     "julia_sqrt_143":
         instructions: 26
         basicblocks: 4
-  time_ns: 551465
+  time_ns: 543024
   optlevel: 2
   after: 
     "julia_sqrt_143":
@@ -201,7 +201,7 @@
     "julia_convert_145":
         instructions: 17
         basicblocks: 1
-  time_ns: 401586
+  time_ns: 411388
   optlevel: 2
   after: 
     "julia_convert_145":
@@ -212,7 +212,7 @@
     "julia_getproperty_147":
         instructions: 31
         basicblocks: 3
-  time_ns: 837726
+  time_ns: 705678
   optlevel: 2
   after: 
     "julia_getproperty_147":
@@ -223,7 +223,7 @@
     "julia_throw_uplo_149":
         instructions: 29
         basicblocks: 3
-  time_ns: 901285
+  time_ns: 940376
   optlevel: 2
   after: 
     "julia_throw_uplo_149":
@@ -234,7 +234,7 @@
     "julia_char_uplo_151":
         instructions: 36
         basicblocks: 6
-  time_ns: 649897
+  time_ns: 677776
   optlevel: 2
   after: 
     "julia_char_uplo_151":
@@ -245,7 +245,7 @@
     "julia_MulAddMul_153":
         instructions: 75
         basicblocks: 7
-  time_ns: 1623696
+  time_ns: 1651123
   optlevel: 2
   after: 
     "julia_MulAddMul_153":
@@ -256,7 +256,7 @@
     "julia_getproperty_155":
         instructions: 33
         basicblocks: 3
-  time_ns: 854507
+  time_ns: 915880
   optlevel: 2
   after: 
     "julia_getproperty_155":
@@ -267,7 +267,7 @@
     "julia_promote_157":
         instructions: 31
         basicblocks: 1
-  time_ns: 769399
+  time_ns: 773825
   optlevel: 2
   after: 
     "julia_promote_157":
@@ -278,7 +278,7 @@
     "julia_indexed_iterate_159":
         instructions: 35
         basicblocks: 3
-  time_ns: 723294
+  time_ns: 761302
   optlevel: 2
   after: 
     "julia_indexed_iterate_159":
@@ -289,7 +289,7 @@
     "julia_indexed_iterate_161":
         instructions: 35
         basicblocks: 3
-  time_ns: 741367
+  time_ns: 734922
   optlevel: 2
   after: 
     "julia_indexed_iterate_161":
@@ -300,7 +300,7 @@
     "julia_matmul2x2!_216":
         instructions: 1255
         basicblocks: 58
-  time_ns: 7609665
+  time_ns: 7533526
   optlevel: 2
   after: 
     "julia_matmul2x2!_216":
@@ -311,7 +311,7 @@
     "julia_matmul3x3!_214":
         instructions: 2498
         basicblocks: 58
-  time_ns: 11877643
+  time_ns: 11775165
   optlevel: 2
   after: 
     "julia_matmul3x3!_214":
@@ -322,7 +322,7 @@
     "julia_gemm!_212":
         instructions: 575
         basicblocks: 128
-  time_ns: 5114239
+  time_ns: 5065248
   optlevel: 2
   after: 
     "julia_gemm!_212":
@@ -333,7 +333,7 @@
     "julia_throw_boundserror_198":
         instructions: 34
         basicblocks: 3
-  time_ns: 812840
+  time_ns: 733920
   optlevel: 2
   after: 
     "julia_throw_boundserror_198":
@@ -344,7 +344,7 @@
     "julia_copy_transpose!_203":
         instructions: 504
         basicblocks: 71
-  time_ns: 13547585
+  time_ns: 13421941
   optlevel: 2
   after: 
     "julia_copy_transpose!_203":
@@ -355,7 +355,7 @@
     "julia_copyto!_200":
         instructions: 496
         basicblocks: 68
-  time_ns: 17852612
+  time_ns: 17717821
   optlevel: 2
   after: 
     "julia_copyto!_200":
@@ -366,7 +366,7 @@
     "julia_throw_boundserror_186":
         instructions: 36
         basicblocks: 3
-  time_ns: 972908
+  time_ns: 835189
   optlevel: 2
   after: 
     "julia_throw_boundserror_186":
@@ -377,7 +377,7 @@
     "julia_throw_boundserror_196":
         instructions: 38
         basicblocks: 3
-  time_ns: 865829
+  time_ns: 836912
   optlevel: 2
   after: 
     "julia_throw_boundserror_196":
@@ -388,7 +388,7 @@
     "julia_mightalias_194":
         instructions: 183
         basicblocks: 21
-  time_ns: 2207110
+  time_ns: 2074303
   optlevel: 2
   after: 
     "julia_mightalias_194":
@@ -399,7 +399,7 @@
     "julia_copyto_unaliased!_183":
         instructions: 697
         basicblocks: 130
-  time_ns: 8339621
+  time_ns: 8318481
   optlevel: 2
   after: 
     "julia_copyto_unaliased!_183":
@@ -416,7 +416,7 @@
     "julia_unalias_188":
         instructions: 60
         basicblocks: 3
-  time_ns: 3650000
+  time_ns: 3739843
   optlevel: 2
   after: 
     "julia_copyto!_179":
@@ -433,7 +433,7 @@
     "julia_throwdm_177":
         instructions: 37
         basicblocks: 3
-  time_ns: 839179
+  time_ns: 841391
   optlevel: 2
   after: 
     "julia_throwdm_177":
@@ -444,7 +444,7 @@
     "julia__generic_matmatmul!_167":
         instructions: 5735
         basicblocks: 1344
-  time_ns: 228480158
+  time_ns: 228567343
   optlevel: 2
   after: 
     "julia__generic_matmatmul!_167":
@@ -455,7 +455,7 @@
     "julia_gemm_wrapper!_206":
         instructions: 541
         basicblocks: 113
-  time_ns: 7615466
+  time_ns: 7727048
   optlevel: 2
   after: 
     "julia_gemm_wrapper!_206":
@@ -466,7 +466,7 @@
     "julia_*_163":
         instructions: 151
         basicblocks: 53
-  time_ns: 2238919
+  time_ns: 2012407
   optlevel: 2
   after: 
     "julia_*_163":
@@ -477,7 +477,7 @@
     "julia_getindex_218":
         instructions: 57
         basicblocks: 4
-  time_ns: 1406593
+  time_ns: 1415833
   optlevel: 2
   after: 
     "julia_getindex_218":
