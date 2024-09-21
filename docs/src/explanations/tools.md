@@ -1,6 +1,6 @@
 # Package roles and alternatives
 
-## SnoopCompile
+## SnoopCompileCore
 
 SnoopCompileCore is a tiny package with no dependencies; it's used for collecting data, and it has been designed in such a way that it cannot cause any invalidations of its own. Collecting data on invalidations and inference with SnoopCompileCore is the only way you can be sure you are observing the "native state" of your code.
 
