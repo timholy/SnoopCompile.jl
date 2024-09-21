@@ -1,13 +1,13 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.4"
+julia_version = "1.10.5"
 manifest_format = "2.0"
-project_hash = "cc7f7ee2028699a47f565d6b8f27a994995c7cd5"
+project_hash = "8d1742d21e14c802200678a82e4c6bb0d64f81a5"
 
 [[deps.Blackjack]]
 deps = ["PrecompileTools"]
 path = "/home/runner/work/SnoopCompile.jl/SnoopCompile.jl/docs/build/tutorials/Blackjack"
-uuid = "21acdf00-aa81-4b5a-bb91-5c4b84644e37"
+uuid = "c7f2ee85-96a3-4566-a274-a1c733e75c84"
 version = "0.1.0"
 
 [[deps.Dates]]
