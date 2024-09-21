@@ -12,7 +12,7 @@ Major changes:
 - `@snoopr` has been renamed `@snoop_invalidations`.
 - `@snoopl` has been renamed `@snoop_llvm`.
 - The old `@snoopc` has been deleted. Its functionality was largely subsumed into `julia --trace-compile`.
--`@snoopi` has been deleted, as `@snoopi_deep` provided more comprehensive information and is available on all modern Julia versions.
+- `@snoopi` has been deleted, as `@snoopi_deep` provided more comprehensive information and is available on all modern Julia versions.
 - SnoopCompileBot was deleted in favor of [CompileBot](https://github.com/aminya/CompileBot.jl)
 - SnoopPrecompile was deleted because it is now [PrecompileTools](https://github.com/JuliaLang/PrecompileTools.jl)
 - JET, Cthulhu, PrettyTables, and PyPlot are all integrated via package extensions. As a consequence, users now have to load them manually.
