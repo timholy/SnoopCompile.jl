@@ -89,7 +89,7 @@ We can do that with the [AbstractTrees](https://github.com/JuliaCollections/Abst
 ```jldoctest flatten-demo; filter=[r"[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?", r"Main\.var\"Main\"\."]
 julia> using AbstractTrees
 
-julia> print_tree(tinf)
+julia> print_tree(tinf, maxdepth=100)
 InferenceTimingNode: 0.002712/0.003278 on Core.Compiler.Timings.ROOT() with 1 direct children
 └─ InferenceTimingNode: 0.000133/0.000566 on FlattenDemo.packintype(::Int64) with 2 direct children
    ├─ InferenceTimingNode: 0.000094/0.000094 on FlattenDemo.MyType{Int64}(::Int64) with 0 direct children
