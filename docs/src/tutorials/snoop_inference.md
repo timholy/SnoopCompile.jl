@@ -124,9 +124,9 @@ The second number is the *inclusive* time, which is the exclusive time plus the 
 Therefore, the inclusive time is always at least as large as the exclusive time.
 
 The `ROOT` node is a bit different: its exclusive time measures the time spent on all operations *except* inference.
-In this case, we see that the entire call took approximately 10ms, of which 9.3ms was spent on activities besides inference.
+In this case, we see that the entire call took approximately 3.3ms, of which 2.7ms was spent on activities besides inference.
 Almost all of that was code-generation, but it also includes the time needed to run the code.
-Just 0.76ms was needed to run type-inference on this entire series of calls.
+Just 0.55ms was needed to run type-inference on this entire series of calls.
 As you will quickly discover, inference takes much more time on more complicated code.
 
 We can also display this tree as a flame graph, using the [ProfileView.jl](https://github.com/timholy/ProfileView.jl) package:
