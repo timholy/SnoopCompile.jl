@@ -26,7 +26,7 @@ Again, this seems appropriate for a language where specialization typically happ
 
 We'll add these packages to your [default environment](https://pkgdocs.julialang.org/v1/environments/) so you can use them while in the package environment:
 
-```
+```julia
 using Pkg
 Pkg.add(["SnoopCompileCore", "SnoopCompile", "PyPlot"]);
 ```
@@ -84,7 +84,7 @@ julia> tinf = @snoop_inference mappushes(spelltype, Ts);
 
 Then, *in the same session*, profile the runtime:
 
-```
+```julia
 julia> using Profile
 
 julia> @profile mappushes(spelltype, Ts);
