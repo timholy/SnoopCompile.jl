@@ -105,7 +105,7 @@ that method.
 `ax` is the pyplot axis of the scatterplot.
 
 !!! compat
-    `pgdsgui` depends on PyPlot via the Requires.jl package. You must load both SnoopCompile and PyPlot for this function to be defined.
+    `pgdsgui` depends on PyPlot via Julia extensions. You must load both SnoopCompile and PyPlot for this function to be defined.
 """
 function pgdsgui end
 export pgdsgui

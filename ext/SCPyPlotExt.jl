@@ -1,5 +1,7 @@
 module SCPyPlotExt
 
+import Profile
+
 using SnoopCompile
 using SnoopCompile: MethodLoc, InferenceTimingNode, PGDSData, lookups
 using PyPlot: PyPlot, plt, PyCall
@@ -7,7 +9,7 @@ using PyPlot: PyPlot, plt, PyCall
 get_bystr(@nospecialize(by)) = by === inclusive ? "Inclusive" :
                                by === exclusive ? "Exclusive" : error("unknown ", by)
 
-function pgdsgui(ax::PyCall.PyObject, ridata::AbstractVector{Pair{Union{Method,MethodLoc},PGDSData}}; bystr, consts, markersz=25, linewidth=0.5, t0 = 0.001, interactive::Bool=true, kwargs...)
+function SnoopCompile.pgdsgui(ax::PyCall.PyObject, ridata::AbstractVector{Pair{Union{Method,MethodLoc},PGDSData}}; bystr, consts, markersz=25, linewidth=0.5, t0 = 0.001, interactive::Bool=true, kwargs...)
     methodref = Ref{Union{Method,MethodLoc}}()   # returned to the user for inspection of clicked methods
     function onclick(event)
         xc, yc = event.xdata, event.ydata
@@ -48,18 +50,18 @@ function pgdsgui(ax::PyCall.PyObject, ridata::AbstractVector{Pair{Union{Method,M
     return methodref
 end
 
-function pgdsgui(ax::PyCall.PyObject, args...; consts::Bool=true, by=inclusive, kwargs...)
+function SnoopCompile.pgdsgui(ax::PyCall.PyObject, args...; consts::Bool=true, by=inclusive, kwargs...)
     pgdsgui(ax, prep_ri(args...; consts, by, kwargs...); bystr=get_bystr(by), consts, kwargs...)
 end
 
-function pgdsgui(args...; kwargs...)
+function SnoopCompile.pgdsgui(args...; kwargs...)
     fig, ax = plt.subplots()
     pgdsgui(ax, args...; kwargs...), ax
 end
 
 function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookups, consts, by, kwargs...)
-    lookup_firstip!(lookups, pdata)
-    return runtime_inferencetime(tinf, pdata; lidict, consts, by)
+    SnoopCompile.lookup_firstip!(lookups, pdata)
+    return SnoopCompile.runtime_inferencetime(tinf, pdata; lidict, consts, by)
 end
 
 end
