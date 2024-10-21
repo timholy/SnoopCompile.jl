@@ -1,485 +1,219 @@
 - 
   before: 
-    "julia_NamedTuple_105":
-        instructions: 30
-        basicblocks: 1
-  time_ns: 586071
-  optlevel: 2
-  after: 
-    "julia_NamedTuple_105":
-        instructions: 21
-        basicblocks: 1
-- 
-  before: 
-    "julia_peakflops_107":
-        instructions: 18
-        basicblocks: 1
-  time_ns: 686388
-  optlevel: 1
-  after: 
-    "julia_peakflops_107":
-        instructions: 21
-        basicblocks: 1
-- 
-  before: 
-    "julia_#peakflops#81_109":
-        instructions: 49
-        basicblocks: 1
-  time_ns: 517713
-  optlevel: 1
-  after: 
-    "julia_#peakflops#81_109":
-        instructions: 78
-        basicblocks: 1
-- 
-  before: 
-    "julia_Signed_111":
-        instructions: 31
-        basicblocks: 7
-  time_ns: 548371
-  optlevel: 2
-  after: 
-    "julia_Signed_111":
-        instructions: 13
-        basicblocks: 3
-- 
-  before: 
-    "julia_getproperty_113":
-        instructions: 38
-        basicblocks: 3
-  time_ns: 860542
-  optlevel: 2
-  after: 
-    "julia_getproperty_113":
-        instructions: 30
-        basicblocks: 3
-- 
-  before: 
-    "julia_reduce_empty_115":
-        instructions: 21
-        basicblocks: 2
-  time_ns: 466899
-  optlevel: 2
-  after: 
-    "julia_reduce_empty_115":
-        instructions: 18
-        basicblocks: 1
-- 
-  before: 
-    "julia_throw_boundserror_129":
-        instructions: 28
-        basicblocks: 3
-  time_ns: 468622
-  optlevel: 2
-  after: 
-    "julia_throw_boundserror_129":
-        instructions: 12
-        basicblocks: 1
-- 
-  before: 
-    "julia_mapreduce_impl_126":
-        instructions: 404
-        basicblocks: 85
-  time_ns: 8579640
-  optlevel: 2
-  after: 
-    "julia_mapreduce_impl_126":
-        instructions: 233
-        basicblocks: 18
-- 
-  before: 
-    "julia__mapreduce_123":
-        instructions: 116
-        basicblocks: 11
-  time_ns: 3666144
-  optlevel: 2
-  after: 
-    "julia__mapreduce_123":
-        instructions: 155
-        basicblocks: 12
-- 
-  before: 
-    "julia_#peakflops#253_120":
-        instructions: 201
-        basicblocks: 39
-  time_ns: 4376176
-  optlevel: 2
-  after: 
-    "julia_#peakflops#253_120":
-        instructions: 175
-        basicblocks: 15
-- 
-  before: 
-    "julia_peakflops_117":
-        instructions: 24
-        basicblocks: 1
-  time_ns: 504399
-  optlevel: 2
-  after: 
-    "julia_peakflops_117":
-        instructions: 16
-        basicblocks: 1
-- 
-  before: 
-    "julia_ones_131":
-        instructions: 80
-        basicblocks: 13
-  time_ns: 3465731
-  optlevel: 2
-  after: 
-    "julia_ones_131":
-        instructions: 172
-        basicblocks: 11
-- 
-  before: 
-    "julia_in_133":
+    "julia_NamedTuple_533":
         instructions: 25
         basicblocks: 1
-  time_ns: 801692
+  time_ns: 1008766
   optlevel: 2
   after: 
-    "julia_in_133":
-        instructions: 12
-        basicblocks: 1
-- 
-  before: 
-    "julia_ntuple_135":
-        instructions: 27
-        basicblocks: 1
-  time_ns: 551566
-  optlevel: 2
-  after: 
-    "julia_ntuple_135":
-        instructions: 13
-        basicblocks: 1
-- 
-  before: 
-    "julia_CartesianIndex_137":
-        instructions: 27
-        basicblocks: 1
-  time_ns: 555064
-  optlevel: 2
-  after: 
-    "julia_CartesianIndex_137":
-        instructions: 12
-        basicblocks: 1
-- 
-  before: 
-    "julia__chkstride1_139":
-        instructions: 25
-        basicblocks: 4
-  time_ns: 589938
-  optlevel: 2
-  after: 
-    "julia__chkstride1_139":
-        instructions: 14
-        basicblocks: 3
-- 
-  before: 
-    "julia_max_141":
-        instructions: 37
-        basicblocks: 1
-  time_ns: 525398
-  optlevel: 2
-  after: 
-    "julia_max_141":
-        instructions: 12
-        basicblocks: 1
-- 
-  before: 
-    "julia_sqrt_143":
-        instructions: 26
-        basicblocks: 4
-  time_ns: 526329
-  optlevel: 2
-  after: 
-    "julia_sqrt_143":
-        instructions: 14
-        basicblocks: 3
-- 
-  before: 
-    "julia_convert_145":
-        instructions: 17
-        basicblocks: 1
-  time_ns: 379346
-  optlevel: 2
-  after: 
-    "julia_convert_145":
-        instructions: 9
-        basicblocks: 1
-- 
-  before: 
-    "julia_getproperty_147":
-        instructions: 31
-        basicblocks: 3
-  time_ns: 655200
-  optlevel: 2
-  after: 
-    "julia_getproperty_147":
-        instructions: 17
-        basicblocks: 3
-- 
-  before: 
-    "julia_throw_uplo_149":
-        instructions: 29
-        basicblocks: 3
-  time_ns: 908871
-  optlevel: 2
-  after: 
-    "julia_throw_uplo_149":
-        instructions: 35
-        basicblocks: 1
-- 
-  before: 
-    "julia_char_uplo_151":
-        instructions: 36
-        basicblocks: 6
-  time_ns: 658956
-  optlevel: 2
-  after: 
-    "julia_char_uplo_151":
-        instructions: 17
-        basicblocks: 4
-- 
-  before: 
-    "julia_MulAddMul_153":
-        instructions: 75
-        basicblocks: 7
-  time_ns: 1559223
-  optlevel: 2
-  after: 
-    "julia_MulAddMul_153":
-        instructions: 45
-        basicblocks: 8
-- 
-  before: 
-    "julia_getproperty_155":
-        instructions: 33
-        basicblocks: 3
-  time_ns: 896649
-  optlevel: 2
-  after: 
-    "julia_getproperty_155":
+    "julia_NamedTuple_533":
         instructions: 18
-        basicblocks: 3
+        basicblocks: 1
 - 
   before: 
-    "julia_promote_157":
+    "julia_peakflops_536":
         instructions: 31
         basicblocks: 1
-  time_ns: 789099
-  optlevel: 2
+  time_ns: 733942
+  optlevel: 1
   after: 
-    "julia_promote_157":
-        instructions: 21
+    "julia_peakflops_536":
+        instructions: 20
         basicblocks: 1
 - 
   before: 
-    "julia_indexed_iterate_159":
-        instructions: 35
-        basicblocks: 3
-  time_ns: 774832
-  optlevel: 2
+    "julia_#peakflops#81_546":
+        instructions: 62
+        basicblocks: 1
+  time_ns: 688878
+  optlevel: 1
   after: 
-    "julia_indexed_iterate_159":
-        instructions: 22
-        basicblocks: 3
-- 
-  before: 
-    "julia_indexed_iterate_161":
-        instructions: 35
-        basicblocks: 3
-  time_ns: 758091
-  optlevel: 2
-  after: 
-    "julia_indexed_iterate_161":
-        instructions: 22
-        basicblocks: 3
-- 
-  before: 
-    "julia_throw_boundserror_196":
-        instructions: 38
-        basicblocks: 3
-  time_ns: 865070
-  optlevel: 2
-  after: 
-    "julia_throw_boundserror_196":
-        instructions: 50
+    "julia_#peakflops#81_546":
+        instructions: 63
         basicblocks: 1
 - 
   before: 
-    "julia_matmul3x3!_214":
-        instructions: 2498
-        basicblocks: 58
-  time_ns: 12083922
+    "julia_Signed_558":
+        instructions: 47
+        basicblocks: 7
+  time_ns: 1318855
   optlevel: 2
   after: 
-    "julia_matmul3x3!_214":
-        instructions: 374
-        basicblocks: 23
-- 
-  before: 
-    "julia_matmul2x2!_216":
-        instructions: 1255
-        basicblocks: 58
-  time_ns: 7434287
-  optlevel: 2
-  after: 
-    "julia_matmul2x2!_216":
-        instructions: 248
-        basicblocks: 23
-- 
-  before: 
-    "julia_throw_boundserror_198":
+    "julia_Signed_558":
         instructions: 34
         basicblocks: 3
-  time_ns: 737262
+- 
+  before: 
+    "julia_getproperty_569":
+        instructions: 45
+        basicblocks: 3
+  time_ns: 1324675
   optlevel: 2
   after: 
-    "julia_throw_boundserror_198":
-        instructions: 40
+    "julia_getproperty_569":
+        instructions: 26
+        basicblocks: 3
+- 
+  before: 
+  time_ns: 145943
+  optlevel: 2
+  after: 
+- 
+  before: 
+    "julia_mapreduce_impl_651":
+        instructions: 1043
+        basicblocks: 124
+  time_ns: 9805536
+  optlevel: 2
+  after: 
+    "julia_mapreduce_impl_651":
+        instructions: 223
+        basicblocks: 17
+- 
+  before: 
+    "julia_#peakflops#349_584":
+        instructions: 830
+        basicblocks: 100
+  time_ns: 9153547
+  optlevel: 2
+  after: 
+    "julia_#peakflops#349_584":
+        instructions: 305
+        basicblocks: 29
+- 
+  before: 
+    "julia_peakflops_579":
+        instructions: 27
+        basicblocks: 1
+  time_ns: 636389
+  optlevel: 2
+  after: 
+    "julia_peakflops_579":
+        instructions: 14
         basicblocks: 1
 - 
   before: 
-    "julia_copy_transpose!_203":
-        instructions: 504
-        basicblocks: 71
-  time_ns: 13585888
+    "julia_throw_boundserror_681":
+        instructions: 27
+        basicblocks: 3
+  time_ns: 554175
   optlevel: 2
   after: 
-    "julia_copy_transpose!_203":
-        instructions: 364
-        basicblocks: 30
+    "julia_throw_boundserror_681":
+        instructions: 10
+        basicblocks: 1
 - 
   before: 
-    "julia_copyto!_200":
-        instructions: 496
-        basicblocks: 68
-  time_ns: 17984124
-  optlevel: 2
-  after: 
-    "julia_copyto!_200":
-        instructions: 705
+    "julia_ones_657":
+        instructions: 265
         basicblocks: 32
-- 
-  before: 
-    "julia_throw_boundserror_186":
-        instructions: 36
-        basicblocks: 3
-  time_ns: 844141
+  time_ns: 4189981
   optlevel: 2
   after: 
-    "julia_throw_boundserror_186":
-        instructions: 50
-        basicblocks: 1
-- 
-  before: 
-    "julia_mightalias_194":
-        instructions: 163
-        basicblocks: 21
-  time_ns: 2148149
-  optlevel: 2
-  after: 
-    "julia_mightalias_194":
-        instructions: 67
-        basicblocks: 6
-- 
-  before: 
-    "julia_copyto_unaliased!_183":
-        instructions: 697
-        basicblocks: 130
-  time_ns: 8379437
-  optlevel: 2
-  after: 
-    "julia_copyto_unaliased!_183":
-        instructions: 159
-        basicblocks: 12
-- 
-  before: 
-    "julia_copyto!_179":
-        instructions: 54
-        basicblocks: 3
-    "julia_unaliascopy_191":
-        instructions: 108
-        basicblocks: 18
-    "julia_unalias_188":
-        instructions: 60
-        basicblocks: 3
-  time_ns: 3757143
-  optlevel: 2
-  after: 
-    "julia_copyto!_179":
-        instructions: 49
-        basicblocks: 3
-    "julia_unaliascopy_191":
-        instructions: 65
-        basicblocks: 1
-    "julia_unalias_188":
-        instructions: 52
-        basicblocks: 4
-- 
-  before: 
-    "julia_throwdm_177":
-        instructions: 37
-        basicblocks: 3
-  time_ns: 853989
-  optlevel: 2
-  after: 
-    "julia_throwdm_177":
-        instructions: 57
-        basicblocks: 1
-- 
-  before: 
-    "julia__generic_matmatmul!_167":
-        instructions: 5735
-        basicblocks: 1344
-  time_ns: 229845368
-  optlevel: 2
-  after: 
-    "julia__generic_matmatmul!_167":
-        instructions: 6606
-        basicblocks: 397
-- 
-  before: 
-    "julia_gemm!_212":
-        instructions: 575
-        basicblocks: 128
-  time_ns: 5651149
-  optlevel: 2
-  after: 
-    "julia_gemm!_212":
-        instructions: 212
+    "julia_ones_657":
+        instructions: 94
         basicblocks: 14
 - 
   before: 
-    "julia_gemm_wrapper!_206":
-        instructions: 541
-        basicblocks: 113
-  time_ns: 7281153
+  time_ns: 208660
   optlevel: 2
   after: 
-    "julia_gemm_wrapper!_206":
-        instructions: 247
-        basicblocks: 19
 - 
   before: 
-    "julia_*_163":
-        instructions: 151
-        basicblocks: 53
-  time_ns: 2021963
+    "julia_throw_boundserror_815":
+        instructions: 38
+        basicblocks: 3
+  time_ns: 1014646
   optlevel: 2
   after: 
-    "julia_*_163":
-        instructions: 38
+    "julia_throw_boundserror_815":
+        instructions: 28
         basicblocks: 1
 - 
   before: 
-    "julia_getindex_218":
-        instructions: 57
-        basicblocks: 4
-  time_ns: 1359571
+    "julia_matmul2x2!_821":
+        instructions: 10425
+        basicblocks: 1122
+  time_ns: 10784615
   optlevel: 2
   after: 
-    "julia_getindex_218":
-        instructions: 38
-        basicblocks: 4
+    "julia_matmul2x2!_821":
+        instructions: 177
+        basicblocks: 20
+- 
+  before: 
+    "julia_matmul3x3!_806":
+        instructions: 22969
+        basicblocks: 2452
+  time_ns: 19414673
+  optlevel: 2
+  after: 
+    "julia_matmul3x3!_806":
+        instructions: 300
+        basicblocks: 20
+- 
+  before: 
+    "julia_gemm!_784":
+        instructions: 1069
+        basicblocks: 148
+  time_ns: 5980296
+  optlevel: 2
+  after: 
+    "julia_gemm!_784":
+        instructions: 199
+        basicblocks: 12
+- 
+  before: 
+    "julia_throw_uplo_781":
+        instructions: 32
+        basicblocks: 3
+  time_ns: 810465
+  optlevel: 2
+  after: 
+    "julia_throw_uplo_781":
+        instructions: 25
+        basicblocks: 1
+- 
+  before: 
+    "julia_wrap_745":
+        instructions: 1322
+        basicblocks: 99
+  time_ns: 10753407
+  optlevel: 2
+  after: 
+    "julia_wrap_745":
+        instructions: 283
+        basicblocks: 35
+- 
+  before: 
+    "julia_gemm_wrapper!_700":
+        instructions: 1109
+        basicblocks: 148
+  time_ns: 8756746
+  optlevel: 2
+  after: 
+    "julia_gemm_wrapper!_700":
+        instructions: 187
+        basicblocks: 15
+- 
+  before: 
+    "julia_*_684":
+        instructions: 151
+        basicblocks: 15
+  time_ns: 2118289
+  optlevel: 2
+  after: 
+    "julia_*_684":
+        instructions: 68
+        basicblocks: 7
+- 
+  before: 
+    "julia_getindex_824":
+        instructions: 189
+        basicblocks: 18
+  time_ns: 1936659
+  optlevel: 2
+  after: 
+    "julia_getindex_824":
+        instructions: 29
+        basicblocks: 3
