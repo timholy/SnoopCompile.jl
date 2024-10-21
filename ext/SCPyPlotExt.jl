@@ -61,7 +61,7 @@ end
 
 function prep_ri(tinf::InferenceTimingNode, pdata=Profile.fetch(); lidict=lookups, consts, by, kwargs...)
     SnoopCompile.lookup_firstip!(lookups, pdata)
-    return runtime_inferencetime(tinf, pdata; lidict, consts, by)
+    return SnoopCompile.runtime_inferencetime(tinf, pdata; lidict, consts, by)
 end
 
 end
