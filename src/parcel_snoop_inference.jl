@@ -31,7 +31,12 @@ isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
 getroot(node::InferenceTimingNode) = isdefined(node.parent, :parent) ? getroot(node.parent) : node
 
 # Record instruction pointers we've already looked up (performance optimization)
-const lookups = Dict{Union{UInt, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+const lookups = if isdefined(Core.Compiler, :InterpreterIP)
+    Dict{Union{UInt, Core.Compiler.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+else
+    # Julia 1.12+
+    Dict{Union{UInt, Base.InterpreterIP}, Vector{StackTraces.StackFrame}}()
+end
 lookups_key(ip) = ip
 lookups_key(ip::Ptr{Nothing}) = UInt(ip)
 
