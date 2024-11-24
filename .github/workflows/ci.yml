@@ -23,18 +23,16 @@ jobs:
           - '1.10'
           - '1'
           - 'pre'
+          - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
-        arch:
-          - x64
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
           show-versioninfo: ${{ matrix.version == 'nightly' }}
       - uses: actions/cache@v4
         env:
