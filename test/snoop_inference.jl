@@ -705,6 +705,10 @@ end
     @test SnoopCompile.itrigs_higherorder_demo() isa SnoopCompile.InferenceTimingNode
 end
 
+# must be outside @testset
+@generated gen407(x) = x <: Integer ? :(x^2) : :(-x)
+callgen407(x) = gen407(x)
+
 include("testmodules/SnoopBench.jl")
 @testset "parcel" begin
     a = SnoopBench.A()
@@ -786,8 +790,6 @@ include("testmodules/SnoopBench.jl")
     @test SnoopCompile.get_reprs([(rand(), mi) for mi in methodinstances(f197)])[1] isa AbstractSet
 
     # issue #407
-    @generated gen407(x) = x <: Integer ? :(x^2) : :(-x)
-    callgen407(x) = gen407(x)
     tinf = @snoop_inference callgen407(3)
     tinft = flatten(tinf; tmin=0)
     tmi = [(inclusive(inft), Core.MethodInstance(inft)) for inft in tinft]
