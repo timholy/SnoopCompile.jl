@@ -705,6 +705,10 @@ end
     @test SnoopCompile.itrigs_higherorder_demo() isa SnoopCompile.InferenceTimingNode
 end
 
+# must be outside @testset
+@generated gen407(x) = x <: Integer ? :(x^2) : :(-x)
+callgen407(x) = gen407(x)
+
 include("testmodules/SnoopBench.jl")
 @testset "parcel" begin
     a = SnoopBench.A()
@@ -784,6 +788,13 @@ include("testmodules/SnoopBench.jl")
     g197(@nospecialize(x::Vector{<:Number})) = f197(x)
     g197([1,2,3])
     @test SnoopCompile.get_reprs([(rand(), mi) for mi in methodinstances(f197)])[1] isa AbstractSet
+
+    # issue #407
+    tinf = @snoop_inference callgen407(3)
+    tinft = flatten(tinf; tmin=0)
+    tmi = [(inclusive(inft), Core.MethodInstance(inft)) for inft in tinft]
+    strs, twritten = SnoopCompile.get_reprs(tmi; tmin=0)
+    @test any(str -> occursin("which(gen407,(Any,)).generator", str), strs)
 end
 
 @testset "Specialization" begin

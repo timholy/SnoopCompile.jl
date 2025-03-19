@@ -223,3 +223,19 @@ function split2(str, on)
     return (SubString(str, firstindex(str), prevind(str, first(i))),
             SubString(str, nextind(str, last(i))))
 end
+
+function methods_with_generators(m::Module)
+    meths = Method[]
+    for name in names(m; all=true)
+        isdefined(m, name) || continue
+        f = getfield(m, name)
+        if isa(f, Function)
+            for method in methods(f)
+                if isdefined(method, :generator)
+                    push!(meths, method)
+                end
+            end
+        end
+    end
+    return meths
+end
