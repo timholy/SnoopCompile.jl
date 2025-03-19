@@ -37,4 +37,3 @@ julia_matmul3x3!_920	Tuple{typeof(LinearAlgebra.matmul3x3!), Array{Float64, 2}, 
 julia_throw_boundserror_929	Tuple{typeof(Base.throw_boundserror), Array{Float64, 2}, Tuple{Int64, Int64}}
 julia_matmul2x2!_935	Tuple{typeof(LinearAlgebra.matmul2x2!), Array{Float64, 2}, Char, Char, Array{Float64, 2}, Array{Float64, 2}, LinearAlgebra.MulAddMul{true, true, Bool, Bool}}
 julia_getindex_938	Tuple{typeof(Base.getindex), Array{Float64, 2}, Int64, Int64}
-julia_==_953	Tuple{typeof(Base.:(==)), Float64, Int64}
