@@ -29,8 +29,7 @@ function SnoopCompile.report_invalidations(io::IO = stdout;
     trunc_msg = truncated_invs ? " (showing $nr functions) " : ""
     @info "$n_total_invalidations methods invalidated for $n_invs_total functions$trunc_msg"
     n_invalidations_percent = map(invs_per_method) do inv
-        inv_perc = inv / sum_invs
-        Int(round(inv_perc*100, digits = 0))
+        Float16(100 * inv / sum_invs)
     end
     meth_name = map(trees) do inv
         "$(inv.method.name)"
