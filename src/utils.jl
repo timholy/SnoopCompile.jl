@@ -61,7 +61,7 @@ let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
     end
 end
 
-function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing, kwargs...)
+function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstance, topmod::Module=mi.def.module; check_eval::Bool, time=nothing, suppress_time::Bool=false, kwargs...)
     # Create the string representation of the signature
     # Use special care with keyword functions, anonymous functions
     tt = Base.unwrap_unionall(mi.specTypes)
@@ -83,9 +83,9 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
         # Keyword function
         fname = mkw.captures[1] === nothing ? mkw.captures[2] : mkw.captures[1]
         fkw = "Core.kwftype(typeof($fname))"
-        return add_if_evals!(list, topmod, fkw, paramrepr, tt; check_eval=check_eval, time=time)
+        return add_if_evals!(list, topmod, fkw, paramrepr, tt; check_eval, time, suppress_time)
     elseif mkwbody !== nothing
-        ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval = check_eval, kwargs...)
+        ret = handle_kwbody(topmod, m, paramrepr, tt; check_eval, kwargs...)
         if ret !== nothing
             push!(list, append_time(ret, time))
             return true
@@ -107,7 +107,7 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
                 mkwc = match(kwbodyrex, cname)
                 if mkwc === nothing
                     getgen = "typeof(which($(caller.name),$csigstr).generator.gen)"
-                    return add_if_evals!(list, topmod, getgen, paramrepr, tt; check_eval=check_eval, time=time)
+                    return add_if_evals!(list, topmod, getgen, paramrepr, tt; check_eval, time, suppress_time)
                 else
                     getgen = "which(Core.kwfunc($(mkwc.captures[1])),$csigstr).generator.gen"
                     ret = handle_kwbody(topmod, caller, cparamrepr, tt; check_eval = check_eval, kwargs...) #, getgen)
@@ -123,9 +123,9 @@ function add_repr!(list, modgens::Dict{Module, Vector{Method}}, mi::MethodInstan
         # Anonymous function, wrap in an `isdefined`
         prefix = "isdefined($mmod, Symbol(\"$mname\")) && "
         fstr = "getfield($mmod, Symbol(\"$mname\"))"  # this is universal, var is Julia 1.3+
-        return add_if_evals!(list, topmod, fstr, paramrepr, tt; prefix=prefix, check_eval = check_eval, time=time)
+        return add_if_evals!(list, topmod, fstr, paramrepr, tt; prefix, check_eval, time, suppress_time)
     end
-    return add_if_evals!(list, topmod, reprcontext(topmod, p), paramrepr, tt, check_eval = check_eval, time=time)
+    return add_if_evals!(list, topmod, reprcontext(topmod, p), paramrepr, tt; check_eval, time, suppress_time)
 end
 
 function handle_kwbody(topmod::Module, m::Method, paramrepr, tt, fstr="fbody"; check_eval = true)
@@ -195,11 +195,15 @@ Adds the precompilation statements only if they can be evaled. It uses [`can_eva
 
 In some cases, you may want to bypass this function by passing `check_eval=true` to increase the snooping performance.
 """
-function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true, time=nothing)
+function add_if_evals!(pclist, mod::Module, fstr, params, tt; prefix = "", check_eval::Bool=true, time=nothing, suppress_time::Bool=false)
     ttstr = tupletypestring(fstr, params)
     can, exc = can_eval(mod, ttstr, check_eval)
     if can
-        push!(pclist, append_time(prefix*wrap_precompile(ttstr), time))
+        str = prefix*wrap_precompile(ttstr)
+        if !suppress_time
+            str = append_time(str, time)
+        end
+        push!(pclist, str)
         return true
     else
         @debug "Module $mod: skipping $tt due to eval failure" exception=exc _module=mod _file="precompile_$mod.jl"

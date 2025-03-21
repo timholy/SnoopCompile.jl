@@ -32,14 +32,6 @@ function write(filename::AbstractString, pc::Vector; kwargs...)
     end
 end
 
-"""
-    write(prefix::AbstractString, pc::Dict; always::Bool = false)
-
-Write each modules' precompiles to a separate file.  If `always` is
-true, the generated function will always run the precompile statements
-when called, otherwise the statements will only be called during
-package precompilation.
-"""
 function write(prefix::AbstractString, pc::Dict; always::Bool = false)
     if !isdir(prefix)
         mkpath(prefix)
@@ -59,3 +51,18 @@ function write(prefix::AbstractString, pc::Dict; always::Bool = false)
         end
     end
 end
+
+@doc """
+    write(prefix::AbstractString, pc; always::Bool=false, suppress_time::Bool=false)
+
+Write each modules' precompiles to a separate file.  If `always` is true, the
+generated function will always run the precompile statements when called,
+otherwise the statements will only be called during package precompilation.
+
+When writing results from parceling `@snoop_inference`, by default SnoopCompile
+appends the time taken to precompile each statement to the generated file.  If
+`suppress_time` is true, this information will be omitted.
+
+!!! compat "SnoopCompile 3.1"
+    The `suppress_time` keyword argument was added in SnoopCompile 3.1.
+""" write
