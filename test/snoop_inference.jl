@@ -1,6 +1,7 @@
 using SnoopCompile
 using SnoopCompile.SnoopCompileCore
 using SnoopCompile.FlameGraphs
+using AbstractTrees
 using Test
 using InteractiveUtils
 using Random
@@ -776,7 +777,7 @@ include("testmodules/SnoopBench.jl")
     rm(td, recursive=true, force=true)
     SnoopCompile.write(td, prs; ioreport=io, header=false)
     str = String(take!(io))  # just to clear it in case we use it again
-    @test !occursin("ccall(:jl_generating_output", read(file_base, String))
+    @test !isfile(file_base) || !occursin("ccall(:jl_generating_output", read(file_base, String))
     rm(td, recursive=true, force=true)
 
     # issue #197
@@ -836,10 +837,11 @@ end
     # pgdsgui(axs[2], rit; bystr="Inclusive", consts=true, interactive=false)
 end
 
-@testset "Stale" begin
+@testset "Stale and precompile_blockers" begin
     cproj = Base.active_project()
     cd(joinpath("testmodules", "Stale")) do
         Pkg.activate(pwd())
+        Pkg.resolve()
         Pkg.precompile()
     end
     invalidations = @snoop_invalidations begin
@@ -851,6 +853,13 @@ end
     stalenames = [mi.def.name for mi in smis]
     @test :build_stale ∈ stalenames
     @test :use_stale ∈ stalenames
+
+    # Loading StaleC should "heal" StaleA.use_stale(::Vector{Any})
+    mius = only(methodinstances(StaleA.use_stale))
+    cius = mius.cache
+    @test cius.max_world == typemax(UInt)
+    requires_compensation = cius.invoke == C_NULL && cius.specptr == C_NULL && cius.inferred === nothing  # see below
+
     trees = invalidation_trees(invalidations)
     tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
@@ -865,8 +874,19 @@ end
         @test convert(Core.MethodInstance, root.children[1].children[1]).def == m2
     end
     tinf = @snoop_inference begin
-        StaleB.useA()
-        StaleC.call_buildstale("hi")
+        StaleB.useA()                  # this should require recompilation
+        StaleC.call_buildstale("hi")   # this should still be valid (healed during loading of StaleC)
+    end
+    if requires_compensation
+        @assert Base.VERSION < v"1.12"
+        @warn "Compensating for a Julia bug, xref https://github.com/timholy/SnoopCompile.jl/pull/413#issuecomment-2743794491"
+        badidx = Int[]
+        for (idx, child) in pairs(tinf.children)
+            if MethodInstance(child) == mius
+                push!(badidx, idx)
+            end
+        end
+        deleteat!(tinf.children, badidx)
     end
     @test isempty(SnoopCompile.StaleTree(first(smis).def, :noreason).backedges)  # constructor test
     healed = true
