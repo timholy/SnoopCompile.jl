@@ -25,7 +25,7 @@ using SnoopCompileCore
 end
 
 using SnoopCompile
-times, info = SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml", tmin_secs = 0.025);
+times, info = SnoopCompile.read_snoop_llvm("func_names.csv", "llvm_timings.yaml", tmin_secs = 0.005);
 ```
 
 This will write two files, `"func_names.csv"` and `"llvm_timings.yaml"`, in your current working directory. Let's look at what was read from these files:

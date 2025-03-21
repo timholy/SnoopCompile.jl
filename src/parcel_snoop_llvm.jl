@@ -38,11 +38,15 @@ Dict{String, NamedTuple{(:before, :after), Tuple{NamedTuple{(:instructions, :bas
 function read_snoop_llvm(func_csv_file, llvm_yaml_file; tmin_secs=0.0)
     func_csv = _read_snoop_llvm_csv(func_csv_file)
     llvm_yaml = YAML.load_file(llvm_yaml_file)
+    filter!(llvm_yaml) do llvm_module
+        llvm_module["before"] !== nothing
+    end
 
     jl_names = Dict(r[1]::String => r[2]::String for r in func_csv)
 
+    # `get`, but with a warning
     try_get_jl_name(name) = if name in keys(jl_names)
-        jl_names[name]
+            jl_names[name]
         else
             @warn "Couldn't find $name"
             name
