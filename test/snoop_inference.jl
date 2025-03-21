@@ -748,6 +748,12 @@ include("testmodules/SnoopBench.jl")
     str = String(take!(io))
     @test occursin(r"typeof\(mappushes\),Any,Vector\{A\}", str)
     @test occursin(r"typeof\(mappushes!\),typeof\(identity\),Vector\{Any\},Vector\{A\}", str)
+    @test occursin(r"# time: \d", str)
+    SnoopCompile.write(io, tmis; tmin=0.0, suppress_time=true)
+    str = String(take!(io))
+    @test occursin(r"typeof\(mappushes\),Any,Vector\{A\}", str)
+    @test occursin(r"typeof\(mappushes!\),typeof\(identity\),Vector\{Any\},Vector\{A\}", str)
+    @test !occursin(r"# time: \d", str)
 
     list = Any[1, 1.0, Float16(1.0), a]
     tinf = @snoop_inference SnoopBench.mappushes(isequal(Int8(1)), list)
