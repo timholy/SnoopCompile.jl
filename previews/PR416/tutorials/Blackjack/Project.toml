@@ -1,0 +1,10 @@
+name = "Blackjack"
+uuid = "02bc7148-f202-4961-b551-31439aa8aca3"
+authors = ["runner "]
+version = "0.1.0"
+
+[deps]
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+
+[compat]
+PrecompileTools = "1.2.1"
