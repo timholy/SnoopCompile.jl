@@ -46,6 +46,8 @@ InferenceTrigger
 runtime_inferencetime
 SnoopCompile.parcel
 SnoopCompile.write
+SnoopCompile.isprecompilable
+SnoopCompile.known_type
 report_callee
 report_callees
 report_caller

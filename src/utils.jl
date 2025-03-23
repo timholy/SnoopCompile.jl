@@ -13,6 +13,12 @@ end
 
 let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
     global known_type
+    """
+        known_type(mod::Module, T::Union{Type,TypeVar})
+
+    Returns `true` if the type `T` is "known" to the module `mod`, meaning that one could have written
+    a function `f(x::T) = ...` in `mod` without getting an error.
+    """
     function known_type(mod::Module, @nospecialize(T::Union{Type,TypeVar}))
         function startswith(@nospecialize(a::Tuple{Vararg{Symbol}}), @nospecialize(b::Tuple{Vararg{Symbol}}))
             length(b) >= length(a) || return false
