@@ -338,10 +338,6 @@ false
 function isprecompilable(mod::Module, mi::MethodInstance)
     m = mi.def
     if isa(m, Method)
-        if m.module !== mod
-            ft = Base.unwrap_unionall(m.sig).parameters[1]
-            known_type(mod, ft) || return false
-        end
         params = Base.unwrap_unionall(mi.specTypes)::DataType
         for p in params.parameters
             if p isa Type
