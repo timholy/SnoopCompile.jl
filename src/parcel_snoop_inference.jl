@@ -269,7 +269,7 @@ that all the types in `mi`'s specialization signature are "known" to `mod`. See
 [`SnoopCompile.known_type`](@ref) for more information.
 
 `isprecompilable(mi)` sets `mod` to the module in which the corresponding method
-was defined.
+was defined. If `mod ∈ excluded_modules`, then `isprecompilable` returns `false`.
 
 If `mi` has been compiled by the time its defining module "closes" (the final
 `end` of the module definition) and `isprecompilable(mi)` returns `true`, then
