@@ -72,29 +72,22 @@ function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timi
     end
 end
 
-function start_deep_timing()
-    Core.Compiler.Timings.reset_timings()
-    Core.Compiler.__set_measure_typeinf(true)
-end
-function stop_deep_timing()
-    Core.Compiler.__set_measure_typeinf(false)
-    Core.Compiler.Timings.close_current_timer()
+const snoop_inference_lock = ReentrantLock()
+const newly_inferred = Core.CodeInstance[]
+
+function start_tracking()
+    islocked(snoop_inference_lock) && error("already tracking inference (cannot nest `@snoop_inference` blocks)")
+    lock(snoop_inference_lock)
+    empty!(newly_inferred)
+    ccall(:jl_set_newly_inferred, Cvoid, (Any,), newly_inferred)
+    return nothing
 end
 
-function finish_snoop_inference()
-    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
-end
-
-function _snoop_inference(cmd::Expr)
-    return quote
-        start_deep_timing()
-        try
-            $(esc(cmd))
-        finally
-            stop_deep_timing()
-        end
-        finish_snoop_inference()
-    end
+function stop_tracking()
+    @assert islocked(snoop_inference_lock)
+    ccall(:jl_set_newly_inferred, Cvoid, (Any,), nothing)
+    unlock(snoop_inference_lock)
+    return nothing
 end
 
 """
@@ -134,11 +127,16 @@ julia> tinf = @snoop_inference begin
 ```
 """
 macro snoop_inference(cmd)
-    return _snoop_inference(cmd)
+    return esc(quote
+        $(SnoopCompileCore.start_tracking)()
+        try
+            $cmd
+        finally
+            $(SnoopCompileCore.stop_tracking)()
+        end
+        ($(Base.copy))($(SnoopCompileCore.newly_inferred))
+    end)
 end
 
-# These are okay to come at the top-level because we're only measuring inference, and
-# inference results will be cached in a `.ji` file.
-precompile(start_deep_timing, ())
-precompile(stop_deep_timing, ())
-precompile(finish_snoop_inference, ())
+precompile(start_tracking, ())
+precompile(stop_tracking, ())
