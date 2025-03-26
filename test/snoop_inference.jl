@@ -881,6 +881,11 @@ end
     tree = length(trees) == 1 ? only(trees) : trees[findfirst(tree -> !isempty(tree.backedges), trees)]
     @test tree.method == which(StaleA.stale, (String,))   # defined in StaleC
     @test all(be -> Core.MethodInstance(be).def == which(StaleA.stale, (Any,)), tree.backedges)
+    bemis = [Core.MethodInstance(be) for be in tree.backedges]
+    @test length(unique(bemis)) == length(bemis)
+    for be in tree.backedges
+        @test be.depth == 0
+    end
 
     root = only(filter(tree.backedges) do be
         Core.MethodInstance(be).specTypes.parameters[end] === String
