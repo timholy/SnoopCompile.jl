@@ -306,7 +306,7 @@ Main.B
 Now let's run these methods to generate some compiled `MethodInstance`s:
 
 ```jldoctest isprecompilable
-julia> A.a(3.2)          # Float64 is not "owned" by A, but A loads Base so knows about it
+julia> A.a(3.2)          # Float64 is not "owned" by A, but A loads Base so A knows about it
 3.2
 
 julia> A.a(B.BType())    # B.BType is not known to A
