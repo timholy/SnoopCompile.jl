@@ -2,12 +2,12 @@
 
 julia_version = "1.11.4"
 manifest_format = "2.0"
-project_hash = "194b5f8db24057cf6e02c1839991ea28e82c8c8c"
+project_hash = "7677ef39a88bb423d9b480d9e94493fd0424f210"
 
 [[deps.Blackjack]]
 deps = ["PrecompileTools"]
 path = "/home/runner/work/SnoopCompile.jl/SnoopCompile.jl/docs/build/tutorials/Blackjack"
-uuid = "08d05718-8fab-4a6b-94e0-60f13f0c036b"
+uuid = "404b4d40-1c5a-466e-ac79-abb907c9b097"
 version = "0.1.0"
 
 [[deps.Dates]]
