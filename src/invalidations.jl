@@ -149,6 +149,14 @@ function countchildren(node::InstanceNode)
     return n
 end
 
+function adjust_depth!(node::InstanceNode, Δdepth)
+    node.depth += Δdepth
+    for child in node.children
+        adjust_depth!(child, Δdepth)
+    end
+    return node
+end
+
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
@@ -436,10 +444,9 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                         ret === nothing && (@warn "$next not found in `backedge_table`"; continue)
                         trig, causes = ret
                         if isa(trig, MethodInstance)
-                            newnode = InstanceNode(trig, 1)
+                            newnode = InstanceNode(trig, 0)
+                            newchild = InstanceNode(mi, newnode)
                             push!(backedges, newnode)
-                            newchild = InstanceNode(mi, 2)
-                            push!(newnode.children, newchild)
                             backedge_table[trig] = newnode
                             backedge_table[mi] = newchild
                         else
@@ -582,7 +589,7 @@ function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_back
     for tree in methodinvs
         if tree.method == method && tree.reason == reason
             join_invalidations!(tree.mt_backedges, mt_backedges)
-            append!(tree.backedges, backedges)
+            join_invalidations!(tree.backedges, backedges)
             append!(tree.mt_cache, mt_cache)
             append!(tree.mt_disable, mt_disable)
             found = true
@@ -593,6 +600,33 @@ function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_back
     return methodinvs
 end
 
+# for backedges
+function join_invalidations!(list::AbstractVector{InstanceNode}, items::AbstractVector{InstanceNode}, depth=Int32(1))
+    for node in items
+        if node.depth == 0 || node.mi === dummyinstance
+            node ∉ list && push!(list, node)
+            continue
+        end
+        @assert node.depth == depth
+        mi = node.mi
+        found = false
+        for parent in list
+            mi2 = parent.mi
+            if mi2 == mi
+                join_invalidations!(parent.children, node.children, depth+Int32(1))
+                found = true
+                break
+            end
+        end
+        if !found
+            adjust_depth!(node, -depth+Int32(1))
+            push!(list, node)
+        end
+    end
+    return list
+end
+
+# for mt_backedges
 function join_invalidations!(list::AbstractVector{<:Pair}, items::AbstractVector{<:Pair})
     for (key, root) in items
         found = false
