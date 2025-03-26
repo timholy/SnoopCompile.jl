@@ -276,6 +276,10 @@ If `mi` has been compiled by the time its defining module "closes" (the final
 Julia will automatically include this specialization in that module's precompile
 cache.
 
+!!! tip
+    If `mi` is a MethodInstance corresponding to `f(::T)`, then calling `f(x::T)`
+    before the end of the module definition suffices to force compilation of `mi`.
+
 If you'd like to cache it but `isprecompilable(mi)` returns `false`, you need to
 identify a module `mod` for which `isprecompilable(mod, mi)` returns `true`.
 However, just ensuring that `mi` gets compiled within `mod` may not be
