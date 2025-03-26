@@ -269,17 +269,17 @@ that all the types in `mi`'s specialization signature are "known" to `mod`. See
 [`SnoopCompile.known_type`](@ref) for more information.
 
 `isprecompilable(mi)` sets `mod` to the module in which the corresponding method
-was defined. If `mod ∈ excluded_modules`, then `isprecompilable` returns `false`.
+was defined. If `mod ∈ excluded_modules`, then `isprecompilable` returns
+`false`.
 
 If `mi` has been compiled by the time its defining module "closes" (the final
 `end` of the module definition) and `isprecompilable(mi)` returns `true`, then
 Julia will automatically include this specialization in that module's precompile
 cache.
 
-!!! tip
-    If `mi` is a MethodInstance corresponding to `f(::T)`, then calling `f(x::T)`
-    before the end of the module definition suffices to force compilation of `mi`.
-    Alternatively, use `precompile(f, (T,))`.
+!!! tip If `mi` is a MethodInstance corresponding to `f(::T)`, then calling
+    `f(x::T)` before the end of the module definition suffices to force
+    compilation of `mi`. Alternatively, use `precompile(f, (T,))`.
 
 If you'd like to cache it but `isprecompilable(mi)` returns `false`, you need to
 identify a module `mod` for which `isprecompilable(mod, mi)` returns `true`.
@@ -288,9 +288,9 @@ sufficient to ensure that it gets retained in the cache: by default, Julia will
 omit it from the cache if none of the types are "owned" by that module. (For
 example, if `mod` didn't define the method, and all the types in `mi`'s
 signature come from other modules imported by `mod`, then `mod` does not "own"
-any aspect of `mi`.) To force it to be retained, ensure it gets compiled within
-a `PrecompileTools.@compile_workload` block. (This is the main purpose of
-PrecompileTools.)
+any aspect of `mi`.) To force it to be retained, ensure it gets called (for the
+first time) within a `PrecompileTools.@compile_workload` block. (This is the
+main purpose of PrecompileTools.)
 
 # Examples
 
