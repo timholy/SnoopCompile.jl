@@ -13,7 +13,7 @@ In such cases, one alternative is to create a manual list of precompile directiv
 `precompile` directives have to be emitted by the module that owns the method and/or types.
 SnoopCompile comes with a tool, `parcel`, that splits out the "root-most" precompilable MethodInstances into their constituent modules.
 This will typically correspond to the bottom row of boxes in the [flame graph](@ref flamegraph).
-In cases where you have some that are not naively precompilable, they will include MethodInstances from higher up in the call tree.
+In cases where you have some that are not naively precompilable (see [`SnoopCompile.isprecompilable`](@ref)), they may include MethodInstances from higher up in the call tree.
 
 Let's use `SnoopCompile.parcel` on our [`OptimizeMe`](@ref inferrability) demo:
 

@@ -260,25 +260,107 @@ end
 
 ## parcel and supporting infrastructure
 
-function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
+"""
+    isprecompilable(mod::Module, mi::MethodInstance)
+    isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
+
+Determine whether `mi` is able to be precompiled within `mod`. This requires
+that all the types in `mi`'s specialization signature are "known" to `mod`. See
+[`SnoopCompile.known_type`](@ref) for more information.
+
+`isprecompilable(mi)` sets `mod` to the module in which the corresponding method
+was defined. If `mod ∈ excluded_modules`, then `isprecompilable` returns
+`false`.
+
+If `mi` has been compiled by the time its defining module "closes" (the final
+`end` of the module definition) and `isprecompilable(mi)` returns `true`, then
+Julia will automatically include this specialization in that module's precompile
+cache.
+
+!!! tip If `mi` is a MethodInstance corresponding to `f(::T)`, then calling
+    `f(x::T)` before the end of the module definition suffices to force
+    compilation of `mi`. Alternatively, use `precompile(f, (T,))`.
+
+If you'd like to cache it but `isprecompilable(mi)` returns `false`, you need to
+identify a module `mod` for which `isprecompilable(mod, mi)` returns `true`.
+However, just ensuring that `mi` gets compiled within `mod` may not be
+sufficient to ensure that it gets retained in the cache: by default, Julia will
+omit it from the cache if none of the types are "owned" by that module. (For
+example, if `mod` didn't define the method, and all the types in `mi`'s
+signature come from other modules imported by `mod`, then `mod` does not "own"
+any aspect of `mi`.) To force it to be retained, ensure it gets called (for the
+first time) within a `PrecompileTools.@compile_workload` block. (This is the
+main purpose of PrecompileTools.)
+
+# Examples
+
+```jldoctest isprecompilable; setup=:(using SnoopCompile)
+julia> module A
+       a(x) = x
+       end
+Main.A
+
+julia> module B
+       using ..A
+       struct BType end    # this type is not known to A
+       b(x) = x
+       end
+Main.B
+```
+
+Now let's run these methods to generate some compiled `MethodInstance`s:
+
+```jldoctest isprecompilable
+julia> A.a(3.2)          # Float64 is not "owned" by A, but A loads Base so A knows about it
+3.2
+
+julia> A.a(B.BType())    # B.BType is not known to A
+Main.B.BType()
+
+julia> B.b(B.BType())    # B knows about B.BType
+Main.B.BType()
+
+julia> mia1, mia2 = Base.specializations(only(methods(A.a)));
+
+julia> @show mia1 SnoopCompile.isprecompilable(mia1);
+mia1 = MethodInstance for Main.A.a(::Float64)
+SnoopCompile.isprecompilable(mia1) = true
+
+julia> @show mia2 SnoopCompile.isprecompilable(mia2);
+mia2 = MethodInstance for Main.A.a(::Main.B.BType)
+SnoopCompile.isprecompilable(mia2) = false
+
+julia> mib = only(Base.specializations(only(methods(B.b))))
+MethodInstance for Main.B.b(::Main.B.BType)
+
+julia> SnoopCompile.isprecompilable(mib)
+true
+
+julia> SnoopCompile.isprecompilable(A, mib)
+false
+```
+"""
+function isprecompilable(mod::Module, mi::MethodInstance)
     m = mi.def
     if isa(m, Method)
-        mod = m.module
-        can_eval = excluded_modules === nothing || mod ∉ excluded_modules
-        if can_eval
-            params = Base.unwrap_unionall(mi.specTypes)::DataType
-            for p in params.parameters
-                if p isa Type
-                    if !known_type(mod, p)
-                        can_eval = false
-                        break
-                    end
-                end
+        params = Base.unwrap_unionall(mi.specTypes)::DataType
+        for p in params.parameters
+            if p isa Type
+                known_type(mod, p) || return false
             end
         end
-        return can_eval
+        return true
     end
     return false
+end
+function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]))
+    m = mi.def
+    isa(m, Method) || return false
+    mod = m.module
+    if excluded_modules !== nothing
+        mod ∈ excluded_modules && return false
+    end
+    return isprecompilable(mod, mi)
 end
 
 struct Precompiles
