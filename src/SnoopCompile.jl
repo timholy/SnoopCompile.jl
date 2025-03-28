@@ -82,7 +82,7 @@ include("parcel_snoop_llvm.jl")
 export read_snoop_llvm
 
 include("invalidations.jl")
-export uinvalidated, invalidation_trees, filtermod, findcaller
+export uinvalidated, invalidation_trees, filtermod, findcaller, firsttree
 
 # include("invalidation_and_inference.jl")
 # export precompile_blockers

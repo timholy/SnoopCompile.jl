@@ -612,7 +612,6 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     i = 0
     while i < length(list)
         item = list[i+=1]
-        @show i
         if isa(item, MethodInstance)
             mi = item
             item = list[i+=1]
@@ -634,11 +633,13 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                         end
                     end
                 else
-                    if depth == Int32(1) && parent === nothing
-                        parent = get(nodedict, mi, nothing)
-                        if parent === nothing
+                    if depth == Int32(1)
+                        p = get(nodedict, mi, nothing)
+                        if p === nothing
                             parent = InstanceNode(mi, depth)
                             push!(backedges, parent)
+                        else
+                            parent = InstanceNode(mi, p, depth)
                         end
                     else
                         @assert parent !== nothing
@@ -679,6 +680,13 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
 end
 
 invalidation_trees(list::SnoopCompileCore.InvalidationLists; kwargs...) = invalidation_trees_logmeths(list.logmeths; kwargs...)
+
+function firsttree(trees, m::Method)
+    for tree in trees
+        tree.method === m && return tree
+    end
+    error("no tree for method ", m, " found")
+end
 
 function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_backedges, backedges, mt_cache, mt_disable)
     found = false
