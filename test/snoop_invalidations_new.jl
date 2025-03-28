@@ -10,7 +10,7 @@ callscallsf(x) = callsf(x)
 alsocallsf(x) = f(x+1)
 # runtime-dispatched callers
 callsfrta(x) = f(Base.inferencebarrier(x))
-callsfrti(x) = f(Base.inferencebarrier(x)::Real)
+callsfrtr(x) = f(Base.inferencebarrier(x)::Real)
 callsfrts(x) = f(Base.inferencebarrier(x)::Signed)
 # invoked callers
 invokesfr(x) = invoke(f, Tuple{Real}, x)
@@ -25,7 +25,7 @@ end
     # MethodLogs.invokesfs(1)                        # invoked callee
     # MethodLogs.invokesfr(1)                        # invoked callee
     MethodLogs.callsfrta(1)                          # runtime-dispatched callee
-    MethodLogs.callsfrti(1)
+    MethodLogs.callsfrtr(1)
     MethodLogs.callsfrts(1)
 
     invs1 = @snoop_invalidations begin

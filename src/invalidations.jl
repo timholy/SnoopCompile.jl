@@ -608,7 +608,6 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     rootsig = parent = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     nodedict = IdDict{MethodInstance,InstanceNode}()
-    methodcallees = TaggedCallee[]
     reason = nothing
     i = 0
     while i < length(list)
@@ -665,9 +664,9 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                 end
             elseif isa(item, String)
                 reason = checkreason(reason, item)
-                callee = TaggedCallee(mi, mt_backedges, backedges, mt_cache, mt_disable)
-                push!(methodcallees, callee)
-                mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+                # callee = TaggedCallee(mi, mt_backedges, backedges, mt_cache, mt_disable)
+                # push!(methodcallees, callee)
+                # mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
                 rootsig = parent = nothing
             end
         elseif isa(item, Method)
@@ -675,9 +674,8 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             item = list[i+=1]
             @assert isa(item, String)
             reason = checkreason(reason, item)
-            methinv = MethodInvalidations(meth, reason, methodcallees)
+            methinv = MethodInvalidations(meth, reason, mt_backedges, backedges, mt_cache, mt_disable)
             push!(methodinvs, methinv)
-            methodcallees = TaggedCallee[]
         end
     end
     return sort!(methodinvs; by=countchildren)
