@@ -33,6 +33,7 @@ you should prefer them above the more limited tools available on earlier version
 module SnoopCompile
 
 using SnoopCompileCore
+using SnoopCompileCore: InvalidationLists
 # More exports are defined below in the conditional loading sections
 
 using Core: MethodInstance, CodeInstance, CodeInfo
@@ -82,7 +83,7 @@ include("parcel_snoop_llvm.jl")
 export read_snoop_llvm
 
 include("invalidations.jl")
-export uinvalidated, invalidation_trees, filtermod, findcaller, firsttree
+export uinvalidated, invalidation_trees, filtermod, findcaller
 
 # include("invalidation_and_inference.jl")
 # export precompile_blockers

@@ -72,7 +72,14 @@ mutable struct InstanceNode
         end
         return leaf
     end
-    InstanceNode(mi::MethodInstance, children::Vector{InstanceNode}) = return new(mi, 0, children)
+    function InstanceNode(mi::MethodInstance, children::Vector{InstanceNode})
+        # re-parent "children" 
+        root = new(mi, 0, children)
+        for child in children
+            child.parent = root
+        end
+        return root
+    end
     # Create child with a given `parent`. Checks that the depths are consistent.
     function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth=parent.depth+Int32(1))
         depth !== nothing && @assert parent.depth + Int32(1) == depth
@@ -90,6 +97,8 @@ InstanceNode(ci::CodeInstance, depth) = InstanceNode(ci.def, depth)
 InstanceNode(ci::CodeInstance, children::Vector{InstanceNode}) = InstanceNode(ci.def, children)
 InstanceNode(ci::CodeInstance, parent::InstanceNode, args...) = InstanceNode(ci.def, parent, args...)
 
+isdummy(node::InstanceNode) = node.mi === dummyinstance
+
 Core.MethodInstance(node::InstanceNode) = node.mi
 Base.convert(::Type{MethodInstance}, node::InstanceNode) = node.mi
 AbstractTrees.children(node::InstanceNode) = node.children
@@ -104,6 +113,13 @@ end
 function Base.any(f, node::InstanceNode)
     f(node) && return true
     return any(f, node.children)
+end
+
+function Base.sort!(node::InstanceNode)
+    sort!(node.children; by=countchildren)
+    for child in node.children
+        sort!(child)
+    end
 end
 
 # TODO: deprecate this in favor of `AbstractTrees.print_tree`, and limit it to one layer (e.g., like `:showchildren=>false`)
@@ -161,10 +177,12 @@ function adjust_depth!(node::InstanceNode, Δdepth)
     return node
 end
 
+const BackedgeMT = Pair{Type,Union{InstanceNode,MethodInstance}}  # sig=>root
+
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
-    mt_backedges::Vector{Pair{Type,Union{InstanceNode,MethodInstance}}}   # sig=>root
+    mt_backedges::Vector{BackedgeMT}   
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
     mt_disable::Vector{MethodInstance}
@@ -202,6 +220,13 @@ end
 function Base.sort!(methinvs::MethodInvalidations)
     sort!(methinvs.mt_backedges; by=countchildren)
     sort!(methinvs.backedges; by=countchildren)
+    # recursive
+    for (sig, root) in methinvs.mt_backedges
+        sort!(root)
+    end
+    for root in methinvs.backedges
+        sort!(root)
+    end
     return methinvs
 end
 
@@ -605,10 +630,8 @@ end
 
 function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     methodinvs = MethodInvalidations[]
-    rootsig = parent = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
-    nodedict = IdDict{MethodInstance,InstanceNode}()
-    reason, handled = nothing, true
+    reason = parent = nothing
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -618,52 +641,43 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             if isa(item, Int32)
                 depth = item
                 if iszero(depth)
-                    @assert parent === nothing
-                    handled = false
+                    # starting a new mt_backedges
+                    @assert parent === nothing  # these should come first in each Method-block
                     parent = InstanceNode(mi, depth)
-                    if i < lastindex(list)
-                        nextitem = list[i+1]
-                        if isa(nextitem, Type) && nextitem <: Tuple
-                            nodedict[mi] = parent
-                            rootsig = nextitem
-                            push!(mt_backedges, rootsig=>parent)
-                            rootsig = parent = nothing
-                            handled = true
-                            i += 1
-                        end
+                elseif depth == Int32(1)
+                    if parent === nothing
+                        parent = InstanceNode(mi, depth)  # starts a new backedge
+                    else
+                        parent = InstanceNode(mi, getroot(parent), depth)  # attaches to the current root
                     end
                 else
-                    if depth == Int32(1)
-                        p = get(nodedict, mi, nothing)
-                        if p === nothing
-                            parent = InstanceNode(mi, depth)
-                            push!(backedges, parent)
-                        else
-                            parent = InstanceNode(mi, p, depth)
-                        end
-                    else
-                        @assert parent !== nothing
-                        while depth < parent.depth + 1 # && isdefined(parent, :parent)
-                            parent = parent.parent
-                        end
-                        parent = InstanceNode(mi, parent, depth)
+                    @assert parent !== nothing
+                    while depth < parent.depth + 1 # && isdefined(parent, :parent)
+                        parent = parent.parent
                     end
+                    parent = InstanceNode(mi, parent, depth)
                 end
             elseif isa(item, String)
                 if item == "invalidate_mt_cache"
                     push!(mt_cache, mi)
                 else
+                    # finish a backedges
                     reason = checkreason(reason, item)
-                    rootsig = parent = nothing
+                    if parent !== nothing
+                        @assert isdummy(getroot(parent))
+                    end
+                    root = parent === nothing ? InstanceNode(mi, 0) : InstanceNode(mi, getroot(parent).children)
+                    push!(backedges, root)
+                    parent = nothing
                 end
             end
         elseif isa(item, Type) && item <: Tuple
-            # "closes" an mt_backedges tree
-            @assert !handled
+            # finish an mt_backedges
             rootsig = item
-            push!(mt_backedges, rootsig=>getroot(parent))
-            rootsig = parent = nothing
-            handled = true
+            root = getroot(parent)
+            @assert !isdummy(root)
+            push!(mt_backedges, rootsig=>root)
+            parent = nothing
         elseif isa(item, Method)
             meth = item
             item = list[i+=1]
@@ -671,21 +685,59 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             reason = checkreason(reason, item)
             methinv = MethodInvalidations(meth, reason, mt_backedges, backedges, mt_cache, mt_disable)
             push!(methodinvs, methinv)
-            rootsig = parent = reason = nothing
+            parent = reason = nothing
             mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
-            empty!(nodedict)
         end
     end
     return sort!(methodinvs; by=countchildren)
 end
 
-invalidation_trees(list::SnoopCompileCore.InvalidationLists; kwargs...) = invalidation_trees_logmeths(list.logmeths; kwargs...)
+function invalidation_trees(list::InvalidationLists; kwargs...)
+    trees = invalidation_trees_logmeths(list.logmeths; kwargs...)
+    # TODO: add logedges
+    for tree in trees
+        sort!(tree)
+        # sort!(tree.backedges; by=countchildren)
+        # sort!(tree.mt_backedges; by=countchildren)
+    end
+    sort!(trees; by=countchildren)
+    return trees
+end
 
-function firsttree(trees, m::Method)
+# These make testing a lot easier
+function firstmatch(trees::AbstractVector{MethodInvalidations}, m::Method)
     for tree in trees
         tree.method === m && return tree
     end
-    error("no tree for method ", m, " found")
+    error("no tree found for method ", m)
+end
+
+function firstmatch(mt_backedges::AbstractVector{BackedgeMT}, @nospecialize(sig::Type))
+    for (_sig, root) in mt_backedges
+        _sig === sig && return sig, root
+    end
+    error("no root found for signature ", sig)
+end
+
+function firstmatch(backedges::AbstractVector{InstanceNode}, mi::MethodInstance)
+    for root in backedges
+        root.mi === mi && return root
+    end
+    error("no node found for MethodInstance ", mi)
+end
+
+function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Type))
+    for root in backedges
+        root.mi.specTypes === sig && return root
+    end
+    error("no node found for signature ", sig)
+end
+
+function firstmatch(backedges::AbstractVector{InstanceNode}, m::Method)
+    for root in backedges
+        root.mi.def === m && return root
+    end
+    error("no node found for Method ", m)
 end
 
 function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_backedges, backedges, mt_cache, mt_disable)

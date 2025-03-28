@@ -12,35 +12,22 @@ alsocallsf(x) = f(x+1)
 callsfrta(x) = f(Base.inferencebarrier(x))
 callsfrtr(x) = f(Base.inferencebarrier(x)::Real)
 callsfrts(x) = f(Base.inferencebarrier(x)::Signed)
+callscallsfrta(x) = callsfrta(x)
 # invoked callers
 invokesfr(x) = invoke(f, Tuple{Real}, x)
 invokesfs(x) = invoke(f, Tuple{Signed}, x)
 
 end
 
-function validate_mt_backedge(root, i=nothing)
-    # There are two implementations that make sense:
-    # 1. keep the depth-0 root and add the (redundant?) depth-1 node
-    # 2. replace the root with the depth-1 node
-    # Write the tests so that either choice passes
-    if isempty(root.children)
-        @test root.depth == 1
-        return root
-    end
-    node = i === nothing ? only(root.children) : root.children[i]
-    @test root.depth == 0
-    @test node.depth == 1
-    @test root.mi === node.mi
-    return node
-end
-
-#@testset "MethodLogs" begin
+@testset "MethodLogs" begin
+    f = MethodLogs.f
+    mfinteger = only(methods(f))
     precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
     MethodLogs.callscallsf(1)                      # resolved callee
     MethodLogs.alsocallsf(1)                       # resolved callee (different branch)
     MethodLogs.invokesfs(1)                        # invoked callee
     precompile(MethodLogs.invokesfr, (Int,))       # invoked callee (would error if called)
-    MethodLogs.callsfrta(1)                        # runtime-dispatched callee
+    MethodLogs.callscallsfrta(1)                        # runtime-dispatched callee
     MethodLogs.callsfrtr(1)
     MethodLogs.callsfrts(1)
 
@@ -50,7 +37,7 @@ end
         MethodLogs.f(::Signed) = 4
     end
     # Grab the methods corresponding to invidual trees now, while they exist
-    mfint, mfstring, mfsigned = which(MethodLogs.f, (Int,)), which(MethodLogs.f, (String,)), which(MethodLogs.f, (Signed,))
+    mfint, mfstring, mfsigned = which(f, (Int,)), which(f, (String,)), which(f, (Signed,))
 
     # Recompile
     MethodLogs.callscallsf(1)
@@ -63,22 +50,144 @@ end
 
     invs2 = @snoop_invalidations begin
         MethodLogs.f(::Int8) = 5
-        Base.delete_method(which(MethodLogs.f, (Int,)))
+        Base.delete_method(which(f, (Int,)))
     end
+    mfint8 = which(f, (Int8,))
 
-    # Now the tests
+    ### invs1
     @test isempty(invs1.logedges)   # there were no precompiled packages
     trees = invalidation_trees(invs1)
-    treefint    = firsttree(trees, mfint)
-    treefstring = firsttree(trees, mfstring)
-    treefsigned = firsttree(trees, mfsigned)
-    # World-splitting in `MethodLogs.callsfrt`
-    i = findfirst(((sig, root),) -> sig === Tuple{typeof(Main.MethodLogs.f), Any}, treefint.mt_backedges)
-    sig, root = treefint.mt_backedges[i]
+    @test length(trees) == 3
+    treefint    = SnoopCompile.firstmatch(trees, mfint)
+    treefstring = SnoopCompile.firstmatch(trees, mfstring)
+    treefsigned = SnoopCompile.firstmatch(trees, mfsigned)
+
+    ## treefint
+    # World-splitting in `MethodLogs.callsfrt[ar]`
+    @test treefint.reason == :inserting
+    @test length(treefint.mt_backedges) == 2
+    sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(f), Any})
+    @test root.depth == 0
     @test root.mi.def === only(methods(MethodLogs.callsfrta))
-    @test validate_mt_backedge(root).mi.def === only(methods(MethodLogs.callsfrta))
-    i = findfirst(((sig, root),) -> sig === Tuple{typeof(Main.MethodLogs.f), Real}, treefint.mt_backedges)
-    sig, root = treefint.mt_backedges[i]
+    node = only(root.children)
+    @test node.depth == 1
+    @test node.mi.def === only(methods(MethodLogs.callscallsfrta)) && isempty(node.children)
+
+    sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(f), Real})
+    @test root.depth == 0
     @test root.mi.def === only(methods(MethodLogs.callsfrtr))
-    @test validate_mt_backedge(root).mi.def === only(methods(MethodLogs.callsfrtr))
-#end
+    @test isempty(root.children)
+
+    # Dispatch priority
+    @test length(treefint.backedges) == 3
+    root = treefint.backedges[1]
+    @test root.depth == 0
+    @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(f), Signed}
+    node = only(root.children)
+    @test node.mi.def === only(methods(MethodLogs.callsfrts)) # Because Signed <: Integer, it's in `backedges` not `mt_backedges`
+    @test isempty(node.children)
+    @test node.depth == 1
+    
+    root = treefint.backedges[2]
+    @test root.depth == 0
+    @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(f), Integer}
+    node = SnoopCompile.firstmatch(root.children, only(methods(MethodLogs.callsfrta)))
+    @test node.depth == 1
+    @test isempty(node.children)
+    node = SnoopCompile.firstmatch(root.children, only(methods(MethodLogs.callsfrtr)))
+    @test isempty(node.children)
+    @test node.depth == 1
+
+    root = treefint.backedges[3]
+    @test root.depth == 0
+    @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(f), Int}
+    @test SnoopCompile.countchildren(root) == 3
+    @test length(root.children) == 2
+    node = SnoopCompile.firstmatch(root.children, only(methods(MethodLogs.alsocallsf)))
+    @test node.depth == 1
+    @test isempty(node.children)
+    node = SnoopCompile.firstmatch(root.children, only(methods(MethodLogs.callsf)))
+    @test node.depth == 1
+    child = only(node.children)
+    @test child.depth == 2
+    @test child.mi.def == only(methods(MethodLogs.callscallsf))
+ 
+    ## treefstring
+    @test treefstring.reason == :inserting
+    @test isempty(treefstring.backedges)
+    sig, root = only(treefstring.mt_backedges)
+    @test sig === Tuple{typeof(f), String}
+    @test root.depth == 0
+    @test root.mi.specTypes === Tuple{typeof(MethodLogs.callsf), String}
+    node = only(root.children)
+    @test node.depth == 1
+    @test node.mi.specTypes === Tuple{typeof(MethodLogs.callscallsf), String}
+    @test isempty(node.children)
+
+    ## treefsigned
+    @test treefsigned.reason == :inserting
+    @test isempty(treefsigned.mt_backedges)
+    @test length(treefsigned.backedges) == 3
+    root = treefsigned.backedges[end]
+    @test root.depth == 0
+    @test root.mi.def === mfinteger && root.mi.specTypes === Tuple{typeof(f), Int}
+    node = only(root.children)
+    @test node.depth == 1
+    @test node.mi.specTypes === Tuple{typeof(MethodLogs.invokesfs), Int}
+    @test isempty(node.children)
+
+    for i = 1:2
+        local root = treefsigned.backedges[i]
+        @test isempty(root.children)
+        @test root.mi.def === mfinteger && root.mi.specTypes ∈ (Tuple{typeof(f), Integer}, Tuple{typeof(f), Signed})
+    end
+    @test treefsigned.backedges[1].mi.specTypes !== treefsigned.backedges[2].mi.specTypes
+
+    ### invs2
+    @test isempty(invs2.logedges)   # there were no precompiled packages
+    trees = invalidation_trees(invs2)
+    @test length(trees) == 2
+    treefint  = SnoopCompile.firstmatch(trees, mfint)
+    treefint8 = SnoopCompile.firstmatch(trees, mfint8)
+
+    ## treefint
+    @test treefint.reason == :deleting
+    @test isempty(treefint.mt_backedges)
+    root = only(treefint.backedges)
+    @test root.depth == 0
+    @test length(root.children) == 4
+    node = root.children[end]
+    @test node.depth == 1
+    @test node.mi.def === only(methods(MethodLogs.callsf)) && node.mi.specTypes === Tuple{typeof(MethodLogs.callsf), Int}
+    node = only(node.children)
+    @test node.mi.specTypes === Tuple{typeof(MethodLogs.callscallsf), Int}
+    node = SnoopCompile.firstmatch(root.children, only(methods(MethodLogs.alsocallsf)))
+    @test node.depth == 1
+    @test isempty(node.children)
+    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(MethodLogs.callsfrts), Int})
+    @test node.depth == 1
+    @test isempty(node.children)
+    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(MethodLogs.callsfrts), Int8})
+    @test node.depth == 1
+    @test isempty(node.children)
+
+    ## treefint8
+    @test treefint8.reason == :inserting
+    @test isempty(treefint8.mt_backedges)
+    root = treefint8.backedges[end]
+    @test root.depth == 0
+    @test root.mi.def == mfsigned && root.mi.specTypes === Tuple{typeof(f), Signed}
+    @test length(root.children) == 2
+    for node in root.children
+        @test node.depth == 1
+        @test node.mi.specTypes ∈ (Tuple{typeof(MethodLogs.callsfrts), Int}, Tuple{typeof(MethodLogs.callsfrts), Int8})
+        @test isempty(node.children)
+    end
+
+    root = SnoopCompile.firstmatch(treefint8.backedges[1:2], Tuple{typeof(f), Signed})  # from invokesfs
+    @test root.mi.def === mfinteger
+    @test isempty(root.children)
+    root = SnoopCompile.firstmatch(treefint8.backedges[1:2], Tuple{typeof(f), Integer})  # from callsfrts
+    @test root.mi.def === mfinteger
+    @test isempty(root.children)
+end
