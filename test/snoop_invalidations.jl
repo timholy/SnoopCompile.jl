@@ -1,6 +1,5 @@
-using SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
+using SnoopCompileCore, SnoopCompile, InteractiveUtils, MethodAnalysis, Pkg, Test
 import PrettyTables # so that the report_invalidations.jl file is loaded
-
 
 module SnooprTests
 f(x::Int)  = 1
@@ -58,6 +57,7 @@ end
     @test length(uinvalidated([mi1, "invalidate_mt_cache"])) == 0
 
     invs = @snoop_invalidations SnooprTests.f(::AbstractFloat) = 3
+    display(invs)
     @test !isempty(invs)
     umis = uinvalidated(invs)
     @test !isempty(umis)
@@ -90,7 +90,7 @@ end
     @test SnooprTests.callapplyf(cf) == 3
     mi1 = methodinstance(SnooprTests.applyf, (Vector{Any},))
     mi2 = methodinstance(SnooprTests.callapplyf, (Vector{Any},))
-    @test mi1.backedges == [mi2]
+    @test [ci.def for ci in mi1.backedges] == [mi2]
     mi3 = methodinstance(SnooprTests.f, (AbstractFloat,))
     invs = @snoop_invalidations SnooprTests.f(::Float32) = 4
     @test !isempty(invs)
@@ -237,20 +237,33 @@ end
     @test length(filtermod(Outer, trees; recursive=true)) == 1
 end
 
-@testset "Delayed invalidations" begin
+@testset "Edge invalidations" begin
     cproj = Base.active_project()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
         Pkg.activate(pwd())
         Pkg.develop(path="./PkgC")
         Pkg.develop(path="./PkgD")
         Pkg.precompile()
+        ref1, ref2 = Ref{Int}(0), Ref{Any}()
         invalidations = @snoop_invalidations begin
-            @eval begin
-                using PkgC
-                PkgC.nbits(::UInt8) = 8
-                using PkgD
+            using PkgC
+            @eval PkgC begin
+                const someconst = 10
+                struct MyType
+                    x::Int8
+                end
             end
+            @eval begin
+                PkgC.nbits(::UInt8) = 8
+                PkgC.nbits(::UInt16) = 16
+                Base.delete_method(which(PkgC.nbits, (Integer,)))
+            end
+            using PkgD
+            ref1[] = PkgD.uses_someconst(1)
+            ref2[] = PkgD.calls_mytype(1)
         end
+        @test !isempty(invalidations)
+        display(invalidations)
         tree = only(invalidation_trees(invalidations))
         @test tree.reason == :inserting
         @test tree.method.file == Symbol(@__FILE__)

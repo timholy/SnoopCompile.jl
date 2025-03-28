@@ -86,6 +86,10 @@ mutable struct InstanceNode
     end
 end
 
+InstanceNode(ci::CodeInstance, depth) = InstanceNode(ci.def, depth)
+InstanceNode(ci::CodeInstance, children::Vector{InstanceNode}) = InstanceNode(ci.def, children)
+InstanceNode(ci::CodeInstance, parent::InstanceNode, args...) = InstanceNode(ci.def, parent, args...)
+
 Core.MethodInstance(node::InstanceNode) = node.mi
 Base.convert(::Type{MethodInstance}, node::InstanceNode) = node.mi
 AbstractTrees.children(node::InstanceNode) = node.children
@@ -361,6 +365,9 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
 
     function handle_insert_backedges(list, i, callee)
         key, causes = list[i+=1], list[i+=1]
+        if isa(key, CodeInstance)
+            key = key.def
+        end
         backedge_table[key] = (callee, causes)
         return i
     end
@@ -375,9 +382,14 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     i = 0
     while i < length(list)
         item = list[i+=1]
+        if isa(item, CodeInstance)
+            item = item.def
+        end
+        @show i item
         if isa(item, MethodInstance)
             mi = item
             item = list[i+=1]
+            @show item
             if isa(item, Int32)
                 depth = item
                 if leaf === nothing
@@ -439,7 +451,14 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
                     inserted_backedges = true
                 elseif loctag == "verify_methods"
                     next = list[i+=1]
-                    if isa(next, Integer)
+                    if isa(next, CodeInstance)
+                        trig = next
+                        target = list[i+=1]
+                        @assert isa(target, CodeInstance)
+                        newnode = InstanceNode(trig, 0)
+                        newchild = InstanceNode(target, newnode)
+                        push!(backedges, newnode)
+                    elseif isa(next, Integer)
                         ret = get(backedge_table, next, nothing)
                         ret === nothing && (@warn "$next not found in `backedge_table`"; continue)
                         trig, causes = ret
@@ -583,6 +602,88 @@ function invalidation_trees(list; exclude_corecompiler::Bool=true)
     end
     return sort!(methodinvs; by=countchildren)
 end
+
+function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
+    methodinvs = MethodInvalidations[]
+    rootsig = parent = nothing
+    mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+    nodedict = IdDict{MethodInstance,InstanceNode}()
+    methodcallees = TaggedCallee[]
+    reason = nothing
+    i = 0
+    while i < length(list)
+        item = list[i+=1]
+        @show i
+        if isa(item, MethodInstance)
+            mi = item
+            item = list[i+=1]
+            if isa(item, Int32)
+                depth = item
+                if iszero(depth)
+                    @assert parent === nothing
+                    # if parent !== nothing
+                    #     push!(rootchildren, parent)
+                    #     if rootsig !== nothing
+                    #         push!(mt_backedges, rootsig=>root)
+                    #     else
+                    #         push!(backedges, root)
+                    #     end
+                    #     root = rootsig = nothing
+                    # end
+                    handled = false
+                    @show i lastindex(list)
+                    if i < lastindex(list)
+                        nextitem = list[i+1]
+                        if isa(nextitem, Type)
+                            rootsig = nextitem
+                            parent = InstanceNode(mi, depth)
+                            nodedict[mi] = parent
+                            push!(mt_backedges, rootsig=>parent)
+                            rootsig = parent = nothing
+                            handled = true
+                            i += 1
+                        end
+                    end
+                    @assert handled
+                else
+                    if depth == Int32(1)
+                        # @assert parent === nothing
+                        parent = get(nodedict, mi, nothing)
+                        if parent === nothing
+                            parent = InstanceNode(mi, depth)
+                            push!(backedges, parent)
+                        else
+                            parent = InstanceNode(mi, parent, depth)
+                        end
+                    else
+                        @assert parent !== nothing
+                        while depth < parent.depth + 1 # && isdefined(parent, :parent)
+                            parent = parent.parent
+                        end
+                        parent = InstanceNode(mi, parent, depth)
+                    end
+                end
+            elseif isa(item, String)
+                reason = checkreason(reason, item)
+                callee = TaggedCallee(mi, mt_backedges, backedges, mt_cache, mt_disable)
+                push!(methodcallees, callee)
+                mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+                rootsig = parent = nothing
+            end
+        elseif isa(item, Method)
+            meth = item
+            item = list[i+=1]
+            @assert isa(item, String)
+            reason = checkreason(reason, item)
+            methinv = MethodInvalidations(meth, reason, methodcallees)
+            push!(methodinvs, methinv)
+            methodcallees = TaggedCallee[]
+        end
+    end
+    return sort!(methodinvs; by=countchildren)
+end
+
+invalidation_trees(list::SnoopCompileCore.InvalidationLists; kwargs...) = invalidation_trees_logmeths(list.logmeths; kwargs...)
 
 function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_backedges, backedges, mt_cache, mt_disable)
     found = false

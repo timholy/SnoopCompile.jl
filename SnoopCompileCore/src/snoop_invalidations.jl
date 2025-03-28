@@ -1,5 +1,10 @@
 export @snoop_invalidations
 
+struct InvalidationLists
+    logedges::Vector{Any}
+    logmeths::Vector{Any}
+end
+
 """
     invs = @snoop_invalidations expr
 
@@ -27,11 +32,14 @@ The authoritative reference is Julia's own `src/gf.c` file.
 """
 macro snoop_invalidations(expr)
     quote
-        local invs = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
-        Expr(:tryfinally,
-            $(esc(expr)),
+        logedges = Base.StaticData.debug_method_invalidation(true)
+        logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
+        try
+            $(esc(expr))
+        finally
+            Base.StaticData.debug_method_invalidation(false)
             ccall(:jl_debug_method_invalidation, Any, (Cint,), 0)
-        )
-        invs
+        end
+        InvalidationLists(logedges, logmeths)
     end
 end

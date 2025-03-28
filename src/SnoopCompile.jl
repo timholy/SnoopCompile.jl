@@ -35,11 +35,12 @@ module SnoopCompile
 using SnoopCompileCore
 # More exports are defined below in the conditional loading sections
 
-using Core: MethodInstance, CodeInfo
+using Core: MethodInstance, CodeInstance, CodeInfo
 using InteractiveUtils
 using Serialization
 using Printf
 using OrderedCollections
+using Graphs
 import YAML  # For @snoop_llvm
 
 using Base: specializations
@@ -72,6 +73,7 @@ end
 
 include("parcel_snoop_inference.jl")
 include("inference_demos.jl")
+export SnoopGraph
 export exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
 export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
 export report_callee, report_caller, report_callees
@@ -82,8 +84,8 @@ export read_snoop_llvm
 include("invalidations.jl")
 export uinvalidated, invalidation_trees, filtermod, findcaller
 
-include("invalidation_and_inference.jl")
-export precompile_blockers
+# include("invalidation_and_inference.jl")
+# export precompile_blockers
 
 # Write
 include("write.jl")

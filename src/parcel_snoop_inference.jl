@@ -3,10 +3,35 @@ import FlameGraphs
 using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
 using AbstractTrees
-using Core.Compiler.Timings: InferenceFrameInfo
-using SnoopCompileCore: InferenceTiming, InferenceTimingNode, inclusive, exclusive
 using Profile
 
+struct SnoopGraph
+    cis::Vector{Core.CodeInstance}
+    g::SimpleGraph{Int}
+end
+
+function SnoopGraph(cis::AbstractVector{Core.CodeInstance})
+    Base.has_offset_axes(cis) && throw(ArgumentError("list of CodeInstances must start with index 1"))
+    g = SimpleGraph(length(cis))
+    idxs = Dict(ci => i for (i, ci) in enumerate(cis))
+    for (i, ci) in enumerate(cis)
+        for dep in ci.edges
+            j = get(idxs, dep, 0)
+            j > 0 && add_edge!(g, i, j)
+        end
+    end
+    return SnoopGraph(cis, g)
+end
+
+Base.show(io::IO, sg::SnoopGraph) = print(io, "SnoopGraph with $(length(sg.cis)) nodes, $(length(edges(sg.g))) edges, $(length(connected_components(sg.g))) components")
+
+struct SnoopSubGraph
+    sg::SnoopGraph
+    nodes::Vector{Int}
+end
+
+
+#=
 const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNode}
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
@@ -1948,3 +1973,4 @@ end
 @warnpcfail precompile(accumulate_by_source, (Vector{InferenceTiming},))
 @warnpcfail precompile(isprecompilable, (MethodInstance,))
 @warnpcfail precompile(parcel, (InferenceTimingNode,))
+=#

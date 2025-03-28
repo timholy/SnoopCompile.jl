@@ -1,11 +1,12 @@
 name = "SnoopCompile"
 uuid = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
-author = ["Tim Holy <tim.holy@gmail.com>", "Shuhei Kadowaki <aviatesk@gmail.com>"]
 version = "3.2.0"
+author = ["Tim Holy <tim.holy@gmail.com>", "Shuhei Kadowaki <aviatesk@gmail.com>"]
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 FlameGraphs = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -30,6 +31,7 @@ SCPyPlotExt = "PyPlot"
 AbstractTrees = "0.4"
 Cthulhu = "2"
 FlameGraphs = "1"
+Graphs = "1.12.0"
 InteractiveUtils = "1"
 JET = "0.9"
 MethodAnalysis = "0.4"
