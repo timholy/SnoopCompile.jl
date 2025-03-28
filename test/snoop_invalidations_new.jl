@@ -19,19 +19,19 @@ invokesfs(x) = invoke(f, Tuple{Signed}, x)
 end
 
 #@testset "MethodLogs" begin
-    # precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
-    # MethodLogs.callscallsf(1)                      # resolved callee
-    # MethodLogs.alsocallsf(1)                       # resolved callee (different branch)
-    # MethodLogs.invokesfs(1)                        # invoked callee
-    # MethodLogs.invokesfr(1)                        # invoked callee
-    MethodLogs.callsfrta(1)                          # runtime-dispatched callee
+    precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
+    MethodLogs.callscallsf(1)                      # resolved callee
+    MethodLogs.alsocallsf(1)                       # resolved callee (different branch)
+    MethodLogs.invokesfs(1)                        # invoked callee
+    precompile(MethodLogs.invokesfr, (Int,))       # invoked callee (would error if called)
+    MethodLogs.callsfrta(1)                        # runtime-dispatched callee
     MethodLogs.callsfrtr(1)
     MethodLogs.callsfrts(1)
 
     invs1 = @snoop_invalidations begin
         MethodLogs.f(::Int) = 2
-        # MethodLogs.f(::String) = 3
-        # MethodLogs.f(::Signed) = 4
+        MethodLogs.f(::String) = 3
+        MethodLogs.f(::Signed) = 4
     end
 
     error("stop")

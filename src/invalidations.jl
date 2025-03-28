@@ -608,7 +608,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     rootsig = parent = nothing
     mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
     nodedict = IdDict{MethodInstance,InstanceNode}()
-    reason = nothing
+    reason, handled = nothing, true
     i = 0
     while i < length(list)
         item = list[i+=1]
@@ -620,39 +620,25 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                 depth = item
                 if iszero(depth)
                     @assert parent === nothing
-                    # if parent !== nothing
-                    #     push!(rootchildren, parent)
-                    #     if rootsig !== nothing
-                    #         push!(mt_backedges, rootsig=>root)
-                    #     else
-                    #         push!(backedges, root)
-                    #     end
-                    #     root = rootsig = nothing
-                    # end
                     handled = false
-                    @show i lastindex(list)
+                    parent = InstanceNode(mi, depth)
                     if i < lastindex(list)
                         nextitem = list[i+1]
-                        if isa(nextitem, Type)
-                            rootsig = nextitem
-                            parent = InstanceNode(mi, depth)
+                        if isa(nextitem, Type) && nextitem <: Tuple
                             nodedict[mi] = parent
+                            rootsig = nextitem
                             push!(mt_backedges, rootsig=>parent)
                             rootsig = parent = nothing
                             handled = true
                             i += 1
                         end
                     end
-                    @assert handled
                 else
-                    if depth == Int32(1)
-                        # @assert parent === nothing
+                    if depth == Int32(1) && parent === nothing
                         parent = get(nodedict, mi, nothing)
                         if parent === nothing
                             parent = InstanceNode(mi, depth)
                             push!(backedges, parent)
-                        else
-                            parent = InstanceNode(mi, parent, depth)
                         end
                     else
                         @assert parent !== nothing
@@ -663,12 +649,20 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                     end
                 end
             elseif isa(item, String)
-                reason = checkreason(reason, item)
-                # callee = TaggedCallee(mi, mt_backedges, backedges, mt_cache, mt_disable)
-                # push!(methodcallees, callee)
-                # mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
-                rootsig = parent = nothing
+                if item == "invalidate_mt_cache"
+                    push!(mt_cache, mi)
+                else
+                    reason = checkreason(reason, item)
+                    rootsig = parent = nothing
+                end
             end
+        elseif isa(item, Type) && item <: Tuple
+            # "closes" an mt_backedges tree
+            @assert !handled
+            rootsig = item
+            push!(mt_backedges, rootsig=>getroot(parent))
+            rootsig = parent = nothing
+            handled = true
         elseif isa(item, Method)
             meth = item
             item = list[i+=1]
@@ -676,6 +670,9 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             reason = checkreason(reason, item)
             methinv = MethodInvalidations(meth, reason, mt_backedges, backedges, mt_cache, mt_disable)
             push!(methodinvs, methinv)
+            rootsig = parent = reason = nothing
+            mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+            empty!(nodedict)
         end
     end
     return sort!(methodinvs; by=countchildren)
