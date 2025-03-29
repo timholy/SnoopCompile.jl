@@ -1,4 +1,5 @@
 using SnoopCompileCore, SnoopCompile
+using Pkg
 using Test
 
 module MethodLogs
@@ -27,7 +28,7 @@ end
     MethodLogs.alsocallsf(1)                       # resolved callee (different branch)
     MethodLogs.invokesfs(1)                        # invoked callee
     precompile(MethodLogs.invokesfr, (Int,))       # invoked callee (would error if called)
-    MethodLogs.callscallsfrta(1)                        # runtime-dispatched callee
+    MethodLogs.callscallsfrta(1)                   # runtime-dispatched callee
     MethodLogs.callsfrtr(1)
     MethodLogs.callsfrts(1)
 
@@ -87,7 +88,7 @@ end
     @test node.mi.def === only(methods(MethodLogs.callsfrts)) # Because Signed <: Integer, it's in `backedges` not `mt_backedges`
     @test isempty(node.children)
     @test node.depth == 1
-    
+
     root = treefint.backedges[2]
     @test root.depth == 0
     @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(f), Integer}
@@ -111,7 +112,7 @@ end
     child = only(node.children)
     @test child.depth == 2
     @test child.mi.def == only(methods(MethodLogs.callscallsf))
- 
+
     ## treefstring
     @test treefstring.reason == :inserting
     @test isempty(treefstring.backedges)
@@ -191,3 +192,44 @@ end
     @test root.mi.def === mfinteger
     @test isempty(root.children)
 end
+
+# @testset "Edge invalidations" begin
+    cproj = Base.active_project()
+    cd(joinpath(@__DIR__, "testmodules", "Invalidation"))
+    Pkg.activate(pwd())
+    Pkg.develop(path="./PkgC")
+    Pkg.develop(path="./PkgD")
+    Pkg.precompile()
+    ref1, ref2 = Ref{Int}(0), Ref{Any}() # to check that `const` changes really happened and were measured in the right world age
+    invalidations = @snoop_invalidations begin
+        @eval using PkgC
+        # PkgC is a dependency of PkgD. Now that we've loaded PkgC into this session, let's make some changes to its contents.
+        @eval PkgC begin
+            const someconst = 10
+            struct MyType
+                x::Int8
+            end
+        end
+        @eval begin
+            PkgC.nbits(::UInt8) = 8
+            PkgC.nbits(::UInt16) = 16
+            Base.delete_method(which(PkgC.nbits, (Integer,)))
+        end
+        # The changes should trigger invalidations during loading of PkgD
+        @eval using PkgD
+        # In case binding-change invalidations require execution to propagate
+        ref1[] = PkgD.uses_someconst(1)
+        ref2[] = PkgD.calls_mytype(1)
+    end
+    Pkg.activate(cproj)
+    @test isempty(invalidations.logmeths)
+    # tree = only(invalidation_trees(invalidations))
+    # @test tree.reason == :inserting
+    # @test tree.method.file == Symbol(@__FILE__)
+    # @test isempty(tree.backedges)
+    # sig, root = only(tree.mt_backedges)
+    # @test sig.parameters[1] === typeof(PkgC.nbits)
+    # @test sig.parameters[2] === Integer
+    # @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
+
+# end

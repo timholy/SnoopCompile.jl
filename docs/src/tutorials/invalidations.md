@@ -163,7 +163,7 @@ sig, victim = tree.mt_backedges[end];
 ```
 
 !!! note
-    `mt_backedges` stands for "MethodTable backedges." In other cases you may see a second type of invalidation, just called `backedges`. With these, there is no `sig`, and so you'll use just `victim = tree.backedges[i]`.
+    `mt_backedges` stands for "MethodTable backedges." In other cases you may see a second kind of invalidation, just called `backedges`. With these, there is no `sig`, and so you'll use just `victim = tree.backedges[i]`. For those curious about the reasons for these two kinds of invalidation, see [Invalidation classes](@ref).
 
 First let's look at the the problematic method `sig`nature:
 
@@ -223,7 +223,9 @@ The first and simplest technique is to ensure that the full range of possibiltie
 
 #### Method 2: improve inferability
 
-The second way to prevent invalidations is to improve the inferability of the victim(s). If `Int` and `Char` really are the only possible kinds of cards, then in `playgame` it would be better to declare
+The second way to prevent invalidations is to improve the inferability of the victim(s). This approach is often applicable to `mt_backedges` invalidations,  but it can sometimes fix `backedges` invalidations too. [Invalidation classes](@ref) explains the differences in detail and why inference failures tend to be affiliated with `mt_backedges` invalidations.
+
+In our blackjack example, if `Int` and `Char` really are the only possible kinds of cards, then in `playgame` it would be better to declare
 
 ```julia
 myhand = Union{Int,Char}[]

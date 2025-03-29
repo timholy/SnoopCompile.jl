@@ -73,7 +73,7 @@ mutable struct InstanceNode
         return leaf
     end
     function InstanceNode(mi::MethodInstance, children::Vector{InstanceNode})
-        # re-parent "children" 
+        # re-parent "children"
         root = new(mi, 0, children)
         for child in children
             child.parent = root
@@ -177,12 +177,12 @@ function adjust_depth!(node::InstanceNode, Δdepth)
     return node
 end
 
-const BackedgeMT = Pair{Type,Union{InstanceNode,MethodInstance}}  # sig=>root
+const BackedgeMT = Pair{Union{DataType,Binding},InstanceNode}  # sig=>root
 
 struct MethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
-    mt_backedges::Vector{BackedgeMT}   
+    mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
     mt_disable::Vector{MethodInstance}
@@ -204,7 +204,7 @@ function Base.:(==)(methinvs1::MethodInvalidations, methinvs2::MethodInvalidatio
     return true
 end
 
-countchildren(sigtree::Pair{<:Any,Union{InstanceNode,MethodInstance}}) = countchildren(sigtree.second)
+countchildren(sigtree::BackedgeMT) = countchildren(sigtree.second)
 countchildren(::MethodInstance) = 1
 
 function countchildren(methinvs::MethodInvalidations)
@@ -689,16 +689,102 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
         end
     end
-    return sort!(methodinvs; by=countchildren)
+    return methodinvs
+end
+
+# These types are used transiently
+const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
+
+struct EdgeNode
+    data::EdgeNodeType
+    children::Vector{EdgeNode}
+end
+
+# These types are used for output
+struct MultiMethodInvalidations
+    methods::Union{Binding,Vector{Method}}
+    mt_backedges::Vector{BackedgeMT}
+    backedges::Vector{InstanceNode}
+end
+MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, BackedgeMT[], InstanceNode[])
+
+function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
+    # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
+    nodes = EdgeNodeType[]
+    calleridxss = Vector{Int}[]
+    nodeidx = IdDict{EdgeNodeType,Int}()    # get the index within `nodes` for a given key
+    matchess = Dict{Int,Vector{Method}}()   # nodeidx => Method[...]
+
+    function addnode(item)
+        push!(nodes, item)
+        k = length(nodes)
+        nodeidx[item] = k
+        return k
+    end
+
+    function addcaller!(listlist, (calleridx, calleeidx))
+        if length(listlist) < calleeidx
+            resize!(listlist, calleeidx)
+        end
+        # calleridxs = get!(Vector{Int}, listlist, calleeidx)   # why don't we have this??
+        calleridxs = if isassigned(listlist, calleeidx)
+            listlist[calleeidx]
+        else
+            listlist[calleeidx] = Int[]
+        end
+        push!(calleridxs, calleridx)
+        return calleridxs
+    end
+
+    i = 0
+    while i + 2 < length(list)
+        tag = list[i+2]::String
+        if tag == "method_globalref"
+            def, target = list[i+1]::Method, list[i+3]::CodeInstance
+            i += 4
+            error("implement me")
+        elseif tag == "insert_backedges_callee"
+            edge, target, matches = list[i+1]::EdgeNodeType, list[i+3]::CodeInstance, list[i+4]::Union{Vector{Any},Nothing}
+            i += 4
+            idx = get(nodeidx, edge, nothing)
+            if idx === nothing
+                idx = addnode(edge)
+                if matches !== nothing
+                    matchess[idx] = matches
+                end
+            elseif matches !== nothing
+                @assert matchess[idx] == matches
+            end
+            idxt = get(nodeidx, target, nothing)
+            @assert idxt === nothing
+            idxt = addnode(target)
+            addcaller!(calleridxss, idxt => idx)
+        elseif tag == "verify_methods"
+            caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
+            i += 3
+            idxt = get(nodeidx, caller, nothing)
+            if idxt === nothing
+                idxt = addnode(caller)
+            end
+            idx = get(nodeidx, callee, nothing)
+            if idx === nothing
+                idx = addnode(callee)
+            end
+            @assert idxt >= idx
+            idxt > idx && addcaller!(calleridxss, idxt => idx)
+        else
+            error("tag ", tag, " unknown")
+        end
+    end
+    return nodes, calleridxss, matchess
 end
 
 function invalidation_trees(list::InvalidationLists; kwargs...)
     trees = invalidation_trees_logmeths(list.logmeths; kwargs...)
+    mminvs = invalidation_trees_logedges(list.logedges; kwargs...)
     # TODO: add logedges
     for tree in trees
         sort!(tree)
-        # sort!(tree.backedges; by=countchildren)
-        # sort!(tree.mt_backedges; by=countchildren)
     end
     sort!(trees; by=countchildren)
     return trees

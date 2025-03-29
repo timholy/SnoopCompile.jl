@@ -36,7 +36,7 @@ using SnoopCompileCore
 using SnoopCompileCore: InvalidationLists
 # More exports are defined below in the conditional loading sections
 
-using Core: MethodInstance, CodeInstance, CodeInfo
+using Core: MethodInstance, CodeInstance, Binding, CodeInfo
 using InteractiveUtils
 using Serialization
 using Printf

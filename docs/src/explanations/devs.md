@@ -24,7 +24,7 @@ For both logging streams, a single decision typically results in appending multi
 Let `trigger::Method` indicate an added or deleted method for function `f`. If defining/deleting this method would change how one or more `caller::MethodInstance`s of the corresponding function would dispatch, those `caller`s must be invalidated. Such events can result in a cascade of invalidations of code that directly or indirectly called `trigger` or less-specific methods of the same function. The order in which these invalidations appear in the log stream is as follows:
 
 2. Backedges of `callee` below, encoded as a tree where links are specified as `(caller::MethodInstance, depth::Int32)` pairs.
-  `depth=1` typically corresponds to an inferrable caller. `depth=0` corresponds to a potentially-missing callee (at the time of compilation), and will be followed by `calleesig::Type`. (If the called function had potentially-applicable methods, `calleesig` will not be a subtype of any of their signatures.) corresponds to the root (though no entry with `depth=0` is written), and sequential increases in `depth` indicate a traversal through branches. If `depth` decreases, this indicates the start of a new branch from the parent with depth `depth-1`.
+  `depth=1` typically corresponds to an inferrable caller. `depth=0` corresponds to a potentially-missing callee (at the time of compilation), and will be followed by `calleesig::DataType`. (If the called function had potentially-applicable methods, `calleesig` will not be a subtype of any of their signatures.) corresponds to the root (though no entry with `depth=0` is written), and sequential increases in `depth` indicate a traversal through branches. If `depth` decreases, this indicates the start of a new branch from the parent with depth `depth-1`.
 1. `(callee::MethodInstance, tag)` pairs that were directly affected by change in dispatch.
 3. Possibly,
 
@@ -42,10 +42,10 @@ Since edge logs are populated during package loading, we'll use `PkgDep` to indi
 Invalidation events result in the insertion of 3 or 4 items in `logedges`. The tag is always the second item. They take one of the following forms:
 
 - `(def::Method, "method_globalref", codeinst::CodeInstance, nothing)`: method `def` in `PkgUser` references `PkgDep.SomeObject` (which might be `const` data, a type, etc.), but the binding for `SomeObject` has been modified since `PkgUser` was compiled. `codeinst`, which holds a compiled specialization of `def`, needs to be recompiled.
-- `(edge::Union{MethodInstance,Type,Core.Binding}, "insert_backedges_callee", codeinst::CodeInstance, matches::Union{Vector{Method},Nothing})`: `edge` was selected as a dispatch target (a "callee") of `codeinst`, but new method(s) listed in `matches` now supersede it in dispatch specificity. There are 3 or 4 sub-cases:
+- `(edge::Union{MethodInstance,DataType,Core.Binding}, "insert_backedges_callee", codeinst::CodeInstance, matches::Union{Vector{Any},Nothing})`: `edge` was selected as a dispatch target (a "callee") of `codeinst`, but new method(s) listed in `matches` now supersede it in dispatch specificity. There are 3 or 4 sub-cases:
   * `edge::MethodInstance` indicates a known target at the time of compilation
-  * `edge::Type` represents either
+  * `edge::DataType` represents either
     + `Tuple{typeof(f), argtypes...}` for a poorly-inferred or `invoke`d call for which the target selected at compilation time is no longer valid (`matches` will be `nothing`)
-    + a signature of a known function for which no appropriate method had yet been defined at the time of compilation. `matches` lists methods that now apply. (These are not technically invalidations, and are suppressed by SnoopCompile's printing behavior.)
+    + a signature of a known function for which no appropriate method had yet been defined at the time of compilation. `matches` lists methods that now apply.
   * `edge::Core.Binding` indicates a target that was unknown at the time of compilation, and `matches` will be `nothing`.
-- `(child::CodeInstance, "verify_methods", cause::CodeInstance)`: `cause` is an invalidated dependency of `child` (i.e., invalidations that cascade from the proximal source).
+- `(caller::CodeInstance, "verify_methods", callee::CodeInstance)`: `callee` is an invalidated dependency of `caller`. These encode invalidations that cascade from the proximal source.
