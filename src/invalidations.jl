@@ -276,6 +276,8 @@ function showlist(io::IO, treelist, indent::Int=0)
                 # "insert_backedges_callee"/"insert_backedges" (delayed) invalidations
                 printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
                 print(io, " (formerly ", sig.def, ')')
+            elseif isa(sig, Binding)
+                printstyled(io, sig.globalref, color = :light_green)
             else
                 # `sig` (immediate) invalidations
                 printstyled(io, sig, color = :light_cyan)
@@ -692,21 +694,42 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     return methodinvs
 end
 
-# These types are used transiently
 const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
 
-struct EdgeNode
-    data::EdgeNodeType
-    children::Vector{EdgeNode}
-end
-
-# These types are used for output
 struct MultiMethodInvalidations
     methods::Union{Binding,Vector{Method}}
     mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
 end
 MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, BackedgeMT[], InstanceNode[])
+
+function Base.show(io::IO, methinvs::MultiMethodInvalidations)
+    iscompact = get(io, :compact, false)::Bool
+
+    print(io, "Invalidating methods: ")
+    ms = methinvs.methods
+    if isa(ms, Vector{Method})
+        firstm = true
+        for m in methinvs.methods
+            firstm || print(io, ", ")
+            printstyled(io, m, color = :light_magenta)
+            firstm = false
+        end
+    else
+        printstyled(io, ms.globalref, color = :light_green)
+    end
+    println(io)
+    indent = iscompact ? "" : "   "
+    if !isempty(methinvs.mt_backedges)
+        print(io, indent, "mt_backedges: ")
+        showlist(io, methinvs.mt_backedges, length(indent)+length("mt_backedges")+2)
+    end
+    if !isempty(methinvs.backedges)
+        print(io, indent, "backedges: ")
+        showlist(io, methinvs.backedges, length(indent)+length("backedges")+2)
+    end
+    iscompact && print(io, ';')
+end
 
 function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
     # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
@@ -776,7 +799,54 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
             error("tag ", tag, " unknown")
         end
     end
-    return nodes, calleridxss, matchess
+    return mmi_trees!(nodes, calleridxss, matchess)
+end
+
+function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vector{Int}}, matchess::AbstractDict{Int,Vector{Method}})
+    iscaller = BitSet()
+
+    function filltree!(mminvs::MultiMethodInvalidations, i::Int)
+        node = nodes[i]
+        calleridxs = calleridxss[i]
+        if isa(node, Union{DataType,Binding})
+            while !isempty(calleridxs)
+                j = pop!(calleridxs)
+                push!(iscaller, j)
+                root = InstanceNode(nodes[j], 1)
+                push!(mminvs.mt_backedges, node => root)
+                fillnode!(root, j)
+            end
+        else
+            root = InstanceNode(node, 1)
+            push!(mminvs.backedges, root)
+            fillnode!(root, i)
+        end
+        return mminvs
+    end
+
+    function fillnode!(node::InstanceNode, k)
+        calleridxs = isassigned(calleridxss, k) ? calleridxss[k] : nothing
+        calleridxs === nothing && return
+        while !isempty(calleridxs)
+            j = pop!(calleridxs)
+            push!(iscaller, j)
+            child = InstanceNode(nodes[j], node)
+            fillnode!(child, j)
+        end
+    end
+
+    mminvs = MultiMethodInvalidations[]
+    for i in eachindex(nodes)
+        if i ∉ iscaller
+            arg = isa(nodes[i], Binding) ? nodes[i] : matchess[i]
+            mminv = MultiMethodInvalidations(arg)
+            filltree!(mminv, i)
+            push!(mminvs, mminv)
+        else
+            @assert !isassigned(calleridxss, i) || isempty(calleridxss[i])
+        end
+    end
+    return mminvs
 end
 
 function invalidation_trees(list::InvalidationLists; kwargs...)
