@@ -223,6 +223,7 @@ end
     end
     Pkg.activate(cproj)
     @test isempty(invalidations.logmeths)
+    trees = invalidation_trees(invalidations; consolidate=false)
     # tree = only(invalidation_trees(invalidations))
     # @test tree.reason == :inserting
     # @test tree.method.file == Symbol(@__FILE__)

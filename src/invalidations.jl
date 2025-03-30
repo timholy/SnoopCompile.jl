@@ -179,7 +179,9 @@ end
 
 const BackedgeMT = Pair{Union{DataType,Binding},InstanceNode}  # sig=>root
 
-struct MethodInvalidations
+abstract type AbstractMethodInvalidations end
+
+struct MethodInvalidations <: AbstractMethodInvalidations
     method::Method
     reason::Symbol   # :inserting or :deleting
     mt_backedges::Vector{BackedgeMT}
@@ -207,17 +209,9 @@ end
 countchildren(sigtree::BackedgeMT) = countchildren(sigtree.second)
 countchildren(::MethodInstance) = 1
 
-function countchildren(methinvs::MethodInvalidations)
-    n = 0
-    for list in (methinvs.mt_backedges, methinvs.backedges)
-        for root in list
-            n += countchildren(root)
-        end
-    end
-    return n
-end
+countchildren(mmi::AbstractMethodInvalidations) = sum(countchildren, mmi.backedges; init=0) + sum(countchildren, mmi.mt_backedges; init=0)
 
-function Base.sort!(methinvs::MethodInvalidations)
+function Base.sort!(methinvs::AbstractMethodInvalidations)
     sort!(methinvs.mt_backedges; by=countchildren)
     sort!(methinvs.backedges; by=countchildren)
     # recursive
@@ -277,7 +271,7 @@ function showlist(io::IO, treelist, indent::Int=0)
                 printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
                 print(io, " (formerly ", sig.def, ')')
             elseif isa(sig, Binding)
-                printstyled(io, sig.globalref, color = :light_green)
+                printstyled(io, sig.globalref, color = :light_red)
             else
                 # `sig` (immediate) invalidations
                 printstyled(io, sig, color = :light_cyan)
@@ -696,7 +690,7 @@ end
 
 const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
 
-struct MultiMethodInvalidations
+struct MultiMethodInvalidations <: AbstractMethodInvalidations
     methods::Union{Binding,Vector{Method}}
     mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
@@ -716,7 +710,7 @@ function Base.show(io::IO, methinvs::MultiMethodInvalidations)
             firstm = false
         end
     else
-        printstyled(io, ms.globalref, color = :light_green)
+        printstyled(io, ms.globalref, color = :light_red)
     end
     println(io)
     indent = iscompact ? "" : "   "
@@ -849,10 +843,37 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
     return mminvs
 end
 
-function invalidation_trees(list::InvalidationLists; kwargs...)
-    trees = invalidation_trees_logmeths(list.logmeths; kwargs...)
-    mminvs = invalidation_trees_logedges(list.logedges; kwargs...)
-    # TODO: add logedges
+function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwargs...)
+    mtrees = invalidation_trees_logmeths(list.logmeths; kwargs...)
+    etrees = invalidation_trees_logedges(list.logedges; kwargs...)
+    if !consolidate
+        trees = [mtrees; etrees]
+    else
+        trees = mtrees
+        mindex = Dict(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
+        for etree in etrees
+            for method in etree.methods
+                # Check if this method already exists in mtrees
+                idx = get(mindex, method, nothing)
+                if idx !== nothing
+                    # Merge the trees
+                    mtrees[idx].mt_backedges = join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
+                    mtrees[idx].backedges = join_invalidations!(trees[idx].backedges, etree.backedges)
+                else
+                    # Otherwise just add it to the list
+                    push!(trees, MethodInvalidations(
+                        method,
+                        :inserting,
+                        etree.mt_backedges,
+                        etree.backedges,
+                        MethodInstance[],  # mt_cache
+                        MethodInstance[]   # mt_disable
+                    ))
+                    mindex[method] = length(trees)
+                end
+            end
+        end
+    end
     for tree in trees
         sort!(tree)
     end
