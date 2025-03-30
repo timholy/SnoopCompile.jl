@@ -1,0 +1,15 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.13.0-DEV"
+manifest_format = "2.0"
+project_hash = "e432a80a0fd29ad03a8e9146029f324fdc7ce302"
+
+[[deps.InvalidA]]
+path = "../InvalidA"
+uuid = "be40ca7b-3ee8-492f-a3f1-50c058e54caf"
+version = "0.1.0"
+
+[[deps.InvalidC]]
+path = "."
+uuid = "ac24b6e5-9ce8-4da6-b046-32dfc5c72d9b"
+version = "0.1.0"
