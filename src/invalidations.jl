@@ -554,7 +554,8 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
     mminvs = MultiMethodInvalidations[]
     for i in eachindex(nodes)
         if i ∉ iscaller
-            arg = isa(nodes[i], Binding) ? nodes[i] : matchess[i]
+            node = nodes[i]
+            arg = get(matchess, i, node)
             mminv = MultiMethodInvalidations(arg)
             filltree!(mminv, i)
             push!(mminvs, mminv)
@@ -619,13 +620,15 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = mtrees
         mindex = Dict(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
-            for method in etree.methods
+            methods = etree.methods
+            if isa(methods, Vector{Method})
+                for method in methods
                 # Check if this method already exists in mtrees
                 idx = get(mindex, method, nothing)
                 if idx !== nothing
                     # Merge the trees
-                    mtrees[idx].mt_backedges = join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
-                    mtrees[idx].backedges = join_invalidations!(trees[idx].backedges, etree.backedges)
+                        join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
+                        join_invalidations!(trees[idx].backedges, etree.backedges)
                 else
                     # Otherwise just add it to the list
                     push!(trees, MethodInvalidations(
@@ -638,6 +641,10 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
                     ))
                     mindex[method] = length(trees)
                 end
+                end
+            else
+                display(etree)
+                error("fixme")
             end
         end
     end
