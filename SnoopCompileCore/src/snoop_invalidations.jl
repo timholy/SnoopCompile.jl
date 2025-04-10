@@ -31,15 +31,19 @@ Method insertion results in the sequence
 The authoritative reference is Julia's own `src/gf.c` file.
 """
 macro snoop_invalidations(expr)
-    quote
-        logedges = Base.StaticData.debug_method_invalidation(true)
-        logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
-        try
-            $(esc(expr))
-        finally
+    # It's a little unclear why this is better than a quoted try/finally, but it seems to be
+    # Guessing it's a lack of a block around `expr`
+    exoff = Expr(:tryfinally,
+        esc(expr),
+        quote
             Base.StaticData.debug_method_invalidation(false)
             ccall(:jl_debug_method_invalidation, Any, (Cint,), 0)
         end
-        InvalidationLists(logedges, logmeths)
+    )
+    return quote
+        local logedges = Base.StaticData.debug_method_invalidation(true)
+        local logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
+        $exoff
+        $InvalidationLists(logedges, logmeths)
     end
 end
