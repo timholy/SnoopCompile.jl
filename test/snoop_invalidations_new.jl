@@ -1,4 +1,5 @@
 using SnoopCompileCore, SnoopCompile
+using MethodAnalysis
 using Pkg
 using Test
 
@@ -10,7 +11,7 @@ include(joinpath(@__DIR__, "testmodules", "Invalidation", "InvalidA", "src", "pk
 end
 
 # Check the invalidation trees for `invs1`
-function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger)
+function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, isedge::Bool)
     @test length(trees) == 3
     treefint    = SnoopCompile.firstmatch(trees, mfint)
     treefstring = SnoopCompile.firstmatch(trees, mfstring)
@@ -98,7 +99,7 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger)
     @test treefsigned.backedges[1].mi.specTypes !== treefsigned.backedges[2].mi.specTypes
 end
 
-function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger)
+function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, isedge::Bool)
     @test length(trees) == 2
     treefint  = SnoopCompile.firstmatch(trees, mfint)
     treefint8 = SnoopCompile.firstmatch(trees, mfint8)
@@ -145,7 +146,10 @@ function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger)
     @test isempty(root.children)
 end
 
+mlogs = []
+
 @testset "MethodLogs" begin
+    empty!(mlogs)
     f = MethodLogs.f
     mfinteger = only(methods(f))
     precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
@@ -164,6 +168,9 @@ end
     end
     # Grab the methods corresponding to invidual trees now, while they exist
     mfint, mfstring, mfsigned = which(f, (Int,)), which(f, (String,)), which(f, (Signed,))
+    push!(mlogs, invs1)
+    trees1 = invalidation_trees(invs1)
+    push!(mlogs, trees1)
 
     # Recompile
     MethodLogs.callscallsf(1)
@@ -176,22 +183,26 @@ end
 
     invs2 = @snoop_invalidations begin
         MethodLogs.f(::Int8) = 5
-        Base.delete_method(which(f, (Int,)))
+        Base.delete_method(which(MethodLogs.f, (Int,)))
     end
     mfint8 = which(f, (Int8,))
+    push!(mlogs, invs2)
+    trees2 = invalidation_trees(invs2)
+    push!(mlogs, trees2)
 
     ### invs1
     @test isempty(invs1.logedges)   # there were no precompiled packages
-    trees = invalidation_trees(invs1)
-    test_trees1(MethodLogs, trees, mfint, mfstring, mfsigned, mfinteger)
+    test_trees1(MethodLogs, trees1, mfint, mfstring, mfsigned, mfinteger, false)
 
     ### invs2
     @test isempty(invs2.logedges)   # there were no precompiled packages
-    trees = invalidation_trees(invs2)
-    test_trees2(MethodLogs, trees, mfint, mfint8, mfsigned, mfinteger)
+    test_trees2(MethodLogs, trees2, mfint, mfint8, mfsigned, mfinteger, false)
 end
 
+elogs = []
+
 @testset "Edge invalidations" begin
+    empty!(elogs)
     cproj = Base.active_project()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
         Pkg.activate(pwd())
@@ -200,7 +211,7 @@ end
         Pkg.develop(path="./InvalidC")
 
         mod = @eval begin
-            using InvalidC      # this is InvalidA + new methods
+            using InvalidC        # this is InvalidA + new methods
             InvalidC
         end
         invs1 = @snoop_invalidations begin
@@ -211,9 +222,20 @@ end
 
         @test isempty(invs1.logmeths)
         trees = invalidation_trees(invs1)
+        push!(elogs, trees)
         display(trees)
-        test_trees1(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger)
+        test_trees1(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
 
+        @eval using InvalidE    # add and delete methods
+        invs2 = @snoop_invalidations begin
+            @eval using InvalidD  # add precompiles that depend on InvalidA + InvalidB + InvalidC
+        end
+
+        @test isempty(invs2.logmeths)
+        trees = invalidation_trees(invs2)
+        push!(elogs, trees)
+        display(trees)
+        test_trees2(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
     end
     Base.activate(cproj) # Reactivate the original project
 end

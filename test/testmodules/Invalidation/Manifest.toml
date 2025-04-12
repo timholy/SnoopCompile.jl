@@ -2,7 +2,7 @@
 
 julia_version = "1.13.0-DEV"
 manifest_format = "2.0"
-project_hash = "4b75e5d642fcb65d9008d05c4ca578314ae70095"
+project_hash = "79b9f7888e7ba2671fa8c4136851e927ea821847"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -24,6 +24,18 @@ version = "0.1.0"
 deps = ["InvalidA"]
 path = "InvalidC"
 uuid = "ac24b6e5-9ce8-4da6-b046-32dfc5c72d9b"
+version = "0.1.0"
+
+[[deps.InvalidD]]
+deps = ["InvalidA", "InvalidB", "InvalidC", "PrecompileTools"]
+path = "InvalidD"
+uuid = "4e53dc45-bfb2-4a6a-a95b-d850d77a7d07"
+version = "0.1.0"
+
+[[deps.InvalidE]]
+deps = ["InvalidA", "InvalidB", "InvalidC"]
+path = "InvalidE"
+uuid = "f916d1c3-0cdb-4773-9621-29945992b959"
 version = "0.1.0"
 
 [[deps.PkgC]]
