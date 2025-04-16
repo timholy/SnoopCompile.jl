@@ -82,21 +82,13 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     ## treefsigned
     @test treefsigned.reason == :inserting
     @test isempty(treefsigned.mt_backedges)
-    @test length(treefsigned.backedges) == 3
-    root = treefsigned.backedges[end]
+    root = only(treefsigned.backedges)
     @test root.depth == 0
     @test root.mi.def === mfinteger && root.mi.specTypes === Tuple{typeof(mod.f), Int}
     node = only(root.children)
     @test node.depth == 1
     @test node.mi.specTypes === Tuple{typeof(mod.invokesfs), Int}
     @test isempty(node.children)
-
-    for i = 1:2
-        local root = treefsigned.backedges[i]
-        @test isempty(root.children)
-        @test root.mi.def === mfinteger && root.mi.specTypes ∈ (Tuple{typeof(mod.f), Integer}, Tuple{typeof(mod.f), Signed})
-    end
-    @test treefsigned.backedges[1].mi.specTypes !== treefsigned.backedges[2].mi.specTypes
 end
 
 function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, isedge::Bool)
@@ -128,7 +120,7 @@ function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, ise
     ## treefint8
     @test treefint8.reason == :inserting
     @test isempty(treefint8.mt_backedges)
-    root = treefint8.backedges[end]
+    root = only(treefint8.backedges)
     @test root.depth == 0
     @test root.mi.def == mfsigned && root.mi.specTypes === Tuple{typeof(mod.f), Signed}
     @test length(root.children) == 2
@@ -137,13 +129,6 @@ function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, ise
         @test node.mi.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
         @test isempty(node.children)
     end
-
-    root = SnoopCompile.firstmatch(treefint8.backedges[1:2], Tuple{typeof(mod.f), Signed})  # from invokesfs
-    @test root.mi.def === mfinteger
-    @test isempty(root.children)
-    root = SnoopCompile.firstmatch(treefint8.backedges[1:2], Tuple{typeof(mod.f), Integer})  # from callsfrts
-    @test root.mi.def === mfinteger
-    @test isempty(root.children)
 end
 
 mlogs = []
