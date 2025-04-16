@@ -20,18 +20,23 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     ## treefint
     # World-splitting in `mod.callsfrt[ar]`
     @test treefint.reason == :inserting
-    @test length(treefint.mt_backedges) == 2
-    sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Any})
-    @test root.depth == 0
-    @test root.mi.def === only(methods(mod.callsfrta))
-    node = only(root.children)
-    @test node.depth == 1
-    @test node.mi.def === only(methods(mod.callscallsfrta)) && isempty(node.children)
+    if isedge
+        # World-splitting does not get credited to the widened signature
+        @test isempty(treefint.mt_backedges)
+    else
+        @test length(treefint.mt_backedges) == 2
+        sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Any})
+        @test root.depth == 0
+        @test root.mi.def === only(methods(mod.callsfrta))
+        node = only(root.children)
+        @test node.depth == 1
+        @test node.mi.def === only(methods(mod.callscallsfrta)) && isempty(node.children)
 
-    sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Real})
-    @test root.depth == 0
-    @test root.mi.def === only(methods(mod.callsfrtr))
-    @test isempty(root.children)
+        sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Real})
+        @test root.depth == 0
+        @test root.mi.def === only(methods(mod.callsfrtr))
+        @test isempty(root.children)
+    end
 
     # Dispatch priority
     @test length(treefint.backedges) == 3
@@ -48,7 +53,13 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(mod.f), Integer}
     node = SnoopCompile.firstmatch(root.children, only(methods(mod.callsfrta)))
     @test node.depth == 1
-    @test isempty(node.children)
+    if isedge
+        child = only(node.children)
+        @test child.depth == 2
+        @test child.mi.def == only(methods(mod.callscallsfrta))
+    else
+        @test isempty(node.children)
+    end
     node = SnoopCompile.firstmatch(root.children, only(methods(mod.callsfrtr)))
     @test isempty(node.children)
     @test node.depth == 1
@@ -81,7 +92,14 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
 
     ## treefsigned
     @test treefsigned.reason == :inserting
-    @test isempty(treefsigned.mt_backedges)
+    if isedge
+        sig, root = only(treefsigned.mt_backedges)
+        @test sig === Tuple{typeof(mod.f), Signed}
+        @test root.depth == 0
+        @test root.mi.def === only(methods(mod.invokesfs)) && root.mi.specTypes.parameters[2] === Int
+    else
+        @test isempty(treefsigned.mt_backedges)
+    end
     root = only(treefsigned.backedges)
     @test root.depth == 0
     @test root.mi.def === mfinteger && root.mi.specTypes === Tuple{typeof(mod.f), Int}
@@ -206,6 +224,7 @@ elogs = []
         mfint, mfstring, mfsigned, mfinteger = which(f, (Int,)), which(f, (String,)), which(f, (Signed,)), which(f, (Integer,))
 
         @test isempty(invs1.logmeths)
+        push!(elogs, invs1)
         trees = invalidation_trees(invs1)
         push!(elogs, trees)
         display(trees)

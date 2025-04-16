@@ -528,12 +528,12 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
             while !isempty(calleridxs)
                 j = pop!(calleridxs)
                 push!(iscaller, j)
-                root = InstanceNode(nodes[j], 1)
+                root = InstanceNode(nodes[j], 0)
                 push!(mminvs.mt_backedges, node => root)
                 fillnode!(root, j)
             end
         else
-            root = InstanceNode(node, 1)
+            root = InstanceNode(node, 0)
             push!(mminvs.backedges, root)
             fillnode!(root, i)
         end
@@ -552,13 +552,21 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
     end
 
     mminvs = MultiMethodInvalidations[]
+    treeindex = Dict{Vector{Method},Int}()
     for i in eachindex(nodes)
         if i ∉ iscaller
             node = nodes[i]
             arg = get(matchess, i, node)
-            mminv = MultiMethodInvalidations(arg)
+            j = get(treeindex, arg, nothing)
+            if j === nothing
+                mminv = MultiMethodInvalidations(arg)
+                push!(mminvs, mminv)
+                j = length(mminvs)
+                treeindex[arg] = j
+            else
+                mminv = mminvs[j]
+            end
             filltree!(mminv, i)
-            push!(mminvs, mminv)
         else
             @assert !isassigned(calleridxss, i) || isempty(calleridxss[i])
         end
@@ -623,24 +631,24 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
             methods = etree.methods
             if isa(methods, Vector{Method})
                 for method in methods
-                # Check if this method already exists in mtrees
-                idx = get(mindex, method, nothing)
-                if idx !== nothing
-                    # Merge the trees
-                        join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
-                        join_invalidations!(trees[idx].backedges, etree.backedges)
-                else
-                    # Otherwise just add it to the list
-                    push!(trees, MethodInvalidations(
-                        method,
-                        :inserting,
-                        etree.mt_backedges,
-                        etree.backedges,
-                        MethodInstance[],  # mt_cache
-                        MethodInstance[]   # mt_disable
-                    ))
-                    mindex[method] = length(trees)
-                end
+                    # Check if this method already exists in mtrees
+                    idx = get(mindex, method, nothing)
+                    if idx !== nothing
+                        # Merge the trees
+                            join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
+                            join_invalidations!(trees[idx].backedges, etree.backedges)
+                    else
+                        # Otherwise just add it to the list
+                        push!(trees, MethodInvalidations(
+                            method,
+                            :inserting,
+                            copy(etree.mt_backedges),
+                            copy(etree.backedges),
+                            MethodInstance[],  # mt_cache
+                            MethodInstance[]   # mt_disable
+                        ))
+                        mindex[method] = length(trees)
+                    end
                 end
             else
                 display(etree)
