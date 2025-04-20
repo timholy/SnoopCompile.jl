@@ -352,44 +352,50 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     reason = parent = nothing
     i = 0
     while i < length(list)
+        invokesig = nothing
         item = list[i+=1]
+        if !isa(item, MethodInstance) && !isa(item, Method)
+            invokesig = item
+            item = list[i+=1]
+        end
         if isa(item, MethodInstance)
-            mi = item
+            edge = (invokesig, item)
             item = list[i+=1]
             if isa(item, Int32)
                 depth = item
                 if iszero(depth)
                     # starting a new mt_backedges
                     @assert parent === nothing  # these should come first in each Method-block
-                    parent = InstanceNode(mi, depth)
+                    parent = InstanceNode(edge, depth)
                 elseif depth == Int32(1)
                     if parent === nothing
-                        parent = InstanceNode(mi, depth)  # starts a new backedge
+                        parent = InstanceNode(edge, depth)  # starts a new backedge
                     else
-                        parent = InstanceNode(mi, getroot(parent), depth)  # attaches to the current root
+                        parent = InstanceNode(edge, getroot(parent), depth)  # attaches to the current root
                     end
                 else
                     @assert parent !== nothing
                     while depth < parent.depth + 1 # && isdefined(parent, :parent)
                         parent = parent.parent
                     end
-                    parent = InstanceNode(mi, parent, depth)
+                    parent = InstanceNode(edge, parent, depth)
                 end
             elseif isa(item, String)
                 if item == "invalidate_mt_cache"
-                    push!(mt_cache, mi)
+                    push!(mt_cache, edge)
                 else
                     # finish a backedges
                     reason = checkreason(reason, item)
                     if parent !== nothing
                         @assert isdummy(getroot(parent))
                     end
-                    root = parent === nothing ? InstanceNode(mi, 0) : InstanceNode(mi, getroot(parent).children)
+                    root = parent === nothing ? InstanceNode(edge, 0) : InstanceNode(edge, getroot(parent).children)
                     push!(backedges, root)
                     parent = nothing
                 end
             end
         elseif isa(item, Type) && item <: Tuple
+            error("this shouldn't happen")
             # finish an mt_backedges
             rootsig = item
             root = getroot(parent)
@@ -407,6 +413,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
         end
     end
+    @assert isempty(mt_backedges) && isempty(backedges) && isempty(mt_cache) && isempty(mt_disable)
     return methodinvs
 end
 
