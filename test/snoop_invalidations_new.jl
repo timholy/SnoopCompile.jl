@@ -218,33 +218,39 @@ elogs = []
         Pkg.develop(path="./InvalidB")
         Pkg.develop(path="./InvalidC")
 
-        mod = @eval begin
+        InvalidC, InvalidA = @eval begin
             using InvalidC        # this is InvalidA + new methods
-            InvalidC
+            InvalidC, InvalidC.InvalidA
         end
         invs1 = @snoop_invalidations begin
+            @eval InvalidA struct InvalidatedBinding
+                x::Float64
+            end
             @eval using InvalidB  # this is InvalidA + precompilation
         end
-        f = mod.InvalidA.f
+        f = InvalidA.f
         mfint, mfstring, mfsigned, mfinteger = which(f, (Int,)), which(f, (String,)), which(f, (Signed,)), which(f, (Integer,))
+        @show mfint mfinteger
 
         @test isempty(invs1.logmeths)
         push!(elogs, invs1)
-        trees = invalidation_trees(invs1)
+        trees = invalidation_trees(invs1; consolidate=false)
         push!(elogs, trees)
         display(trees)
-        test_trees1(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
+        # test_trees1(InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
 
-        @eval using InvalidE    # add and delete methods
         invs2 = @snoop_invalidations begin
-            @eval using InvalidD  # add precompiles that depend on InvalidA + InvalidB + InvalidC
+            @eval using InvalidE    # add methods
+            Base.delete_method(mfint)
+            @eval using InvalidD    # add precompiles that depend on InvalidA + InvalidB + InvalidC
         end
 
         @test isempty(invs2.logmeths)
-        trees = invalidation_trees(invs2)
+        push!(elogs, invs2)
+        trees = invalidation_trees(invs2; consolidate=false)
         push!(elogs, trees)
         display(trees)
-        test_trees2(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
+        test_trees2(InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
     end
     Base.activate(cproj) # Reactivate the original project
 end

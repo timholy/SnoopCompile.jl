@@ -70,12 +70,9 @@ function Base.show(io::IO, edge::BackEdge)
     show(io, methodinstance(edge.instance))
 end
 
-struct EdgeRef
-    ci::CodeInstance
-    edgeidx::Int         # starting index of the edge in `ci.edges`
-end
+abstract type AbstractTreeNode end
 
-mutable struct InstanceNode
+mutable struct InstanceNode <: AbstractTreeNode
     edge::BackEdge
     depth::Int32
     children::Vector{InstanceNode}
@@ -158,7 +155,7 @@ function Base.any(f, node::InstanceNode)
     return any(f, node.children)
 end
 
-function Base.sort!(node::InstanceNode)
+function Base.sort!(node::AbstractTreeNode)
     sort!(node.children; by=countchildren)
     for child in node.children
         sort!(child)
@@ -170,7 +167,7 @@ function copybranch(node::InstanceNode)
     return InstanceNode(node, children)
 end
 
-function countchildren(node::InstanceNode)
+function countchildren(node::AbstractTreeNode)
     n = length(node.children)
     for child in node.children
         n += countchildren(child)
@@ -263,14 +260,24 @@ function showlist(io::IO, treelist, indent::Int=0)
     for i = 1:n
         print(io, lpad(i, nd), ": ")
         root = treelist[i]
-        edge = root.edge
-        (; sig, instance) = edge
+        sig, instance = getsigedge(root)
         if sig !== nothing
             print(io, "signature ")
             printstyled(io, sig, color = :light_cyan)
             print(io, " => ")
         end
-        printstyled(io, methodinstance(instance), color = :light_yellow)
+        if isa(instance, Vector{CodeInstance})
+            print(io, "CodeInstance[")
+            firstci = true
+            for ci in instance
+                firstci || print(io, ", ")
+                printstyled(io, methodinstance(ci), color = :light_yellow)
+                firstci = false
+            end
+            print(io, "]")
+        else
+            printstyled(io, methodinstance(instance), color = :light_yellow)
+        end
         print(io, " (", countchildren(root), " children)")
         if iscompact
             i < n && print(io, ", ")
@@ -279,6 +286,12 @@ function showlist(io::IO, treelist, indent::Int=0)
             i < n && print(io, " "^indent)
         end
     end
+end
+
+function getsigedge(node::InstanceNode)
+    edge = node.edge
+    (; sig, instance) = edge
+    return sig, instance
 end
 
 """
@@ -356,8 +369,12 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             item = list[i+=1]
             @assert isa(item, String)
             if item ∈ ("jl_method_table_insert", "jl_method_table_disable")
-                root = getroot(parent)
-                root = InstanceNode(edge, root.children)
+                if parent === nothing
+                    root = InstanceNode(edge, 0)
+                else
+                    root = getroot(parent)
+                    root = InstanceNode(edge, root.children)
+                end
                 push!(backedges, root)
                 parent = nothing
             elseif item == "invalidate_mt_cache"
@@ -416,20 +433,62 @@ end
 
 const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
 
-struct MultiMethodInvalidations <: AbstractInvalidationTree
-    methods::Union{Binding,Vector{Method}}
-    backedges::Vector{InstanceNode}
+struct EdgeRef
+    ci::CodeInstance
+    edgeidx::Int         # starting index of the edge in `ci.edges`
 end
-MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, InstanceNode[])
+
+function getsigedge(edgeref::EdgeRef)
+    (; ci, edgeidx) = edgeref
+    edges = ci.edges
+    sig = nothing
+    edge = edges[edgeidx]
+    isa(edge, CodeInstance) && return sig, edge
+    if isa(edge, DataType)
+        sig = edge
+        edge = edges[edgeidx+1]
+        return sig, edge
+    elseif isa(edge, Int)
+        n = edge
+        sig = edges[edgeidx+1]
+        cis = CodeInstance[]
+        for j in 1:n
+            push!(cis, edges[edgeidx+j+1])
+        end
+        return sig, cis
+    end
+    error("not handled yet: ", edge)
+end
+
+struct EdgeRefNode <: AbstractTreeNode
+    edge::EdgeRef
+    children::Vector{EdgeRefNode}
+    parent::EdgeRefNode
+
+    EdgeRefNode(edge::EdgeRef) = new(edge, EdgeRefNode[])    # create root
+    function EdgeRefNode(edge::EdgeRef, parent::EdgeRefNode)
+        child = new(edge, EdgeRefNode[], parent)    # create child
+        push!(parent.children, child)
+        return child
+    end
+end
+
+getsigedge(node::EdgeRefNode) = getsigedge(node.edge)
+
+struct MultiMethodInvalidations <: AbstractInvalidationTree
+    cause::Union{Binding,Vector{Method}}
+    backedges::Vector{EdgeRefNode}
+end
+MultiMethodInvalidations(cause) = MultiMethodInvalidations(cause, EdgeRefNode[])
 
 function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
 
-    print(io, "Invalidating methods: ")
-    ms = methinvs.methods
+    print(io, "Invalidating cause: ")
+    ms = methinvs.cause
     if isa(ms, Vector{Method})
         firstm = true
-        for m in methinvs.methods
+        for m in methinvs.cause
             firstm || print(io, ", ")
             printstyled(io, m, color = :light_magenta)
             firstm = false
@@ -439,10 +498,6 @@ function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     end
     println(io)
     indent = iscompact ? "" : "   "
-    if !isempty(methinvs.mt_backedges)
-        print(io, indent, "mt_backedges: ")
-        showlist(io, methinvs.mt_backedges, length(indent)+length("mt_backedges")+2)
-    end
     if !isempty(methinvs.backedges)
         print(io, indent, "backedges: ")
         showlist(io, methinvs.backedges, length(indent)+length("backedges")+2)
@@ -451,75 +506,135 @@ function Base.show(io::IO, methinvs::MultiMethodInvalidations)
 end
 
 function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
-    # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
-    nodes = EdgeNodeType[]
-    calleridxss = Vector{Int}[]
-    nodeidx = IdDict{EdgeNodeType,Int}()    # get the index within `nodes` for a given key
-    matchess = Dict{Int,Vector{Method}}()   # nodeidx => Method[...]
-
-    function addnode(item)
-        push!(nodes, item)
-        k = length(nodes)
-        nodeidx[item] = k
-        return k
-    end
-
-    function addcaller!(listlist, (calleridx, calleeidx))
-        if length(listlist) < calleeidx
-            resize!(listlist, calleeidx)
-        end
-        # calleridxs = get!(Vector{Int}, listlist, calleeidx)   # why don't we have this??
-        calleridxs = if isassigned(listlist, calleeidx)
-            listlist[calleeidx]
-        else
-            listlist[calleeidx] = Int[]
-        end
-        push!(calleridxs, calleridx)
-        return calleridxs
-    end
-
+    trees = MultiMethodInvalidations[]
+    treeidx = Dict{Union{Binding,Vector{Method}},Int}()
+    edgelink = Dict{CodeInstance,EdgeRefNode}()
     i = 0
-    while i + 2 < length(list)
-        tag = list[i+2]::String
-        if tag == "method_globalref"
-            def, target = list[i+1]::Method, list[i+3]::CodeInstance
-            i += 4
-            error("implement me")
-        elseif tag == "insert_backedges_callee"
-            edge, target, matches = list[i+1]::EdgeNodeType, list[i+3]::CodeInstance, list[i+4]::Union{Vector{Any},Nothing}
-            i += 4
-            idx = get(nodeidx, edge, nothing)
-            if idx === nothing
-                idx = addnode(edge)
-                if matches !== nothing
-                    matchess[idx] = matches
-                end
-            elseif matches !== nothing
-                @assert matchess[idx] == matches
+    while i < length(list)
+        op = list[i+=1]::String
+        if op == "invalidate_edge"
+            cause = list[i+3]::Union{Binding,Vector{Any}}
+            if isa(cause, Vector{Any})
+                cause = convert(Vector{Method}, cause)
             end
-            idxt = get(nodeidx, target, nothing)
-            @assert idxt === nothing
-            idxt = addnode(target)
-            addcaller!(calleridxss, idxt => idx)
-        elseif tag == "verify_methods"
-            caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
+            idx = get(treeidx, cause, nothing)
+            if idx === nothing
+                mminv = MultiMethodInvalidations(cause)
+                push!(trees, mminv)
+                idx = length(trees)
+                treeidx[cause] = idx
+            else
+                mminv = trees[idx]
+            end
+            ci = list[i+1]::CodeInstance
+            j = list[i+2]::Int
+            @assert 0 < j <= length(ci.edges)
+            root = EdgeRefNode(EdgeRef(ci, j))
+            push!(mminv.backedges, root)
+            empty!(edgelink)
+            edgelink[ci] = root
             i += 3
-            idxt = get(nodeidx, caller, nothing)
-            if idxt === nothing
-                idxt = addnode(caller)
-            end
-            idx = get(nodeidx, callee, nothing)
-            if idx === nothing
-                idx = addnode(callee)
-            end
-            @assert idxt >= idx
-            idxt > idx && addcaller!(calleridxss, idxt => idx)
+        elseif op == "verify_methods"
+            ci = list[i+1]::CodeInstance
+            j = list[i+2]::Int
+            @assert 0 < j <= length(ci.edges)
+            pci = getedgeci(ci.edges, j)
+            parent = edgelink[pci]
+            child = EdgeRefNode(EdgeRef(ci, j), parent)
+            edgelink[ci] = child
+            i += 2
+        elseif op == "method_globalref"
+            error("not implemented yet")
+            i += 2
         else
-            error("tag ", tag, " unknown")
+            error("unknown operation ", op)
         end
     end
-    return mmi_trees!(nodes, calleridxss, matchess)
+    return trees
 end
+
+function getedgeci(edges::Core.SimpleVector, j::Int)
+    while j <= length(edges)
+        item = edges[j]
+        if isa(item, CodeInstance)
+            return item
+        end
+        j += 1
+    end
+    error("no CodeInstance found in edges")
+end
+
+
+
+#     # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
+#     nodes = EdgeNodeType[]
+#     calleridxss = Vector{Int}[]
+#     nodeidx = IdDict{EdgeNodeType,Int}()    # get the index within `nodes` for a given key
+#     matchess = Dict{Int,Vector{Method}}()   # nodeidx => Method[...]
+
+#     function addnode(item)
+#         push!(nodes, item)
+#         k = length(nodes)
+#         nodeidx[item] = k
+#         return k
+#     end
+
+#     function addcaller!(listlist, (calleridx, calleeidx))
+#         if length(listlist) < calleeidx
+#             resize!(listlist, calleeidx)
+#         end
+#         # calleridxs = get!(Vector{Int}, listlist, calleeidx)   # why don't we have this??
+#         calleridxs = if isassigned(listlist, calleeidx)
+#             listlist[calleeidx]
+#         else
+#             listlist[calleeidx] = Int[]
+#         end
+#         push!(calleridxs, calleridx)
+#         return calleridxs
+#     end
+
+#     i = 0
+#     while i + 2 < length(list)
+#         tag = list[i+2]::String
+#         if tag == "method_globalref"
+#             def, target = list[i+1]::Method, list[i+3]::CodeInstance
+#             i += 4
+#             error("implement me")
+#         elseif tag == "insert_backedges_callee"
+#             edge, target, matches = list[i+1]::EdgeNodeType, list[i+3]::CodeInstance, list[i+4]::Union{Vector{Any},Nothing}
+#             i += 4
+#             idx = get(nodeidx, edge, nothing)
+#             if idx === nothing
+#                 idx = addnode(edge)
+#                 if matches !== nothing
+#                     matchess[idx] = matches
+#                 end
+#             elseif matches !== nothing
+#                 @assert matchess[idx] == matches
+#             end
+#             idxt = get(nodeidx, target, nothing)
+#             @assert idxt === nothing
+#             idxt = addnode(target)
+#             addcaller!(calleridxss, idxt => idx)
+#         elseif tag == "verify_methods"
+#             caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
+#             i += 3
+#             idxt = get(nodeidx, caller, nothing)
+#             if idxt === nothing
+#                 idxt = addnode(caller)
+#             end
+#             idx = get(nodeidx, callee, nothing)
+#             if idx === nothing
+#                 idx = addnode(callee)
+#             end
+#             @assert idxt >= idx
+#             idxt > idx && addcaller!(calleridxss, idxt => idx)
+#         else
+#             error("tag ", tag, " unknown")
+#         end
+#     end
+#     return mmi_trees!(nodes, calleridxss, matchess)
+# end
 
 function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vector{Int}}, matchess::AbstractDict{Int,Vector{Method}})
     iscaller = BitSet()
