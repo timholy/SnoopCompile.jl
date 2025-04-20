@@ -163,11 +163,16 @@ mlogs = []
     MethodLogs.callscallsfrta(1)                   # runtime-dispatched callee
     MethodLogs.callsfrtr(1)
     MethodLogs.callsfrts(1)
+    MethodLogs.fib()                               # binding
 
     invs1 = @snoop_invalidations begin
         MethodLogs.f(::Int) = 2
         MethodLogs.f(::String) = 3
         MethodLogs.f(::Signed) = 4
+        @eval MethodLogs struct InvalidatedBinding
+            x::Float64
+        end
+        @eval MethodLogs const gib = InvalidatedBinding(2.0)
     end
     # Grab the methods corresponding to invidual trees now, while they exist
     mfint, mfstring, mfsigned = which(f, (Int,)), which(f, (String,)), which(f, (Signed,))

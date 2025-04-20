@@ -250,3 +250,6 @@ function methods_with_generators(m::Module)
     end
     return meths
 end
+
+methodinstance(mi::MethodInstance) = mi
+methodinstance(ci::CodeInstance) = Core.Compiler.get_ci_mi(ci)

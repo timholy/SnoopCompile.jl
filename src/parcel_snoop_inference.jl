@@ -1,15 +1,4 @@
-import FlameGraphs
-
-using Base.StackTraces: StackFrame
-using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
-using AbstractTrees
-using Core.Compiler.Timings: InferenceFrameInfo
-using SnoopCompileCore: InferenceTiming, InferenceTimingNode, inclusive, exclusive
-using Profile
-
 const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNode}
-
-const flamegraph = FlameGraphs.flamegraph  # For re-export
 
 const rextest = r"Test\.jl$"       # for detecting calls from a @testset
 
@@ -28,7 +17,7 @@ isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
 isROOT(mi_info::InferenceNode) = isROOT(MethodInstance(mi_info))
 isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
 
-getroot(node::InferenceTimingNode) = isdefined(node.parent, :parent) ? getroot(node.parent) : node
+AbstractTrees.getroot(node::InferenceTimingNode) = isdefined(node.parent, :parent) ? getroot(node.parent) : node
 
 # Record instruction pointers we've already looked up (performance optimization)
 const lookups = if isdefined(Core.Compiler, :InterpreterIP)

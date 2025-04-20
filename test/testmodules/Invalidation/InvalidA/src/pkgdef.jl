@@ -10,3 +10,11 @@ callscallsfrta(x) = callsfrta(x)
 # invoked callers
 invokesfr(x) = invoke(f, Tuple{Real}, x)
 invokesfs(x) = invoke(f, Tuple{Signed}, x)
+
+# bindings
+struct InvalidatedBinding
+    x::Int
+end
+makeib(x) = InvalidatedBinding(x)
+const gib = makeib(1)
+fib() = gib.x

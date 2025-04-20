@@ -20,7 +20,10 @@ function uinvalidated(invlist; exclude_corecompiler::Bool=true)
     i, ilast = firstindex(invlist), lastindex(invlist)
     while i <= ilast
         item = invlist[i]
-        if isa(item, Core.MethodInstance)
+        if isa(item, CodeInstance)
+            item = methodinstance(item)
+        end
+        if isa(item, MethodInstance)
             if i < lastindex(invlist)
                 if invlist[i+1] == "invalidate_mt_cache"
                     i += 2
@@ -44,71 +47,111 @@ end
 
 # Variable names:
 # - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
-# - `methinvs::MethodInvalidations`: the set of invalidations that occur from inserting or deleting a method
+# - `methinvs::InvalidationTree`: the set of invalidations that occur from inserting or deleting a method
 # - `trees`: a list of `methinvs`
 
 dummy() = nothing
 dummy()
-const dummyinstance = first(specializations(which(dummy, ())))
+const dummyinstance = first(specializations(which(dummy, ()))).cache
+
+struct BackEdge
+    sig::Union{DataType,Nothing}   # call signature from `invoke` or abstract call; nothing for concrete or a "covered" abstract call
+    instance::Union{MethodInstance,CodeInstance}
+end
+BackEdge(instance::Union{MethodInstance,CodeInstance}) = BackEdge(nothing, instance)
+
+const dummyedge = BackEdge(dummyinstance)
+
+function Base.show(io::IO, edge::BackEdge)
+    if edge.sig !== nothing
+        show(io, edge.sig)
+        print(io, " => ")
+    end
+    show(io, methodinstance(edge.instance))
+end
+
+struct EdgeRef
+    ci::CodeInstance
+    edgeidx::Int         # starting index of the edge in `ci.edges`
+end
 
 mutable struct InstanceNode
-    mi::MethodInstance
+    edge::BackEdge
     depth::Int32
     children::Vector{InstanceNode}
     parent::InstanceNode
 
-    # Create a new tree. Creates the `root`, but returns the `leaf` holding `mi`.
-    # `root == leaf` if `depth = 0`, otherwise parent "dummy" nodes are inserted until
-    # the root is created at `depth` 0.
-    function InstanceNode(mi::MethodInstance, depth)
-        leaf = new(mi, depth, InstanceNode[])
+    # Create a new tree. Creates the `root` with depth=0, but returns the `leaf` holding `edge`.
+    # `root == leaf` if `depth = 0`, otherwise parent "dummy" nodes are inserted.
+    function InstanceNode(edge::BackEdge, depth)
+        leaf = new(edge, depth, InstanceNode[])
         child = leaf
         while depth > 0
             depth -= 1
-            parent = new(dummyinstance, depth, InstanceNode[])
+            parent = new(dummyedge, depth, InstanceNode[])
             push!(parent.children, child)
             child.parent = parent
             child = parent
         end
         return leaf
     end
-    function InstanceNode(mi::MethodInstance, children::Vector{InstanceNode})
+    function InstanceNode(edge::BackEdge, children::Vector{InstanceNode})
         # re-parent "children"
-        root = new(mi, 0, children)
+        root = new(edge, 0, children)
         for child in children
             child.parent = root
         end
         return root
     end
     # Create child with a given `parent`. Checks that the depths are consistent.
-    function InstanceNode(mi::MethodInstance, parent::InstanceNode, depth=parent.depth+Int32(1))
-        depth !== nothing && @assert parent.depth + Int32(1) == depth
-        child = new(mi, depth, InstanceNode[], parent)
+    function InstanceNode(edge::BackEdge, parent::InstanceNode, depth=parent.depth+Int32(1))
+        @assert parent.depth + Int32(1) == depth
+        child = new(edge, depth, InstanceNode[], parent)
         push!(parent.children, child)
         return child
     end
     # Creating a tree, starting with the leaves (omits `parent`)
     function InstanceNode(node::InstanceNode, newchildren::Vector{InstanceNode})
-        return new(node.mi, node.depth, newchildren)
+        @assert all(child -> child.depth == node.depth + Int32(1), newchildren)
+        parent = new(node.edge, node.depth, newchildren)
+        for child in newchildren
+            child.parent = parent
+        end
+        return parent
     end
 end
 
-InstanceNode(ci::CodeInstance, depth) = InstanceNode(ci.def, depth)
-InstanceNode(ci::CodeInstance, children::Vector{InstanceNode}) = InstanceNode(ci.def, children)
-InstanceNode(ci::CodeInstance, parent::InstanceNode, args...) = InstanceNode(ci.def, parent, args...)
+isdummy(node::InstanceNode) = node.edge === dummyedge
 
-isdummy(node::InstanceNode) = node.mi === dummyinstance
+Core.MethodInstance(node::InstanceNode) = methodinstance(node.edge.instance)
+Base.convert(::Type{MethodInstance}, node::InstanceNode) = MethodInstance(node)
 
-Core.MethodInstance(node::InstanceNode) = node.mi
-Base.convert(::Type{MethodInstance}, node::InstanceNode) = node.mi
 AbstractTrees.children(node::InstanceNode) = node.children
-
-function getroot(node::InstanceNode)
+AbstractTrees.nodevalue(node::InstanceNode) = node.edge
+AbstractTrees.parent(node::InstanceNode) = node.parent
+AbstractTrees.childtype(::Type{InstanceNode}) = InstanceNode
+AbstractTrees.ParentLinks(::Type{InstanceNode}) = AbstractTrees.StoredParents()
+AbstractTrees.ChildIndexing(::Type{InstanceNode}) = AbstractTrees.IndexedChildren()
+AbstractTrees.NodeType(::Type{InstanceNode}) = AbstractTrees.HasNodeType()
+AbstractTrees.isroot(node::InstanceNode) = !isdefined(node, :parent)
+AbstractTrees.ischild(node1::InstanceNode, node2::InstanceNode) = !isroot(node1) && node1.parent === node2
+function AbstractTrees.intree(node::InstanceNode, root::InstanceNode)
+    while !isroot(node)
+        node === root && return true
+        node = node.parent
+    end
+    return false
+end
+function AbstractTrees.getroot(node::InstanceNode)
     while isdefined(node, :parent)
         node = node.parent
     end
     return node
 end
+function AbstractTrees.printnode(io::IO, node::InstanceNode)
+    print(io, nodevalue(node), " at depth ", node.depth, " with ", countchildren(node), " children")
+end
+Base.show(io::IO, node::InstanceNode) = AbstractTrees.printnode(io, node)
 
 function Base.any(f, node::InstanceNode)
     f(node) && return true
@@ -122,43 +165,9 @@ function Base.sort!(node::InstanceNode)
     end
 end
 
-# TODO: deprecate this in favor of `AbstractTrees.print_tree`, and limit it to one layer (e.g., like `:showchildren=>false`)
-function Base.show(io::IO, node::InstanceNode; methods=false, maxdepth::Int=5, minchildren::Int=round(Int, sqrt(countchildren(node))))
-    if get(io, :limit, false)
-        print(io, node.mi, " at depth ", node.depth, " with ", countchildren(node), " children")
-    else
-        nc = map(countchildren, node.children)
-        s = sum(nc) + length(node.children)
-        indent = " "^Int(node.depth)
-        print(io, indent, methods ? node.mi.def : node.mi)
-        println(io, " (", s, " children)")
-        if get(io, :showchildren, true)::Bool
-            p = sortperm(nc)
-            skipped = false
-            for i in p
-                child = node.children[i]
-                if child.depth <= maxdepth && nc[i] >= minchildren
-                    show(io, child; methods=methods, maxdepth=maxdepth, minchildren=minchildren)
-                else
-                    skipped = true
-                end
-            end
-            if skipped
-                println(io, indent, "⋮")
-                return nothing
-            end
-        end
-    end
-end
-Base.show(node::InstanceNode; kwargs...) = show(stdout, node; kwargs...)
-
 function copybranch(node::InstanceNode)
     children = InstanceNode[copybranch(child) for child in node.children]
-    newnode = InstanceNode(node, children)
-    for child in children
-        child.parent = newnode
-    end
-    return newnode
+    return InstanceNode(node, children)
 end
 
 function countchildren(node::InstanceNode)
@@ -177,47 +186,36 @@ function adjust_depth!(node::InstanceNode, Δdepth)
     return node
 end
 
-const BackedgeMT = Pair{Union{DataType,Binding},InstanceNode}  # sig=>root
+abstract type AbstractInvalidationTree end
 
-abstract type AbstractMethodInvalidations end
-
-struct MethodInvalidations <: AbstractMethodInvalidations
-    method::Method
-    reason::Symbol   # :inserting or :deleting
-    mt_backedges::Vector{BackedgeMT}
+struct InvalidationTree <: AbstractInvalidationTree
+    cause::Union{Method,BindingPartition}
+    reason::Symbol   # :inserting, :deleting, or :modifying
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
     mt_disable::Vector{MethodInstance}
 end
-methinv_storage() = Pair{Type,InstanceNode}[], InstanceNode[], MethodInstance[], MethodInstance[]
-function MethodInvalidations(method::Method, reason::Symbol)
-    MethodInvalidations(method, reason, methinv_storage()...)
+methinv_storage() = InstanceNode[], MethodInstance[], MethodInstance[]
+function InvalidationTree(cause::Union{Method,BindingPartition}, reason::Symbol)
+    InvalidationTree(cause, reason, methinv_storage()...)
 end
 
-Base.isempty(methinvs::MethodInvalidations) = isempty(methinvs.mt_backedges) && isempty(methinvs.backedges)  # ignore mt_cache
+Base.isempty(methinvs::InvalidationTree) = isempty(methinvs.backedges)  # ignore mt_cache and mt_disable
 
-function Base.:(==)(methinvs1::MethodInvalidations, methinvs2::MethodInvalidations)
-    methinvs1.method == methinvs2.method || return false
+function Base.:(==)(methinvs1::InvalidationTree, methinvs2::InvalidationTree)
+    methinvs1.cause == methinvs2.cause || return false
     methinvs1.reason == methinvs2.reason || return false
-    methinvs1.mt_backedges == methinvs2.mt_backedges || return false
     methinvs1.backedges == methinvs2.backedges || return false
     methinvs1.mt_cache == methinvs2.mt_cache || return false
     methinvs1.mt_disable == methinvs2.mt_disable || return false
     return true
 end
 
-countchildren(sigtree::BackedgeMT) = countchildren(sigtree.second)
-countchildren(::MethodInstance) = 1
+countchildren(mmi::AbstractInvalidationTree) = sum(countchildren, mmi.backedges; init=0)
 
-countchildren(mmi::AbstractMethodInvalidations) = sum(countchildren, mmi.backedges; init=0) + sum(countchildren, mmi.mt_backedges; init=0)
-
-function Base.sort!(methinvs::AbstractMethodInvalidations)
-    sort!(methinvs.mt_backedges; by=countchildren)
+function Base.sort!(methinvs::AbstractInvalidationTree)
     sort!(methinvs.backedges; by=countchildren)
     # recursive
-    for (sig, root) in methinvs.mt_backedges
-        sort!(root)
-    end
     for root in methinvs.backedges
         sort!(root)
     end
@@ -226,17 +224,20 @@ end
 
 # We could use AbstractTrees here, but typically one is not interested in the full tree,
 # just the top method and the number of children it has
-function Base.show(io::IO, methinvs::MethodInvalidations)
+function Base.show(io::IO, methinvs::InvalidationTree)
     iscompact = get(io, :compact, false)::Bool
 
     print(io, methinvs.reason, " ")
-    printstyled(io, methinvs.method, color = :light_magenta)
+    cause = methinvs.cause
+    if isa(cause, Method)
+        printstyled(io, cause, color = :light_magenta)
+    else
+        Base.with_output_color(:light_magenta, io, methinvs.cause) do io, x
+            show(io, MIME("text/plain"), x)
+        end
+    end
     println(io, " invalidated:")
     indent = iscompact ? "" : "   "
-    if !isempty(methinvs.mt_backedges)
-        print(io, indent, "mt_backedges: ")
-        showlist(io, methinvs.mt_backedges, length(indent)+length("mt_backedges")+2)
-    end
     if !isempty(methinvs.backedges)
         print(io, indent, "backedges: ")
         showlist(io, methinvs.backedges, length(indent)+length("backedges")+2)
@@ -262,38 +263,15 @@ function showlist(io::IO, treelist, indent::Int=0)
     for i = 1:n
         print(io, lpad(i, nd), ": ")
         root = treelist[i]
-        sig = nothing
-        if isa(root, Pair)
+        edge = root.edge
+        (; sig, instance) = edge
+        if sig !== nothing
             print(io, "signature ")
-            sig = root.first
-            if isa(sig, MethodInstance)
-                # "insert_backedges_callee"/"insert_backedges" (delayed) invalidations
-                printstyled(io, try which(sig.specTypes) catch _ "(unavailable)" end, color = :light_cyan)
-                print(io, " (formerly ", sig.def, ')')
-            elseif isa(sig, Binding)
-                printstyled(io, sig.globalref, color = :light_red)
-            else
-                # `sig` (immediate) invalidations
-                printstyled(io, sig, color = :light_cyan)
-            end
-            print(io, " triggered ")
-            sig = root.first
-            root = root.second
-        elseif isa(root, Tuple)
-            printstyled(IOContext(io, :showchildren=>false), root[end-1], color = :light_yellow)
-            print(io, " blocked ")
-            printdata(io, root[end])
-            root = nothing
-        else
-            print(io, "superseding ")
-            printstyled(io, convert(MethodInstance, root).def , color = :light_cyan)
-            print(io, " with ")
-            sig = root.mi.def.sig
+            printstyled(io, sig, color = :light_cyan)
+            print(io, " => ")
         end
-        if root !== nothing
-            printstyled(io, convert(MethodInstance, root), color = :light_yellow)
-            print(io, " (", countchildren(root), " children)")
-        end
+        printstyled(io, methodinstance(instance), color = :light_yellow)
+        print(io, " (", countchildren(root), " children)")
         if iscompact
             i < n && print(io, ", ")
         else
@@ -302,8 +280,6 @@ function showlist(io::IO, treelist, indent::Int=0)
         end
     end
 end
-
-new_backedge_table() = Dict{Union{Int32,MethodInstance},Union{Tuple{Any,Vector{Any}},InstanceNode}}()
 
 """
     report_invalidations(
@@ -347,84 +323,104 @@ Using `report_invalidations` requires that you first load the `PrettyTables.jl` 
 function report_invalidations end
 
 function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
-    methodinvs = MethodInvalidations[]
-    mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+    methodinvs = InvalidationTree[]
+    backedges, mt_cache, mt_disable = methinv_storage()
     reason = parent = nothing
     i = 0
     while i < length(list)
+        @show i parent
         invokesig = nothing
         item = list[i+=1]
-        if !isa(item, MethodInstance) && !isa(item, Method)
+        if !isa(item, MethodInstance) && !isa(item, CodeInstance) && !isa(item, Method) && !isa(item, BindingPartition)
             invokesig = item
             item = list[i+=1]
         end
-        if isa(item, MethodInstance)
-            edge = (invokesig, item)
+        @show invokesig item
+        if isa(item, CodeInstance)
+            edge = BackEdge(invokesig, item)
+            @show edge
             item = list[i+=1]
-            if isa(item, Int32)
-                depth = item
-                if iszero(depth)
-                    # starting a new mt_backedges
-                    @assert parent === nothing  # these should come first in each Method-block
-                    parent = InstanceNode(edge, depth)
-                elseif depth == Int32(1)
-                    if parent === nothing
-                        parent = InstanceNode(edge, depth)  # starts a new backedge
-                    else
-                        parent = InstanceNode(edge, getroot(parent), depth)  # attaches to the current root
-                    end
-                else
-                    @assert parent !== nothing
-                    while depth < parent.depth + 1 # && isdefined(parent, :parent)
-                        parent = parent.parent
-                    end
-                    parent = InstanceNode(edge, parent, depth)
+            @assert isa(item, Int32)
+            depth = item
+            @assert !iszero(depth)
+            if parent === nothing
+                parent = InstanceNode(edge, depth)
+            else
+                while depth < parent.depth + 1 # && isdefined(parent, :parent)
+                    parent = parent.parent
                 end
-            elseif isa(item, String)
-                if item == "invalidate_mt_cache"
-                    push!(mt_cache, edge)
-                else
-                    # finish a backedges
-                    reason = checkreason(reason, item)
-                    if parent !== nothing
-                        @assert isdummy(getroot(parent))
-                    end
-                    root = parent === nothing ? InstanceNode(edge, 0) : InstanceNode(edge, getroot(parent).children)
-                    push!(backedges, root)
-                    parent = nothing
-                end
+                parent = InstanceNode(edge, parent, depth)
             end
-        elseif isa(item, Type) && item <: Tuple
-            error("this shouldn't happen")
-            # finish an mt_backedges
-            rootsig = item
-            root = getroot(parent)
-            @assert !isdummy(root)
-            push!(mt_backedges, rootsig=>root)
-            parent = nothing
-        elseif isa(item, Method)
-            meth = item
+        elseif isa(item, MethodInstance)
+            edge = BackEdge(invokesig, item)
+            item = list[i+=1]
+            @assert isa(item, String)
+            if item ∈ ("jl_method_table_insert", "jl_method_table_disable")
+                root = getroot(parent)
+                root = InstanceNode(edge, root.children)
+                push!(backedges, root)
+                parent = nothing
+            elseif item == "invalidate_mt_cache"
+                @assert edge.sig === nothing
+                push!(mt_cache, edge.instance)
+            else
+                error("not handled yet: ", item)
+            end
+        # else
+
+        #     elseif isa(item, String)
+        #         if item == "invalidate_mt_cache"
+        #             push!(mt_cache, edge)
+        #         else
+        #             @show item
+        #             # finish a backedges
+        #             reason = checkreason(reason, item)
+        #             if parent !== nothing
+        #                 @assert isdummy(getroot(parent))
+        #             end
+        #             root = parent === nothing ? InstanceNode(edge, 0) : InstanceNode(edge, getroot(parent).children)
+        #             push!(backedges, root)
+        #             parent = nothing
+        #         end
+        #     end
+        # elseif isa(item, Type) && item <: Tuple
+        #     error("this shouldn't happen")
+        #     # finish an mt_backedges
+        #     rootsig = item
+        #     root = getroot(parent)
+        #     @assert !isdummy(root)
+        #     push!(mt_backedges, rootsig=>root)
+        #     parent = nothing
+        elseif isa(item, Method) || isa(item, BindingPartition)
+            cause = item
+            if parent !== nothing
+                @assert isdummy(getroot(parent))
+                push!(backedges, getroot(parent))
+                parent = nothing
+            end
             item = list[i+=1]
             @assert isa(item, String)
             reason = checkreason(reason, item)
-            methinv = MethodInvalidations(meth, reason, mt_backedges, backedges, mt_cache, mt_disable)
+            methinv = InvalidationTree(cause, reason, backedges, mt_cache, mt_disable)
             push!(methodinvs, methinv)
             parent = reason = nothing
-            mt_backedges, backedges, mt_cache, mt_disable = methinv_storage()
+            backedges, mt_cache, mt_disable = methinv_storage()
+        else
+            error("not handled: ", item)
         end
     end
-    @assert isempty(mt_backedges) && isempty(backedges) && isempty(mt_cache) && isempty(mt_disable)
+    @assert isempty(backedges) && isempty(mt_cache) && isempty(mt_disable)
+    @assert parent === nothing
     return methodinvs
 end
 
 const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
 
-struct MultiMethodInvalidations <: AbstractMethodInvalidations
+struct MultiMethodInvalidations <: AbstractInvalidationTree
     methods::Union{Binding,Vector{Method}}
-    mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
 end
-MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, BackedgeMT[], InstanceNode[])
+MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, InstanceNode[])
 
 function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
@@ -611,7 +607,7 @@ julia> callapplyf(c)
 1
 
 julia> trees = invalidation_trees(@snoop_invalidations f(::AbstractFloat) = 3)
-1-element Array{SnoopCompile.MethodInvalidations,1}:
+1-element Array{SnoopCompile.InvalidationTree,1}:
  inserting f(::AbstractFloat) in Main at REPL[36]:1 invalidated:
    mt_backedges: 1: signature Tuple{typeof(f),Any} triggered MethodInstance for applyf(::Array{Any,1}) (1 children) more specific
 ```
@@ -633,7 +629,7 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = [mtrees; etrees]
     else
         trees = mtrees
-        mindex = Dict(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
+        mindex = Dict(tree.cause => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
             methods = etree.methods
             if isa(methods, Vector{Method})
@@ -646,7 +642,7 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
                             join_invalidations!(trees[idx].backedges, etree.backedges)
                     else
                         # Otherwise just add it to the list
-                        push!(trees, MethodInvalidations(
+                        push!(trees, InvalidationTree(
                             method,
                             :inserting,
                             copy(etree.mt_backedges),
@@ -671,19 +667,19 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
 end
 
 # These make testing a lot easier
-function firstmatch(trees::AbstractVector{MethodInvalidations}, m::Method)
+function firstmatch(trees::AbstractVector{InvalidationTree}, m::Method)
     for tree in trees
-        tree.method === m && return tree
+        tree.cause === m && return tree
     end
     error("no tree found for method ", m)
 end
 
-function firstmatch(mt_backedges::AbstractVector{BackedgeMT}, @nospecialize(sig::Type))
-    for (_sig, root) in mt_backedges
-        _sig === sig && return sig, root
-    end
-    error("no root found for signature ", sig)
-end
+# function firstmatch(mt_backedges::AbstractVector{BackedgeMT}, @nospecialize(sig::Type))
+#     for (_sig, root) in mt_backedges
+#         _sig === sig && return sig, root
+#     end
+#     error("no root found for signature ", sig)
+# end
 
 function firstmatch(backedges::AbstractVector{InstanceNode}, mi::MethodInstance)
     for root in backedges
@@ -709,7 +705,7 @@ end
 function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_backedges, backedges, mt_cache, mt_disable)
     found = false
     for tree in methodinvs
-        if tree.method == method && tree.reason == reason
+        if tree.cause == method && tree.reason == reason
             join_invalidations!(tree.mt_backedges, mt_backedges)
             join_invalidations!(tree.backedges, backedges)
             append!(tree.mt_cache, mt_cache)
@@ -718,7 +714,7 @@ function add_method_trigger!(methodinvs, method::Method, reason::Symbol, mt_back
             break
         end
     end
-    found || push!(methodinvs, sort!(MethodInvalidations(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
+    found || push!(methodinvs, sort!(InvalidationTree(method, reason, mt_backedges, backedges, mt_cache, mt_disable)))
     return methodinvs
 end
 
@@ -790,6 +786,9 @@ function checkreason(reason, loctag)
     elseif loctag == "jl_method_table_insert"
         @assert reason === nothing || reason === :inserting
         reason = :inserting
+    elseif loctag == "jl_maybe_log_binding_invalidation"
+        @assert reason === nothing || reason === :modifying
+        reason = :modifying
     else
         error("unexpected reason ", loctag)
     end
@@ -797,7 +796,7 @@ function checkreason(reason, loctag)
 end
 
 """
-    thinned = filtermod(module, trees::AbstractVector{MethodInvalidations}; recursive=false)
+    thinned = filtermod(module, trees::AbstractVector{InvalidationTree}; recursive=false)
 
 Select just the cases of invalidating a method defined in `module`.
 
@@ -805,9 +804,9 @@ If `recursive` is false, only the roots of trees are examined (i.e., the proxima
 the invalidation must be in `module`). If `recursive` is true, then `thinned` contains
 all routes to a method in `module`.
 """
-function filtermod(mod::Module, trees::AbstractVector{MethodInvalidations}; kwargs...)
+function filtermod(mod::Module, trees::AbstractVector{InvalidationTree}; kwargs...)
     # We don't just broadcast because we want to filter at all levels
-    thinned = MethodInvalidations[]
+    thinned = InvalidationTree[]
     for methinvs in trees
         _invs = filtermod(mod, methinvs; kwargs...)
         isempty(_invs) || push!(thinned, _invs)
@@ -818,9 +817,9 @@ end
 hasmod(mod::Module, node::InstanceNode) = hasmod(mod, MethodInstance(node))
 hasmod(mod::Module, mi::MethodInstance) = mi.def.module === mod
 
-function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=false)
+function filtermod(mod::Module, methinvs::InvalidationTree; recursive::Bool=false)
     if recursive
-        out = MethodInvalidations(methinvs.method, methinvs.reason)
+        out = InvalidationTree(methinvs.cause, methinvs.reason)
         for (sig, node) in methinvs.mt_backedges
             newnode = filtermod(mod, node)
             if newnode !== nothing
@@ -837,7 +836,7 @@ function filtermod(mod::Module, methinvs::MethodInvalidations; recursive::Bool=f
     end
     mt_backedges = filter(pr->hasmod(mod, pr.second), methinvs.mt_backedges)
     backedges = filter(root->hasmod(mod, root), methinvs.backedges)
-    return MethodInvalidations(methinvs.method, methinvs.reason, mt_backedges, backedges,
+    return InvalidationTree(methinvs.cause, methinvs.reason, mt_backedges, backedges,
                                copy(methinvs.mt_cache), copy(methinvs.mt_disable))
 end
 
@@ -885,7 +884,7 @@ end
 """
     methinvs = findcaller(method::Method, trees)
 
-Find a path through `trees` that reaches `method`. Returns a single `MethodInvalidations` object.
+Find a path through `trees` that reaches `method`. Returns a single `InvalidationTree` object.
 
 # Examples
 
@@ -921,7 +920,7 @@ inserting ==(x, y::SomeType) in SomeOtherPkg at /path/to/code:100 invalidated:
    backedges: 1: superseding ==(x, y) in Base at operators.jl:83 with MethodInstance for ==(::Symbol, ::Any) (16 children) more specific
 ```
 """
-function findcaller(meth::Method, trees::AbstractVector{MethodInvalidations})
+function findcaller(meth::Method, trees::AbstractVector{InvalidationTree})
     for methinvs in trees
         ret = findcaller(meth, methinvs)
         ret === nothing || return ret
@@ -929,7 +928,7 @@ function findcaller(meth::Method, trees::AbstractVector{MethodInvalidations})
     return nothing
 end
 
-function findcaller(meth::Method, methinvs::MethodInvalidations)
+function findcaller(meth::Method, methinvs::InvalidationTree)
     function newtree(vectree)
         root0 = pop!(vectree)
         root = InstanceNode(root0.mi, root0.depth)
@@ -945,13 +944,13 @@ function findcaller(meth::Method, methinvs::MethodInvalidations)
     for (sig, node) in methinvs.mt_backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, [Pair{Any,InstanceNode}(sig, newtree(ret))], InstanceNode[],
+        return InvalidationTree(methinvs.cause, methinvs.reason, [Pair{Any,InstanceNode}(sig, newtree(ret))], InstanceNode[],
                                    copy(methinvs.mt_cache), copy(methinvs.mt_disable))
     end
     for node in methinvs.backedges
         ret = findcaller(meth, node)
         ret === nothing && continue
-        return MethodInvalidations(methinvs.method, methinvs.reason, Pair{Any,InstanceNode}[], [newtree(ret)],
+        return InvalidationTree(methinvs.cause, methinvs.reason, Pair{Any,InstanceNode}[], [newtree(ret)],
                                    copy(methinvs.mt_cache), copy(methinvs.mt_disable))
     end
     return nothing

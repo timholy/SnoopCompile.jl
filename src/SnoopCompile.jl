@@ -33,17 +33,24 @@ you should prefer them above the more limited tools available on earlier version
 module SnoopCompile
 
 using SnoopCompileCore
-using SnoopCompileCore: InvalidationLists
-# More exports are defined below in the conditional loading sections
+using SnoopCompileCore: InvalidationLists, InferenceTiming, InferenceTimingNode, inclusive, exclusive
 
-using Core: MethodInstance, CodeInstance, Binding, CodeInfo
+using Core: MethodInstance, CodeInstance, Binding, BindingPartition, CodeInfo
+using Core.Compiler.Timings: InferenceFrameInfo
+using Base: specializations
+using Base.StackTraces: StackFrame
+
 using InteractiveUtils
 using Serialization
 using Printf
+using Profile
 using OrderedCollections
+using AbstractTrees
 import YAML  # For @snoop_llvm
-
-using Base: specializations
+import FlameGraphs
+using FlameGraphs: FlameGraphs
+using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
+const flamegraph = FlameGraphs.flamegraph  # For re-export
 
 # Parcel Regex
 const anonrex = r"#{1,2}\d+#{1,2}\d+"         # detect anonymous functions

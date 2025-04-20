@@ -13,6 +13,7 @@ precompile(InvalidA.invokesfr, (Int,))       # invoked callee (would error if ca
     InvalidA.callscallsfrta(1)                   # runtime-dispatched callee
     InvalidA.callsfrtr(1)
     InvalidA.callsfrts(1)
+    InvalidA.fib()                               # binding
 end
 
 end
