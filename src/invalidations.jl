@@ -56,9 +56,10 @@ const dummyinstance = first(specializations(which(dummy, ()))).cache
 
 struct Edge
     sig::Union{DataType,Nothing}                   # call signature from `invoke` or abstract call; nothing for concrete or a "covered" abstract call
-    callee::Union{MethodInstance,CodeInstance,Nothing}
+    callee::Union{MethodInstance,CodeInstance,Vector{CodeInstance},Nothing}
 end
 Edge(callee::Union{MethodInstance,CodeInstance}) = Edge(nothing, callee)
+Edge(t::Tuple) = Edge(t...)
 
 const dummyedge = Edge(dummyinstance)
 
@@ -259,7 +260,6 @@ function showlist(io::IO, treelist, indent::Int=0)
             print(io, " => ")
         end
         if isa(callee, Vector{CodeInstance})
-            error("this shouldn't happen")
             print(io, "CodeInstance[")
             firstci = true
             for ci in callee
@@ -382,7 +382,14 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
         elseif isa(item, String)
             if item ∈ ("jl_method_table_insert", "jl_method_table_disable", "jl_maybe_log_binding_invalidation")
                 reason = checkreason(reason, item)
-                cause = list[i+=1]::Union{Method,BindingPartition}
+                cause = list[i+=1]
+                if isa(cause, MethodInstance)
+                    @assert parent === nothing
+                    parent = InstanceNode(Edge(cause))
+                    push!(backedges, parent)
+                    continue
+                end
+                cause = cause::Union{Method,BindingPartition}
                 methinv = InvalidationTree(cause, reason, backedges, mt_cache, mt_disable)
                 push!(methodinvs, methinv)
                 println("pushed new tree")
@@ -481,16 +488,23 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
     trees = MultiMethodInvalidations[]
     treeidx = Dict{Vector{Method},MultiMethodInvalidations}()
     edgelink = Dict{CodeInstance,InstanceNode}()
-    parent = lastedge = nothing
+    reason = parent = nothing
     i = 0
     while i < length(list)
         op = list[i+=1]::String
-        if op == "invalidate_edge"
-            if lastedge !== nothing
-                InstanceNode(lastci, parent)
-                parent = lastci = nothing
-            end
-            cause = list[i+3]::Union{Binding,Vector{Any}}
+        # if i == blockend
+        #     println("blockend")
+        #     reason = checkreason(reason, op)
+        #     blockend = length(list) + 1
+        #     parent = nothing
+        #     i += 1    # skip the next, it already got rooted
+        #     continue
+        # end
+        if op == "insert_backedges_callee"
+            # FIXME: when edge is a Binding
+            edge = list[i+1]
+            ci = list[i+2]::CodeInstance
+            cause = list[i+3]
             if isa(cause, Vector{Any})
                 cause = convert(Vector{Method}, cause)
             end
@@ -500,21 +514,21 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
                 push!(trees, mminv)
                 treeidx[cause] = mminv
             end
-            ci = list[i+1]::CodeInstance
-            j = list[i+2]::Int
-            sig, callees = getsigcallees(EdgeRef(ci, j))
-            parent = InstanceNode(Edge(sig, only(callees)))
-            push!(mminv.backedges, root)
+            edge = if isa(edge, Tuple{Any, Int})
+                Edge(getsigcallees(EdgeRef(ci, edge[2]))...)
+            else
+                Edge(edge)
+            end
+            parent = InstanceNode(edge)
+            push!(mminv.backedges, parent)
             empty!(edgelink)
-            edgelink[ci] = root
+            edgelink[ci] = parent
             i += 3
         elseif op == "verify_methods"
             ci = list[i+1]::CodeInstance
-            j = list[i+2]::Int
-            @assert 0 < j <= length(ci.edges)
-            pci = getedgeci(ci.edges, j)
-            parent = edgelink[pci]
-            child = EdgeRefNode(EdgeRef(ci, j), parent)
+            parentci = list[i+2]::CodeInstance
+            parent = edgelink[parentci]
+            child = InstanceNode(ci, parent)
             edgelink[ci] = child
             i += 2
         elseif op == "method_globalref"
@@ -720,7 +734,7 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = mtrees
         mindex = Dict(tree.cause => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
-            methods = etree.methods
+            methods = etree.cause
             if isa(methods, Vector{Method})
                 for method in methods
                     # Check if this method already exists in mtrees
