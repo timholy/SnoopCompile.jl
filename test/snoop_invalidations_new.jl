@@ -177,10 +177,7 @@ function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, ise
     end
 end
 
-mlogs = []
-
 @testset "MethodLogs" begin
-    empty!(mlogs)
     f = MethodLogs.f
     mfinteger = only(methods(f))
     precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
@@ -204,9 +201,7 @@ mlogs = []
     end
     # Grab the methods corresponding to invidual trees now, while they exist
     mfint, mfstring, mfsigned = which(f, (Int,)), which(f, (String,)), which(f, (Signed,))
-    push!(mlogs, invs1)
     trees1 = invalidation_trees(invs1)
-    push!(mlogs, trees1)
 
     # Recompile
     MethodLogs.callscallsf(1)
@@ -222,11 +217,7 @@ mlogs = []
         Base.delete_method(mfint)
     end
     mfint8 = which(f, (Int8,))
-    push!(mlogs, invs2)
     trees2 = invalidation_trees(invs2)
-    push!(mlogs, trees2)
-
-    push!(mlogs, mfint, mfstring, mfsigned, mfinteger, mfint8)
 
     ### invs1
     @test isempty(invs1.logedges)   # there were no precompiled packages
@@ -237,10 +228,7 @@ mlogs = []
     test_trees2(MethodLogs, trees2, mfint, mfint8, mfsigned, mfinteger, false)
 end
 
-elogs = []
-
 @testset "Edge invalidations" begin
-    empty!(elogs)
     cproj = Base.active_project()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
         Pkg.activate(pwd())
@@ -262,10 +250,7 @@ elogs = []
         f = InvalidA.f
         mfint, mfstring, mfsigned, mfinteger = which(f, (Int,)), which(f, (String,)), which(f, (Signed,)), which(f, (Integer,))
 
-        push!(elogs, invs1)
         trees = invalidation_trees(invs1)
-        push!(elogs, trees)
-        # display(trees)
         test_trees1(InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
 
         invs2 = @snoop_invalidations begin
@@ -275,12 +260,8 @@ elogs = []
         end
         mfint8 = which(f, (Int8,))
 
-        push!(elogs, invs2)
         trees = invalidation_trees(invs2)
-        push!(elogs, trees)
 
-        push!(elogs, mfint, mfstring, mfsigned, mfinteger, mfint8)
-        # display(trees)
         test_trees2(InvalidA, trees, mfint, mfint8, mfsigned, mfinteger, true)
     end
     Pkg.activate(cproj) # Reactivate the original project
