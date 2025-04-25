@@ -836,27 +836,24 @@ end
 
 function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Union{DataType,Nothing}), @nospecialize(callee))
     for root in backedges
-        edge = root.item::Edge
-        esig, ecallee = edge.sig, edge.callee
-        if isa(callee, DataType)
-            isa(ecallee, MethodInstance) || isa(ecallee, CodeInstance) || continue
-            ecallee = methodinstance(ecallee).specTypes
+        edge = root.item
+        if isa(edge, CodeInstance)
+            @assert sig === nothing
+            if isa(callee, DataType)
+                edge = methodinstance(edge).specTypes
+            end
+            edge === callee && return root
+        else
+            esig, ecallee = edge.sig, edge.callee
+            if isa(callee, DataType)
+                isa(ecallee, MethodInstance) || isa(ecallee, CodeInstance) || continue
+                ecallee = methodinstance(ecallee).specTypes
+            end
+            esig === sig && ecallee === callee && return root
         end
-        esig === sig && ecallee === callee && return root
     end
     error("no node found for signature (", sig, ", ", callee, ")")
 end
-
-# function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Type))
-#     for root in backedges
-#         edge = root.item::Edge
-#         esig, ecallee = edge.sig, edge.callee
-#         esig === sig && return root
-#         isa(ecallee, MethodInstance) || isa(ecallee, CodeInstance) || continue
-#         methodinstance(ecallee).specTypes === sig && return root
-#     end
-#     error("no node found for signature ", sig)
-# end
 
 function firstmatch(backedges::AbstractVector{InstanceNode}, m::Method)
     for root in backedges

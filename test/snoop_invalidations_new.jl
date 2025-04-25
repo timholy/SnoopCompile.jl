@@ -134,35 +134,35 @@ function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, ise
 
     ## treefint
     @test treefint.reason == :deleting
-    @test isempty(treefint.mt_backedges)
     root = only(treefint.backedges)
     @test root.depth == 0
     @test length(root.children) == 4
     node = root.children[end]
     @test node.depth == 1
-    @test node.mi.def === only(methods(mod.callsf)) && node.mi.specTypes === Tuple{typeof(mod.callsf), Int}
+    @test node.item.def.def === only(methods(mod.callsf)) && node.item.def.specTypes === Tuple{typeof(mod.callsf), Int}
     node = only(node.children)
-    @test node.mi.specTypes === Tuple{typeof(mod.callscallsf), Int}
+    @test node.item.def.specTypes === Tuple{typeof(mod.callscallsf), Int}
     node = SnoopCompile.firstmatch(root.children, only(methods(mod.alsocallsf)))
     @test node.depth == 1
     @test isempty(node.children)
-    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int})
+    node = SnoopCompile.firstmatch(root.children, nothing, Tuple{typeof(mod.callsfrts), Int})
     @test node.depth == 1
     @test isempty(node.children)
-    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int8})
+    node = SnoopCompile.firstmatch(root.children, nothing, Tuple{typeof(mod.callsfrts), Int8})
     @test node.depth == 1
     @test isempty(node.children)
 
     ## treefint8
     @test treefint8.reason == :inserting
-    @test isempty(treefint8.mt_backedges)
     root = only(treefint8.backedges)
     @test root.depth == 0
-    @test root.mi.def == mfsigned && root.mi.specTypes === Tuple{typeof(mod.f), Signed}
+    edge = root.item
+    @test edge.sig === nothing
+    @test edge.callee.def == mfsigned && edge.callee.specTypes === Tuple{typeof(mod.f), Signed}
     @test length(root.children) == 2
     for node in root.children
         @test node.depth == 1
-        @test node.mi.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
+        @test node.item.def.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
         @test isempty(node.children)
     end
 end
@@ -220,11 +220,11 @@ mlogs = []
 
     ### invs1
     @test isempty(invs1.logedges)   # there were no precompiled packages
-    # test_trees1(MethodLogs, trees1, mfint, mfstring, mfsigned, mfinteger, false)
+    test_trees1(MethodLogs, trees1, mfint, mfstring, mfsigned, mfinteger, false)
 
     ### invs2
     @test isempty(invs2.logedges)   # there were no precompiled packages
-    # test_trees2(MethodLogs, trees2, mfint, mfint8, mfsigned, mfinteger, false)
+    test_trees2(MethodLogs, trees2, mfint, mfint8, mfsigned, mfinteger, false)
 end
 #=
 elogs = []
