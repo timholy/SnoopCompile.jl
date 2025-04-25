@@ -523,6 +523,18 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
             end
             edge = if isa(edge, Tuple{Any, Int})
                 Edge(getsigcallees(EdgeRef(ci, edge[2]))...)
+            elseif isa(edge, MethodInstance)
+                # check for dynamic dispatch and extract the signature
+                mi = edge
+                idx = findfirst(ci.edges) do e
+                    isa(e, CodeInstance) && methodinstance(e) === mi
+                end
+                if idx > 2 && isa(ci.edges[idx-1], Core.MethodTable)
+                    sig = ci.edges[idx-2]::DataType
+                else
+                    sig = nothing
+                end
+                Edge(sig, mi)
             else
                 Edge(edge)
             end
