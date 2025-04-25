@@ -470,7 +470,7 @@ MultiMethodInvalidations(cause) = MultiMethodInvalidations(cause, InstanceNode[]
 function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
 
-    print(io, "inserting: ")
+    print(io, "matches: ")
     ms = methinvs.cause
     if isa(ms, Vector{Method})
         firstm = true
@@ -739,8 +739,29 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = [mtrees; etrees]
     else
         trees = mtrees
-        mindex = Dict(tree.cause => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
+        mindex = Dict{fieldtype(InvalidationTree, :cause),Int}(tree.cause => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
+            backedges = copy(etree.backedges)
+            # Deleted methods are not in `causes`, so we have to scan the roots and find deleted methods
+            delidx = Int[]
+            for (i, root) in pairs(backedges)
+                edge = root.item::Edge
+                (; sig, callee) = edge
+                if isa(callee, MethodInstance) || isa(callee, CodeInstance)
+                    mi = methodinstance(callee)
+                    m = mi.def::Method
+                    if m.deleted_world < typemax(UInt)
+                        idx = get(mindex, m, nothing)
+                        if idx !== nothing
+                            push!(trees[idx].backedges, root)
+                            push!(delidx, i)
+                        end
+                    end
+                end
+            end
+            deleteat!(backedges, delidx)
+            isempty(backedges) && continue
+
             methods = etree.cause
             if isa(methods, Vector{Method})
                 for method in methods
@@ -748,15 +769,13 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
                     idx = get(mindex, method, nothing)
                     if idx !== nothing
                         # Merge the trees
-                            join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
-                            join_invalidations!(trees[idx].backedges, etree.backedges)
+                        join_invalidations!(trees[idx].backedges, backedges)
                     else
                         # Otherwise just add it to the list
                         push!(trees, InvalidationTree(
                             method,
                             :inserting,
-                            copy(etree.mt_backedges),
-                            copy(etree.backedges),
+                            backedges,
                             MethodInstance[],  # mt_cache
                             MethodInstance[]   # mt_disable
                         ))
