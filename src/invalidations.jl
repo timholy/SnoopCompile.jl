@@ -336,6 +336,7 @@ function report_invalidations end
 function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     methodinvs = InvalidationTree[]
     backedges, mt_cache, mt_disable = methinv_storage()
+    rootlink = Dict{Edge,InstanceNode}()
     reason = parent = nothing
     i, blockend = 0, nothing
     while i < length(list)
@@ -355,8 +356,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
         if isa(item, DataType)
             # Start a new root
             mi = list[blockend+1]
-            parent = newparent(item, mi)
-            push!(backedges, parent)
+            parent = getparent!(backedges, rootlink, item, mi)
             ci = list[i+1]
             if isa(ci, CodeInstance) && list[i+2] === Int32(1)
                 parent = InstanceNode(ci, parent, list[i+2])
@@ -368,8 +368,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
             depth = list[i+=1]::Int32
             if depth == Int32(1)
                 mi = list[blockend+1]
-                parent = newparent(nothing, mi)
-                push!(backedges, parent)
+                parent = getparent!(backedges, rootlink, nothing, mi)
             else
                 while depth < parent.depth + 1 # && isdefined(parent, :parent)
                     parent = parent.parent
@@ -389,6 +388,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                 cause = cause::Union{Method,BindingPartition}
                 methinv = InvalidationTree(cause, reason, backedges, mt_cache, mt_disable)
                 push!(methodinvs, methinv)
+                empty!(rootlink)
                 parent = reason = nothing
                 blockend = nothing
                 backedges, mt_cache, mt_disable = methinv_storage()
@@ -406,7 +406,7 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     return methodinvs
 end
 
-function newparent(@nospecialize(sig::Union{DataType,Nothing}), mi::Union{Method,MethodInstance})
+function getparent!(backedges, rootlink, @nospecialize(sig::Union{DataType,Nothing}), mi::Union{Method,MethodInstance})
     if isa(mi, Method)
         # This was a missing call that has since been resolved, or usage of a binding
         edge = Edge(sig::DataType, nothing)
@@ -414,7 +414,12 @@ function newparent(@nospecialize(sig::Union{DataType,Nothing}), mi::Union{Method
         sig !== nothing && @assert Base.unwrap_unionall(mi.specTypes) <: sig
         edge = Edge(sig, mi)
     end
-    return InstanceNode(edge)
+    parent = get(rootlink, edge, nothing)
+    parent === nothing || return parent
+    parent = InstanceNode(edge)
+    push!(backedges, parent)
+    rootlink[edge] = parent
+    return parent
 end
 
 ## Edge invalidation trees
@@ -829,16 +834,33 @@ function firstmatch(backedges::AbstractVector{InstanceNode}, mi::MethodInstance)
     error("no node found for MethodInstance ", mi)
 end
 
-function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Type))
+function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Union{DataType,Nothing}), @nospecialize(callee))
     for root in backedges
-        root.mi.specTypes === sig && return root
+        edge = root.item::Edge
+        esig, ecallee = edge.sig, edge.callee
+        if isa(callee, DataType)
+            isa(ecallee, MethodInstance) || isa(ecallee, CodeInstance) || continue
+            ecallee = methodinstance(ecallee).specTypes
+        end
+        esig === sig && ecallee === callee && return root
     end
-    error("no node found for signature ", sig)
+    error("no node found for signature (", sig, ", ", callee, ")")
 end
+
+# function firstmatch(backedges::AbstractVector{InstanceNode}, @nospecialize(sig::Type))
+#     for root in backedges
+#         edge = root.item::Edge
+#         esig, ecallee = edge.sig, edge.callee
+#         esig === sig && return root
+#         isa(ecallee, MethodInstance) || isa(ecallee, CodeInstance) || continue
+#         methodinstance(ecallee).specTypes === sig && return root
+#     end
+#     error("no node found for signature ", sig)
+# end
 
 function firstmatch(backedges::AbstractVector{InstanceNode}, m::Method)
     for root in backedges
-        root.mi.def === m && return root
+        methodinstance(root.item).def === m && return root
     end
     error("no node found for Method ", m)
 end
