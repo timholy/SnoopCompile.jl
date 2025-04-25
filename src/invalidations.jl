@@ -61,6 +61,11 @@ end
 Edge(callee::Union{MethodInstance,CodeInstance}) = Edge(nothing, callee)
 Edge(t::Tuple) = Edge(t...)
 
+# Because `callee` can be a `Vector{CodeInstance}`, we need to make sure that hashing and equality don't care about the container id
+const _hash_edge_token = Int === Int64 ? 0x6bf45efc91134f4a : 0xf4a46ab2
+Base.hash(edge::Edge, h::UInt) = hash((_hash_edge_token, edge.sig, edge.callee), h)
+Base.:(==)(edge1::Edge, edge2::Edge) = edge1.sig == edge2.sig && edge1.callee == edge2.callee
+
 const dummyedge = Edge(dummyinstance)
 
 function Base.show(io::IO, edge::Edge)
@@ -414,6 +419,10 @@ function getparent!(backedges, rootlink, @nospecialize(sig::Union{DataType,Nothi
         sig !== nothing && @assert Base.unwrap_unionall(mi.specTypes) <: sig
         edge = Edge(sig, mi)
     end
+    return getparent!(backedges, rootlink, edge)
+end
+
+function getparent!(backedges, rootlink, edge::Edge)
     parent = get(rootlink, edge, nothing)
     parent === nothing || return parent
     parent = InstanceNode(edge)
@@ -499,7 +508,8 @@ end
 function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
     trees = MultiMethodInvalidations[]
     treeidx = Dict{Vector{Method},MultiMethodInvalidations}()
-    edgelink = Dict{CodeInstance,InstanceNode}()
+    cilink = Dict{CodeInstance,InstanceNode}()
+    edgelink = Dict{Edge,InstanceNode}()
     reason = parent = nothing
     i = 0
     while i < length(list)
@@ -525,6 +535,7 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
                 mminv = MultiMethodInvalidations(cause)
                 push!(trees, mminv)
                 treeidx[cause] = mminv
+                empty!(edgelink)
             end
             edge = if isa(edge, Tuple{Any, Int})
                 Edge(getsigcallees(EdgeRef(ci, edge[2]))...)
@@ -543,17 +554,16 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
             else
                 Edge(edge)
             end
-            parent = InstanceNode(edge)
-            push!(mminv.backedges, parent)
-            empty!(edgelink)
-            edgelink[ci] = parent
+            parent = getparent!(mminv.backedges, edgelink, edge)
+            empty!(cilink)
+            cilink[ci] = parent
             i += 3
         elseif op == "verify_methods"
             ci = list[i+1]::CodeInstance
             parentci = list[i+2]::CodeInstance
-            parent = edgelink[parentci]
+            parent = cilink[parentci]
             child = InstanceNode(ci, parent)
-            edgelink[ci] = child
+            cilink[ci] = child
             i += 2
         elseif op == "method_globalref"
             error("not implemented yet")
