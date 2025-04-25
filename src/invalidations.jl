@@ -64,11 +64,14 @@ Edge(t::Tuple) = Edge(t...)
 const dummyedge = Edge(dummyinstance)
 
 function Base.show(io::IO, edge::Edge)
-    if edge.sig !== nothing
-        show(io, edge.sig)
+    (; sig, callee) = edge
+    if sig !== nothing
+        show(io, sig)
         print(io, " => ")
     end
-    show(io, methodinstance(edge.callee))
+    callee === nothing && return printstyled(io, "no method found", color = :light_red)
+    isa(callee, Vector{CodeInstance}) && return print(io, "CodeInstance[", join(methodinstance.(callee), ", "), "]")
+    show(io, methodinstance(callee))
 end
 
 abstract type AbstractTreeNode end
@@ -334,49 +337,43 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     methodinvs = InvalidationTree[]
     backedges, mt_cache, mt_disable = methinv_storage()
     reason = parent = nothing
-    i, blockend = 0, length(list) + 1
+    i, blockend = 0, nothing
     while i < length(list)
+        if blockend === nothing
+            blockend = findnext(x -> x ∈ ("jl_method_table_insert", "jl_method_table_disable", "jl_maybe_log_binding_invalidation"), list, i+1)
+        end
         item = list[i+=1]
-        @show i parent item
-        @show isa(item, DataType)
         if i == blockend
-            println("blockend")
             @assert isa(item, String)
             reason = checkreason(reason, item)
-            blockend = length(list) + 1
-            parent = nothing
-            i += 1    # skip the next, it already got rooted
-            continue
-        end
-        if (parent === nothing && !isa(item, String)) || isa(item, DataType)
-            println("new root")
-            # Start a new root
-            blockend = findnext(x -> x ∈ ("jl_method_table_insert", "jl_method_table_disable", "jl_maybe_log_binding_invalidation"), list, i+1)
-            mi = list[blockend+1]
-            if isa(mi, Method)
-                # This was a missing call that has since been resolved, or usage of a binding
-                sig = item
-                edge = Edge(sig, nothing)
-                item = list[i+=1]::CodeInstance
-            else
-                @assert isa(mi, MethodInstance)
-                if isa(item, DataType)
-                    sig = item
-                    @assert Base.unwrap_unionall(mi.specTypes) <: sig
-                    edge = Edge(sig, mi)
-                    item = list[i+=1]::CodeInstance
-                else
-                    @assert isa(item, CodeInstance)
-                    edge = Edge(mi)
-                end
+            if !isa(list[i+1], Method) && !isa(list[i+1], BindingPartition)
+                blockend = parent = nothing
+                i += 1    # skip the next, it already got rooted
+                continue
             end
-            parent = InstanceNode(edge)
+        end
+        if isa(item, DataType)
+            # Start a new root
+            mi = list[blockend+1]
+            parent = newparent(item, mi)
             push!(backedges, parent)
+            ci = list[i+1]
+            if isa(ci, CodeInstance) && list[i+2] === Int32(1)
+                parent = InstanceNode(ci, parent, list[i+2])
+                i += 2
+            end
+            continue
         end
         if isa(item, CodeInstance)
             depth = list[i+=1]::Int32
-            while depth < parent.depth + 1 # && isdefined(parent, :parent)
-                parent = parent.parent
+            if depth == Int32(1)
+                mi = list[blockend+1]
+                parent = newparent(nothing, mi)
+                push!(backedges, parent)
+            else
+                while depth < parent.depth + 1 # && isdefined(parent, :parent)
+                    parent = parent.parent
+                end
             end
             parent = InstanceNode(item, parent, depth)
         elseif isa(item, String)
@@ -392,9 +389,8 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
                 cause = cause::Union{Method,BindingPartition}
                 methinv = InvalidationTree(cause, reason, backedges, mt_cache, mt_disable)
                 push!(methodinvs, methinv)
-                println("pushed new tree")
                 parent = reason = nothing
-                blockend = length(list) + 1
+                blockend = nothing
                 backedges, mt_cache, mt_disable = methinv_storage()
             elseif item == "invalidate_mt_cache"
                 push!(mt_cache, list[i+=1]::MethodInstance)
@@ -408,6 +404,17 @@ function invalidation_trees_logmeths(list; exclude_corecompiler::Bool=true)
     @assert isempty(backedges) && isempty(mt_cache) && isempty(mt_disable)
     @assert parent === nothing
     return methodinvs
+end
+
+function newparent(@nospecialize(sig::Union{DataType,Nothing}), mi::Union{Method,MethodInstance})
+    if isa(mi, Method)
+        # This was a missing call that has since been resolved, or usage of a binding
+        edge = Edge(sig::DataType, nothing)
+    else
+        sig !== nothing && @assert Base.unwrap_unionall(mi.specTypes) <: sig
+        edge = Edge(sig, mi)
+    end
+    return InstanceNode(edge)
 end
 
 ## Edge invalidation trees
