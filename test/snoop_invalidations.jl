@@ -57,8 +57,6 @@ end
     @test length(uinvalidated([mi1, "invalidate_mt_cache"])) == 0
 
     invs = @snoop_invalidations SnooprTests.f(::AbstractFloat) = 3
-    display(invs)
-    @test !isempty(invs)
     umis = uinvalidated(invs)
     @test !isempty(umis)
     trees = invalidation_trees(invs)
@@ -93,7 +91,6 @@ end
     @test [ci.def for ci in mi1.backedges] == [mi2]
     mi3 = methodinstance(SnooprTests.f, (AbstractFloat,))
     invs = @snoop_invalidations SnooprTests.f(::Float32) = 4
-    @test !isempty(invs)
     trees = invalidation_trees(invs)
 
     methinvs = only(trees)
@@ -214,11 +211,9 @@ end
 
     trees = invalidation_trees(invs)
     @test length(trees) >= 3
-    io = IOBuffer()
-    show(io, trees)
-    str = String(take!(io))
-    @test occursin(r"deleting Float64\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float64\(::Irrational{:twoπ}\)", str)
-    @test occursin(r"deleting Float32\(::Irrational{:twoπ}\).*invalidated:\n.*mt_disable: MethodInstance for Float32\(::Irrational{:twoπ}\)", str)
+    str = sprint(show, trees)
+    @test occursin(r"deleting Float64\(::Irrational{:twoπ}\).*invalidated:\n.*with MethodInstance for Float64\(::Irrational{:twoπ}\)", str)
+    @test occursin(r"deleting Float32\(::Irrational{:twoπ}\).*invalidated:\n.*with MethodInstance for Float32\(::Irrational{:twoπ}\)", str)
     @test occursin(r"deleting BigFloat\(::Irrational{:twoπ}; precision\).*invalidated:\n.*backedges: 1: .*with MethodInstance for BigFloat\(::Irrational{:twoπ}\) \(1 children\)", str)
 
     # Exclusion of Core.Compiler methods
@@ -239,45 +234,59 @@ end
 
 @testset "Edge invalidations" begin
     cproj = Base.active_project()
-    cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
-        Pkg.activate(pwd())
-        Pkg.develop(path="./PkgC")
-        Pkg.develop(path="./PkgD")
-        Pkg.precompile()
-        ref1, ref2 = Ref{Int}(0), Ref{Any}()
-        invalidations = @snoop_invalidations begin
-            using PkgC
-            @eval PkgC begin
-                const someconst = 10
-                struct MyType
-                    x::Int8
-                end
+    olddir = pwd()
+    cd(joinpath(@__DIR__, "testmodules", "Invalidation"))
+    Pkg.activate(pwd())
+    Pkg.develop(path="./PkgC")
+    Pkg.develop(path="./PkgD")
+    Pkg.precompile()
+    ref1, ref2 = Ref{Int}(0), Ref{Any}()
+    invalidations = @snoop_invalidations begin
+        using PkgC
+        @eval PkgC begin
+            const someconst = 10
+            struct MyType
+                x::Int8
             end
-            @eval begin
-                PkgC.nbits(::UInt8) = 8
-                PkgC.nbits(::UInt16) = 16
-                Base.delete_method(which(PkgC.nbits, (Integer,)))
-            end
-            using PkgD
-            ref1[] = PkgD.uses_someconst(1)
-            ref2[] = PkgD.calls_mytype(1)
         end
-        @test !isempty(invalidations)
-        display(invalidations)
-        tree = only(invalidation_trees(invalidations))
-        @test tree.reason == :inserting
-        @test tree.method.file == Symbol(@__FILE__)
-        @test isempty(tree.backedges)
-        sig, root = only(tree.mt_backedges)
-        @test sig.parameters[1] === typeof(PkgC.nbits)
-        @test sig.parameters[2] === Integer
-        @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
+        @eval begin
+            PkgC.nbits(::UInt8) = 8
+            PkgC.nbits(::UInt16) = 16
+            Base.delete_method(which(PkgC.nbits, (Integer,)))
+        end
+        using PkgD
+        ref1[] = PkgD.uses_someconst(1)
+        ref2[] = PkgD.calls_mytype(1)
     end
+    trees = invalidation_trees(invalidations)
 
+    mtrees = filter(tree -> isa(tree.method, Method), trees)
+    tree = first(mtrees)
+    @test tree.reason == :inserting
+    @test tree.method.file == Symbol(@__FILE__)
+    @test isempty(tree.backedges)
+    sig, root = last(tree.mt_backedges)
+    @test sig.parameters[1] === typeof(PkgC.nbits)
+    @test sig.parameters[2] === Integer
+    @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
+
+    btrees = filter(tree -> isa(tree.method, Core.Binding), trees)
+    tree = only(filter(tree -> tree.method.globalref.name == :undefined_function, btrees))
+    @test length(tree.mt_backedges) == 1
+    tree = only(filter(tree -> tree.method.globalref.name == :someconst, btrees))
+    sig, root = only(tree.mt_backedges)
+    node = only(root.children)
+    @test node.mi.def == only(methods(PkgD.uses_someconst))
+    tree = only(filter(tree -> tree.method.globalref.name == :MyType, btrees))
+    sig, root = only(tree.mt_backedges)
+    node = only(root.children)
+    @test node.mi.def == only(methods(PkgD.calls_mytype))
+
+    cd(olddir)
     Pkg.activate(cproj)
 end
 
-# This needs to come after "Delayed invalidations", as redefining `throw_boundserror` invalidates a lot of stuff
+# This needs to come after "Edge invalidations", as redefining `throw_boundserror` invalidates a lot of stuff
 @testset "throw_boundserror" begin
     # #268
     invs = @snoop_invalidations begin

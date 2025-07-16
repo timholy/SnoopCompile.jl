@@ -15,7 +15,7 @@ This is similar to `filter`ing for `MethodInstance`s in `invlist`, except that i
 `"invalidate_mt_cache"`. These can typically be ignored because they are nearly inconsequential:
 they do not invalidate any compiled code, they only transiently affect an optimization of runtime dispatch.
 """
-function uinvalidated(invlist; exclude_corecompiler::Bool=true)
+function uinvalidated(invlist::AbstractVector; exclude_corecompiler::Bool=true)
     umis = Set{MethodInstance}()
     i, ilast = firstindex(invlist), lastindex(invlist)
     while i <= ilast
@@ -41,6 +41,7 @@ function uinvalidated(invlist; exclude_corecompiler::Bool=true)
     end
     return umis
 end
+uinvalidated(invlist::InvalidationLists; kwargs...) = uinvalidated(vcat(invlist.logmeths, invlist.logedges); kwargs...)
 
 # Variable names:
 # - `node`, `root`, `leaf`, `parent`, `child`: all `InstanceNode`s, a.k.a. nodes in a MethodInstance tree
@@ -182,8 +183,8 @@ const BackedgeMT = Pair{Union{DataType,Binding},InstanceNode}  # sig=>root
 abstract type AbstractMethodInvalidations end
 
 struct MethodInvalidations <: AbstractMethodInvalidations
-    method::Method
-    reason::Symbol   # :inserting or :deleting
+    method::Union{Method, Binding}
+    reason::Symbol   # :inserting, :deleting, or :rebinding
     mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
     mt_cache::Vector{MethodInstance}
@@ -552,7 +553,7 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
     end
 
     mminvs = MultiMethodInvalidations[]
-    treeindex = Dict{Vector{Method},Int}()
+    treeindex = Dict{Union{Vector{Method},Binding},Int}()
     for i in eachindex(nodes)
         if i ∉ iscaller
             node = nodes[i]
@@ -635,8 +636,8 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
                     idx = get(mindex, method, nothing)
                     if idx !== nothing
                         # Merge the trees
-                            join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
-                            join_invalidations!(trees[idx].backedges, etree.backedges)
+                        join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
+                        join_invalidations!(trees[idx].backedges, etree.backedges)
                     else
                         # Otherwise just add it to the list
                         push!(trees, MethodInvalidations(
@@ -651,8 +652,24 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
                     end
                 end
             else
-                display(etree)
-                error("fixme")
+                b = methods::Binding
+                idx = get(mindex, b, nothing)
+                if idx !== nothing
+                    # Merge the trees
+                    join_invalidations!(trees[idx].mt_backedges, etree.mt_backedges)
+                    join_invalidations!(trees[idx].backedges, etree.backedges)
+                else
+                    # Otherwise just add it to the list
+                    push!(trees, MethodInvalidations(
+                        b,
+                        :rebinding,
+                        copy(etree.mt_backedges),
+                        copy(etree.backedges),
+                        MethodInstance[],  # mt_cache
+                        MethodInstance[]   # mt_disable
+                    ))
+                    mindex[b] = length(trees)
+                end
             end
         end
     end

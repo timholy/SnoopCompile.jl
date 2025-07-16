@@ -1,3 +1,6 @@
+# A set of tests designed to check that both `logmeths` (immediate) and
+# `logedges` (delayed) invalidations work correctly and are roughly consistent
+# with each other.
 using SnoopCompileCore, SnoopCompile
 using MethodAnalysis
 using Pkg
