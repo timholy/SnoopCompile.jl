@@ -203,9 +203,7 @@ end
     cproj = Base.active_project()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
         Pkg.activate(pwd())
-        Pkg.develop(path="./InvalidA")
-        Pkg.develop(path="./InvalidB")
-        Pkg.develop(path="./InvalidC")
+        Pkg.instantiate()
 
         mod = @eval begin
             using InvalidC        # this is InvalidA + new methods

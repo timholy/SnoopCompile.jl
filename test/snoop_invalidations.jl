@@ -237,8 +237,7 @@ end
     olddir = pwd()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation"))
     Pkg.activate(pwd())
-    Pkg.develop(path="./PkgC")
-    Pkg.develop(path="./PkgD")
+    Pkg.instantiate()
     Pkg.precompile()
     ref1, ref2 = Ref{Int}(0), Ref{Any}()
     invalidations = @snoop_invalidations begin

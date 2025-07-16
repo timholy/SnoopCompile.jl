@@ -7,3 +7,13 @@ InvalidE = "f916d1c3-0cdb-4773-9621-29945992b959"
 PkgC = "c8e0c308-2b2c-4e17-bb0b-031502754b83"
 PkgD = "3a5fa9f4-f0a4-4856-859e-2bf0c30232a7"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+
+[sources]
+InvalidA = {path = "InvalidA"}
+InvalidB = {path = "InvalidB"}
+InvalidC = {path = "InvalidC"}
+InvalidD = {path = "InvalidD"}
+InvalidE = {path = "InvalidE"}
+PkgC = {path = "PkgC"}
+PkgD = {path = "PkgD"}
+PrecompileTools = {path = "/home/tim/.julia/dev/PrecompileTools"}
