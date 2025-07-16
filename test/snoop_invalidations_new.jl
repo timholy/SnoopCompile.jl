@@ -3,6 +3,8 @@ using MethodAnalysis
 using Pkg
 using Test
 
+using SnoopCompile: firstmatch
+
 module MethodLogs
 Base.Experimental.@max_methods 2
 
@@ -13,33 +15,33 @@ end
 # Check the invalidation trees for `invs1`
 function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, isedge::Bool)
     @test length(trees) == 3
-    treefint    = SnoopCompile.firstmatch(trees, mfint)
-    treefstring = SnoopCompile.firstmatch(trees, mfstring)
-    treefsigned = SnoopCompile.firstmatch(trees, mfsigned)
+    treefint    = firstmatch(trees, mfint)
+    treefstring = firstmatch(trees, mfstring)
+    treefsigned = firstmatch(trees, mfsigned)
 
     ## treefint
     # World-splitting in `mod.callsfrt[ar]`
     @test treefint.reason == :inserting
+    @test length(treefint.mt_backedges) == 2
+    sig, root = firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Any})
+    @test root.depth == 0
+    @test root.mi.def === only(methods(mod.callsfrta))
     if isedge
-        # World-splitting does not get credited to the widened signature
-        @test isempty(treefint.mt_backedges)
-    else
-        @test length(treefint.mt_backedges) == 2
-        sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Any})
-        @test root.depth == 0
-        @test root.mi.def === only(methods(mod.callsfrta))
         node = only(root.children)
         @test node.depth == 1
         @test node.mi.def === only(methods(mod.callscallsfrta)) && isempty(node.children)
-
-        sig, root = SnoopCompile.firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Real})
-        @test root.depth == 0
-        @test root.mi.def === only(methods(mod.callsfrtr))
-        @test isempty(root.children)
+    else
+        # we have a backedge that does the same thing
+        root = firstmatch(treefint.backedges, Tuple{typeof(mod.f), Integer})
+        node = root.children[end]
+        node = only(node.children)
+        @test node.mi.def === only(methods(mod.callscallsfrta)) && isempty(node.children)
     end
+    sig, root = firstmatch(treefint.mt_backedges, Tuple{typeof(mod.f), Real})
+    @test root.depth == 0
+    @test root.mi.def === only(methods(mod.callsfrtr))
 
     # Dispatch priority
-    @test length(treefint.backedges) == 3
     root = treefint.backedges[1]
     @test root.depth == 0
     @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(mod.f), Signed}
@@ -48,31 +50,16 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     @test isempty(node.children)
     @test node.depth == 1
 
-    root = treefint.backedges[2]
-    @test root.depth == 0
-    @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(mod.f), Integer}
-    node = SnoopCompile.firstmatch(root.children, only(methods(mod.callsfrta)))
-    @test node.depth == 1
-    if isedge
-        child = only(node.children)
-        @test child.depth == 2
-        @test child.mi.def == only(methods(mod.callscallsfrta))
-    else
-        @test isempty(node.children)
-    end
-    node = SnoopCompile.firstmatch(root.children, only(methods(mod.callsfrtr)))
-    @test isempty(node.children)
-    @test node.depth == 1
 
-    root = treefint.backedges[3]
+    root = firstmatch(treefint.backedges, Tuple{typeof(mod.f), Int})
     @test root.depth == 0
     @test root.mi.def === mfinteger && root.mi.specTypes == Tuple{typeof(mod.f), Int}
     @test SnoopCompile.countchildren(root) == 3
     @test length(root.children) == 2
-    node = SnoopCompile.firstmatch(root.children, only(methods(mod.alsocallsf)))
+    node = firstmatch(root.children, only(methods(mod.alsocallsf)))
     @test node.depth == 1
     @test isempty(node.children)
-    node = SnoopCompile.firstmatch(root.children, only(methods(mod.callsf)))
+    node = firstmatch(root.children, only(methods(mod.callsf)))
     @test node.depth == 1
     child = only(node.children)
     @test child.depth == 2
@@ -81,7 +68,7 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     ## treefstring
     @test treefstring.reason == :inserting
     @test isempty(treefstring.backedges)
-    sig, root = only(treefstring.mt_backedges)
+    sig, root = firstmatch(treefstring.mt_backedges, Tuple{typeof(mod.f), String})
     @test sig === Tuple{typeof(mod.f), String}
     @test root.depth == 0
     @test root.mi.specTypes === Tuple{typeof(mod.callsf), String}
@@ -93,66 +80,77 @@ function test_trees1(mod::Module, trees, mfint, mfstring, mfsigned, mfinteger, i
     ## treefsigned
     @test treefsigned.reason == :inserting
     if isedge
-        sig, root = only(treefsigned.mt_backedges)
+        sig, root = firstmatch(treefsigned.mt_backedges, Tuple{typeof(mod.f), Signed})
         @test sig === Tuple{typeof(mod.f), Signed}
         @test root.depth == 0
         @test root.mi.def === only(methods(mod.invokesfs)) && root.mi.specTypes.parameters[2] === Int
     else
+        # the immediate log leaves a bit to be desired: there's no record that this was invoked as `Signed`
+        root = only(treefsigned.backedges)
+        @test root.depth == 0
+        @test root.mi.def === mfinteger && root.mi.specTypes === Tuple{typeof(mod.f), Int}
+        node = only(root.children)
+        @test node.depth == 1
+        @test node.mi.specTypes === Tuple{typeof(mod.invokesfs), Int}
+        @test isempty(node.children)
+        # However, it is nice that it knows the `f(::Int)` method was the cause, not the `f(::Signed)` method
         @test isempty(treefsigned.mt_backedges)
     end
-    root = only(treefsigned.backedges)
-    @test root.depth == 0
-    @test root.mi.def === mfinteger && root.mi.specTypes === Tuple{typeof(mod.f), Int}
-    node = only(root.children)
-    @test node.depth == 1
-    @test node.mi.specTypes === Tuple{typeof(mod.invokesfs), Int}
-    @test isempty(node.children)
 end
 
 function test_trees2(mod::Module, trees, mfint, mfint8, mfsigned, mfinteger, isedge::Bool)
-    @test length(trees) == 2
-    treefint  = SnoopCompile.firstmatch(trees, mfint)
-    treefint8 = SnoopCompile.firstmatch(trees, mfint8)
+    @test length(trees) == 2 - isedge  # deletion can't happen in an edge invalidation, because method deletion is not allowed during precompilation
+    treefint8 = firstmatch(trees, mfint8)
+    treefint  = isedge ? nothing : firstmatch(trees, mfint)
 
     ## treefint
-    @test treefint.reason == :deleting
-    @test isempty(treefint.mt_backedges)
-    root = only(treefint.backedges)
-    @test root.depth == 0
-    @test length(root.children) == 4
-    node = root.children[end]
-    @test node.depth == 1
-    @test node.mi.def === only(methods(mod.callsf)) && node.mi.specTypes === Tuple{typeof(mod.callsf), Int}
-    node = only(node.children)
-    @test node.mi.specTypes === Tuple{typeof(mod.callscallsf), Int}
-    node = SnoopCompile.firstmatch(root.children, only(methods(mod.alsocallsf)))
-    @test node.depth == 1
-    @test isempty(node.children)
-    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int})
-    @test node.depth == 1
-    @test isempty(node.children)
-    node = SnoopCompile.firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int8})
-    @test node.depth == 1
-    @test isempty(node.children)
+    if treefint !== nothing
+        @test treefint.reason == :deleting
+        @test isempty(treefint.mt_backedges)
+        root = only(treefint.backedges)
+        @test root.depth == 0
+        @test length(root.children) == 4
+        node = root.children[end]
+        @test node.depth == 1
+        @test node.mi.def === only(methods(mod.callsf)) && node.mi.specTypes === Tuple{typeof(mod.callsf), Int}
+        node = only(node.children)
+        @test node.mi.specTypes === Tuple{typeof(mod.callscallsf), Int}
+        node = firstmatch(root.children, only(methods(mod.alsocallsf)))
+        @test node.depth == 1
+        @test isempty(node.children)
+        node = firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int})
+        @test node.depth == 1
+        @test isempty(node.children)
+        node = firstmatch(root.children, Tuple{typeof(mod.callsfrts), Int8})
+        @test node.depth == 1
+        @test isempty(node.children)
+    end
 
     ## treefint8
     @test treefint8.reason == :inserting
-    @test isempty(treefint8.mt_backedges)
-    root = only(treefint8.backedges)
-    @test root.depth == 0
-    @test root.mi.def == mfsigned && root.mi.specTypes === Tuple{typeof(mod.f), Signed}
-    @test length(root.children) == 2
-    for node in root.children
-        @test node.depth == 1
-        @test node.mi.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
-        @test isempty(node.children)
+    if isedge
+        for (sig, root) in treefint8.mt_backedges
+            @test sig === Tuple{typeof(mod.f), Signed}
+            @test root.depth == 0
+            @test root.mi.def === only(methods(mod.callsfrts))
+            @test root.mi.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
+        end
+    else
+        @test isempty(treefint8.mt_backedges)
+        @test isempty(treefint8.mt_backedges)
+        root = only(treefint8.backedges)
+        @test root.depth == 0
+        @test root.mi.def == mfsigned && root.mi.specTypes === Tuple{typeof(mod.f), Signed}
+        @test length(root.children) == 2
+        for node in root.children
+            @test node.depth == 1
+            @test node.mi.specTypes ∈ (Tuple{typeof(mod.callsfrts), Int}, Tuple{typeof(mod.callsfrts), Int8})
+            @test isempty(node.children)
+        end
     end
 end
 
-mlogs = []
-
 @testset "MethodLogs" begin
-    empty!(mlogs)
     f = MethodLogs.f
     mfinteger = only(methods(f))
     precompile(MethodLogs.callscallsf, (String,))  # unresolved callee (would throw an error if we called it)
@@ -171,9 +169,7 @@ mlogs = []
     end
     # Grab the methods corresponding to invidual trees now, while they exist
     mfint, mfstring, mfsigned = which(f, (Int,)), which(f, (String,)), which(f, (Signed,))
-    push!(mlogs, invs1)
     trees1 = invalidation_trees(invs1)
-    push!(mlogs, trees1)
 
     # Recompile
     MethodLogs.callscallsf(1)
@@ -189,9 +185,7 @@ mlogs = []
         Base.delete_method(which(MethodLogs.f, (Int,)))
     end
     mfint8 = which(f, (Int8,))
-    push!(mlogs, invs2)
     trees2 = invalidation_trees(invs2)
-    push!(mlogs, trees2)
 
     ### invs1
     @test isempty(invs1.logedges)   # there were no precompiled packages
@@ -202,10 +196,7 @@ mlogs = []
     test_trees2(MethodLogs, trees2, mfint, mfint8, mfsigned, mfinteger, false)
 end
 
-elogs = []
-
 @testset "Edge invalidations" begin
-    empty!(elogs)
     cproj = Base.active_project()
     cd(joinpath(@__DIR__, "testmodules", "Invalidation")) do
         Pkg.activate(pwd())
@@ -224,10 +215,7 @@ elogs = []
         mfint, mfstring, mfsigned, mfinteger = which(f, (Int,)), which(f, (String,)), which(f, (Signed,)), which(f, (Integer,))
 
         @test isempty(invs1.logmeths)
-        push!(elogs, invs1)
         trees = invalidation_trees(invs1)
-        push!(elogs, trees)
-        display(trees)
         test_trees1(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
 
         @eval using InvalidE    # add and delete methods
@@ -237,11 +225,10 @@ elogs = []
 
         @test isempty(invs2.logmeths)
         trees = invalidation_trees(invs2)
-        push!(elogs, trees)
-        display(trees)
-        test_trees2(mod.InvalidA, trees, mfint, mfstring, mfsigned, mfinteger, true)
+        mfint8 = which(f, (Int8,))
+        test_trees2(mod.InvalidA, trees, mfint, mfint8, mfsigned, mfinteger, true)
     end
-    Base.activate(cproj) # Reactivate the original project
+    Pkg.activate(cproj) # Reactivate the original project
 end
 
 # # @testset "Edge invalidations" begin
