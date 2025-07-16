@@ -20,7 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - 'nightly-1.12'
+          - 'min'
+          - 'pre'
           - 'nightly'
         os:
           - ubuntu-latest
