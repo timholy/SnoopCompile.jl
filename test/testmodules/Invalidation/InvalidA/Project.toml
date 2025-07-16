@@ -1,0 +1,4 @@
+name = "InvalidA"
+uuid = "be40ca7b-3ee8-492f-a3f1-50c058e54caf"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+version = "0.1.0"
