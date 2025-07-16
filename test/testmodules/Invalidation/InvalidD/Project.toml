@@ -1,0 +1,13 @@
+name = "InvalidD"
+uuid = "4e53dc45-bfb2-4a6a-a95b-d850d77a7d07"
+version = "0.1.0"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+
+[deps]
+InvalidA = "be40ca7b-3ee8-492f-a3f1-50c058e54caf"
+InvalidB = "a42b4e8e-6a4b-44b6-b248-98d749f72523"
+InvalidC = "ac24b6e5-9ce8-4da6-b046-32dfc5c72d9b"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+
+[compat]
+PrecompileTools = "1.3.1"

@@ -38,8 +38,7 @@ g(c) = myplus(f(c[1]), f(c[2]))
         cproj = Base.active_project()
         cd(joinpath(dirname(@__DIR__), "testmodules", "Invalidation")) do
             Pkg.activate(pwd())
-            Pkg.develop(path="./PkgC")
-            Pkg.develop(path="./PkgD")
+            Pkg.instantiate()
             Pkg.precompile()
             invalidations = @snoop_invalidations begin
                 @eval begin

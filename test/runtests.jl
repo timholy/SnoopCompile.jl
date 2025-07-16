@@ -6,6 +6,7 @@ if !isempty(ARGS)
 else
     include("snoop_inference.jl")
     include("snoop_llvm.jl")
+    include("snoop_invalidations_parallel.jl")
     include("snoop_invalidations.jl")
 
     # otherwise-untested demos

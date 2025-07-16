@@ -1,6 +1,6 @@
 using Test
 
-using SnoopCompile
+using SnoopCompileCore, SnoopCompile
 
 @testset "@snoop_llvm" begin
 
