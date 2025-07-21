@@ -41,6 +41,7 @@ using InteractiveUtils
 using Serialization
 using Printf
 using OrderedCollections
+using CodeTracking
 import YAML  # For @snoop_llvm
 
 using Base: specializations
@@ -73,6 +74,7 @@ end
 
 include("parcel_snoop_inference.jl")
 include("inference_demos.jl")
+export InferenceTiming, InferenceTimingNode
 export exclusive, inclusive, flamegraph, flatten, accumulate_by_source, collect_for, runtime_inferencetime, staleinstances
 export InferenceTrigger, inference_triggers, callerinstance, callingframe, skiphigherorder, trigger_tree, suggest, isignorable
 export report_callee, report_caller, report_callees

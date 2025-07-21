@@ -1,100 +1,26 @@
 export @snoop_inference
 
-struct InferenceTiming
-    mi_info::Core.Compiler.Timings.InferenceFrameInfo
-    inclusive_time::Float64
-    exclusive_time::Float64
-end
-"""
-    inclusive(frame)
+const snoop_inference_lock = ReentrantLock()
+const newly_inferred = CodeInstance[]
 
-Return the time spent inferring `frame` and its callees.
-"""
-inclusive(it::InferenceTiming) = it.inclusive_time
-"""
-    exclusive(frame)
-
-Return the time spent inferring `frame`, not including the time needed for any of its callees.
-"""
-exclusive(it::InferenceTiming) = it.exclusive_time
-
-struct InferenceTimingNode
-    mi_timing::InferenceTiming
-    start_time::Float64
-    children::Vector{InferenceTimingNode}
-    bt
-    parent::InferenceTimingNode
-
-    # Root constructor
-    InferenceTimingNode(mi_timing::InferenceTiming, start_time, @nospecialize(bt)) =
-        new(mi_timing, start_time, InferenceTimingNode[], bt)
-    # Child constructor
-    function InferenceTimingNode(mi_timing::InferenceTiming, start_time, @nospecialize(bt), parent::InferenceTimingNode)
-        child = new(mi_timing, start_time, InferenceTimingNode[], bt, parent)
-        push!(parent.children, child)
-        return child
-    end
-end
-inclusive(node::InferenceTimingNode) = inclusive(node.mi_timing)
-exclusive(node::InferenceTimingNode) = exclusive(node.mi_timing)
-InferenceTiming(node::InferenceTimingNode) = node.mi_timing
-
-function InferenceTimingNode(t::Core.Compiler.Timings.Timing)
-    ttree = timingtree(t)
-    it, start_time, ttree_children = ttree::Tuple{InferenceTiming, Float64, Vector{Any}}
-    root = InferenceTimingNode(it, start_time, t.bt)
-    addchildren!(root, t, ttree_children)
-    return root
+function start_tracking()
+    iszero(snoop_inference_lock.reentrancy_cnt) || throw(ConcurrencyViolationError("already tracking inference (cannot nest `@snoop_inference` blocks)"))
+    lock(snoop_inference_lock)
+    empty!(newly_inferred)
+    ccall(:jl_set_newly_inferred, Cvoid, (Any,), newly_inferred)
+    # return ccall(:jl_log_dispatch_backtrace, Any, (Cint,), 1)
+    empty!(Base.dispatch_backtrace)
+    Core.Compiler.collect_dispatch_backtrace[] = true
+    return nothing
 end
 
-# Compute inclusive times and store as a temporary tree.
-# To allow InferenceTimingNode to be both bidirectional and immutable, we need to create parent node before the child nodes.
-# However, each node stores its inclusive time, which can only be computed efficiently from the leaves up (children before parents).
-# This performs the inclusive-time computation, storing the result as a "temporary tree" that can be used during
-# InferenceTimingNode creation (see `addchildren!`).
-function timingtree(t::Core.Compiler.Timings.Timing)
-    time, start_time = t.time/10^9, t.start_time/10^9
-    incl_time = time
-    tchildren = []
-    for child in t.children
-        tchild = timingtree(child)
-        push!(tchildren, tchild)
-        incl_time += inclusive(tchild[1])
-    end
-    return (InferenceTiming(t.mi_info, incl_time, time), start_time, tchildren)
-end
-
-function addchildren!(parent::InferenceTimingNode, t::Core.Compiler.Timings.Timing, ttrees)
-    for (child, ttree) in zip(t.children, ttrees)
-        it, start_time, ttree_children = ttree::Tuple{InferenceTiming, Float64, Vector{Any}}
-        node = InferenceTimingNode(it, start_time, child.bt, parent)
-        addchildren!(node, child, ttree_children)
-    end
-end
-
-function start_deep_timing()
-    Core.Compiler.Timings.reset_timings()
-    Core.Compiler.__set_measure_typeinf(true)
-end
-function stop_deep_timing()
-    Core.Compiler.__set_measure_typeinf(false)
-    Core.Compiler.Timings.close_current_timer()
-end
-
-function finish_snoop_inference()
-    return InferenceTimingNode(Core.Compiler.Timings._timings[1])
-end
-
-function _snoop_inference(cmd::Expr)
-    return quote
-        start_deep_timing()
-        try
-            $(esc(cmd))
-        finally
-            stop_deep_timing()
-        end
-        finish_snoop_inference()
-    end
+function stop_tracking()
+    Base.assert_havelock(snoop_inference_lock)
+    ccall(:jl_set_newly_inferred, Cvoid, (Any,), nothing)
+    unlock(snoop_inference_lock)
+    # ccall(:jl_log_dispatch_backtrace, Any, (Cint,), 0)
+    Core.Compiler.collect_dispatch_backtrace[] = false
+    return nothing
 end
 
 """
@@ -134,11 +60,123 @@ julia> tinf = @snoop_inference begin
 ```
 """
 macro snoop_inference(cmd)
-    return _snoop_inference(cmd)
+    return esc(quote
+        local backtrace_log = $(SnoopCompileCore.start_tracking)()
+        try
+            $cmd
+        finally
+            $(SnoopCompileCore.stop_tracking)()
+        end
+        $timingtree($(SnoopCompileCore.newly_inferred), copy(Base.dispatch_backtrace))
+    end)
 end
 
-# These are okay to come at the top-level because we're only measuring inference, and
-# inference results will be cached in a `.ji` file.
-precompile(start_deep_timing, ())
-precompile(stop_deep_timing, ())
-precompile(finish_snoop_inference, ())
+struct InferenceTimingNode
+    ci::CodeInstance
+    children::Vector{InferenceTimingNode}
+    bt
+    parent::InferenceTimingNode
+
+    function InferenceTimingNode(ci::CodeInstance, st) # for creating the root
+        return new(ci, InferenceTimingNode[], st)
+    end
+    function InferenceTimingNode(ci::CodeInstance, st, parent)
+        child = new(ci, InferenceTimingNode[], st, parent)
+        push!(parent.children, child)
+        return child
+    end
+end
+
+function timingtree(cis, backtraces)
+    root = InferenceTimingNode(Core.Compiler.Timings.ROOTmi.cache, nothing)
+    # the cis are added in the order children-before-parents, we need to be able to reverse that
+    # We index on MethodInstance rather than CodeInstance, because constprop can result in a distinct
+    # (and uncached) CodeInstance for the same MethodInstance
+    miidx = Dict([methodinstance(ci) for ci in cis] .=> eachindex(cis))
+    backedges = [Int[] for _ in eachindex(cis)]
+    for (i, ci) in pairs(cis)
+        for e in ci.edges
+            e isa CodeInstance || continue
+            eidx = get(miidx, methodinstance(e), nothing)
+            if eidx !== nothing
+                push!(backedges[eidx], i)
+            end
+        end
+    end
+    # backtraces = Dict{MethodInstance,Any}(backtrace_log[i] => backtrace_log[i+1] for i in 1:2:length(backtrace_log))
+    addchildren!(root, cis, backedges, miidx, backtraces)
+    return root
+end
+
+function addchildren!(parent::InferenceTimingNode, handled::Set{CodeInstance}, miidx)
+    for ci in parent.ci.edges
+        ci isa CodeInstance || continue
+        haskey(miidx, methodinstance(ci)) || continue
+        ci ∈ handled && continue
+        child = InferenceTimingNode(ci, nothing, parent)
+        push!(handled, ci)
+        addchildren!(child, handled, miidx)
+    end
+    return parent
+end
+
+function addchildren!(parent::InferenceTimingNode, cis, backedges, miidx, backtraces)
+    handled = Set{CodeInstance}()
+    for (i, ci) in pairs(cis)
+        ci ∈ handled && continue
+        # Follow the backedges to the root
+        j = i
+        be = ci
+        while true
+            found = false
+            for k in backedges[j]
+                be = cis[k]
+                if be ∉ handled
+                    j = k
+                    found = true
+                    break
+                end
+            end
+            found || break
+        end
+        be ∈ handled && continue
+        # bt1, bt2 = get(backtraces, Core.Compiler.get_ci_mi(be), (nothing, nothing))
+        # child = InferenceTimingNode(be, make_stacktrace(bt1, bt2), parent)
+        child = InferenceTimingNode(be, get(backtraces, be, nothing), parent)
+        push!(handled, be)
+        addchildren!(child, handled, miidx)
+    end
+    return parent
+end
+
+methodinstance(ci::CodeInstance) = Core.Compiler.get_ci_mi(ci)
+
+# make_stacktrace(bt1::Vector{Ptr{Cvoid}}, bt2::Vector{Any}) = Base._reformat_bt(bt1, bt2)
+# make_stacktrace(::Nothing, ::Nothing) = nothing
+
+## API functions
+
+"""
+    inclusive(ci::InferenceTimingNode; include_llvm::Bool=true)
+
+Return the time spent inferring `ci` and its callees.
+If `include_llvm` is true, the LLVM compilation time is added as well.
+"""
+inclusive(ci::CodeInstance; include_llvm::Bool=true) = reinterpret(Float16, ci.time_infer_total) +
+    include_llvm * reinterpret(Float16, ci.time_compile)
+inclusive(node::InferenceTimingNode; kwargs...) = inclusive(node.ci; kwargs...)
+
+"""
+    exclusive(ci::InferenceTimingNode; include_llvm::Bool=true)
+
+Return the time spent inferring `ci`, not including the time needed for any of its callees.
+If `include_llvm` is true, the LLVM compilation time is added.
+"""
+exclusive(ci::CodeInstance; include_llvm::Bool=true) = reinterpret(Float16, ci.time_infer_self) +
+    include_llvm * reinterpret(Float16, ci.time_compile)
+exclusive(node::InferenceTimingNode; kwargs...) = exclusive(node.ci; kwargs...)
+
+
+precompile(start_tracking, ())
+precompile(stop_tracking, ())
+precompile(timingtree, (Vector{CodeInstance},))

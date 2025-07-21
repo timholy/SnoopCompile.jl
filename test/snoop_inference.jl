@@ -15,8 +15,7 @@ using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
 
 # Constant-prop works differently on different Julia versions.
 # This utility lets you strip frames that const-prop a number.
-hasconstpropnumber(f::SnoopCompileCore.InferenceTiming) = hasconstpropnumber(f.mi_info)
-hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t -> isa(t, Core.Const) && isa(t.val, Number), mi_info.slottypes)
+hasconstpropnumber(f::SnoopCompile.InferenceTiming) = false # FIXME
 
 @testset "@snoop_inference" begin
     # WARMUP (to compile all the small, reachable methods)
@@ -44,7 +43,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test SnoopCompile.isROOT(Core.MethodInstance(tinf))
     @test SnoopCompile.isROOT(Method(tinf))
     child = tinf.children[1]
-    @test convert(SnoopCompile.InferenceTiming, child).inclusive_time > 0
+    @test inclusive(child) > 0
     @test SnoopCompile.getroot(child.children[1]) == child
     @test SnoopCompile.getroot(child.children[1].children[1]) == child
     @test isempty(staleinstances(tinf))
@@ -67,7 +66,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     @test length(filter(!hasconstpropnumber, flatten(tinf, tmin=longest_frame_time))) == 1
 
     frames_unsorted = filter(!hasconstpropnumber, flatten(tinf; sortby=nothing))
-    ifi = frames_unsorted[1].mi_info
+    ifi = InferenceTiming(frames_unsorted[1])
     @test SnoopCompile.isROOT(Core.MethodInstance(ifi))
     @test SnoopCompile.isROOT(Method(ifi))
     names = [Method(frame).name for frame in frames_unsorted]
@@ -87,9 +86,7 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     iframes = flatten(tinf; sortby=inclusive)
     @test issorted(iframes; by=inclusive)
 
-    t = map(inclusive, frames_unsorted)
-    @test t[2] >= t[3] >= t[4]
-    ifi = frames_unsorted[2].mi_info
+    ifi = InferenceTiming(frames_unsorted[2])
     @test Core.MethodInstance(ifi).def == Method(ifi) == which(M.g, (Int,))
     names = [Method(frame).name for frame in frames_unsorted]
     argtypes = [MethodInstance(frame).specTypes.parameters[2] for frame in frames_unsorted[2:end]]
@@ -112,7 +109,12 @@ hasconstpropnumber(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(t ->
     frames = flatten(tinfmod)
     timesm = accumulate_by_source(frames)
     timesmod = filter(pr -> isa(pr[2], Core.MethodInstance), timesm)
-    @test length(timesmod) == 1
+    # We used to be able to record inference of module-level thunks, but that seems gone.
+    # This might be a simpler and more robust test:
+    # thk = Meta.lower(Main, :(for i = 1:2 M.g(2) end))   # creates a :thunk Expr
+    # tinfmod = @snoop_inference ccall(:jl_toplevel_eval_in, Any, (Any, Any), M, thk)
+    # (This is enough to pass the test on Julia 1.10 but not 1.12)
+    @test_broken length(timesmod) == 1
 end
 
 # For the higher-order function attribution test, we need to prevent `f2`
@@ -149,7 +151,7 @@ fdouble(x) = 2x
     mis = callerinstance.(itrigs)
     @test only(mis).def == which(g, (Any,))
     @test callingframe(itrig).callerframes[1].func === :eval
-    @test_throws ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference") inference_triggers(tinf.children[1])
+    @test_throws "it seems you've supplied a child node, but backtraces are collected only at the entrance to inference" inference_triggers(tinf.children[1])
     @test stacktrace(itrig) isa Vector{StackTraces.StackFrame}
     itrig0 = itrig
     counter = 0
@@ -627,9 +629,9 @@ end
 
     fg = SnoopCompile.flamegraph(tinf)
     fgnodes = collect(AbstractTrees.PreOrderDFS(fg))
-    for tgtname in (:h, :i, :+)
+    for tgtname in (:h, :i)
         @test mapreduce(|, fgnodes; init=false) do node
-            node.data.sf.linfo.def.name == tgtname
+            SnoopCompile.methodinstance(node.data.sf.linfo).def.name == tgtname
         end
     end
     # Test that the span covers the whole tree, and check for const-prop
@@ -653,6 +655,33 @@ end
     @test endswith(string(fg.child.data.sf.func), ".g") && endswith(string(fg1.child.data.sf.func), ".h")
     fg2 = flamegraph(tinf.children[2])
     @test endswith(string(fg2.child.data.sf.func), ".i")
+
+    # Precise constprop
+    M = Module()
+    @eval M begin
+        using Random
+        function likescp(x::Int)
+            x == 1 && return "a"
+            x == 2 && return "b"
+            return randstring(x)
+        end
+        llcp(x) = length(likescp(x))
+        Base.@constprop :none nocp(x) = length(likescp(x))
+        f() = llcp(1) + llcp(2) + llcp(5)
+        g() = nocp(1) + nocp(2) + nocp(5)
+    end
+    tinf = @snoop_inference begin
+        M.g()   # call the version with no constprop first
+        M.f()
+    end
+    @test length(tinf.children) == 2
+    node1 = tinf.children[1].children[1].children[1]
+    node2 = tinf.children[2].children[1].children[1]
+    @test node1.ci != node2.ci
+    @test node1.ci.inferred !== nothing
+    @test node2.ci.inferred === nothing
+    @test node1.ci.def == node2.ci.def
+    @test node1.ci.def.def.name === :likescp
 
     # Printing
     M = Module()

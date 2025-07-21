@@ -2,12 +2,23 @@ import FlameGraphs
 
 using Base.StackTraces: StackFrame
 using FlameGraphs.LeftChildRightSiblingTrees: Node, addchild
+using SnoopCompileCore: InferenceTimingNode, inclusive, exclusive
 using AbstractTrees
-using Core.Compiler.Timings: InferenceFrameInfo
-using SnoopCompileCore: InferenceTiming, InferenceTimingNode, inclusive, exclusive
 using Profile
 
-const InferenceNode = Union{InferenceFrameInfo,InferenceTiming,InferenceTimingNode}
+# Wrapper for which we can customize `show`
+struct InferenceTiming
+    ci::CodeInstance
+end
+InferenceTiming(node::InferenceTimingNode) = InferenceTiming(node.ci)
+InferenceTiming(node::InferenceTiming) = node
+
+Base.convert(::Type{InferenceTiming}, node::InferenceTimingNode) = InferenceTiming(node.ci)
+
+SnoopCompileCore.inclusive(t::InferenceTiming) = inclusive(t.ci)
+SnoopCompileCore.exclusive(t::InferenceTiming) = exclusive(t.ci)
+
+const InferenceNode = Union{InferenceTiming,InferenceTimingNode}
 
 const flamegraph = FlameGraphs.flamegraph  # For re-export
 
@@ -15,18 +26,13 @@ const rextest = r"Test\.jl$"       # for detecting calls from a @testset
 
 # While it might be nice to put some of these in SnoopCompileCore,
 # SnoopCompileCore guarantees that it doesn't extend any Base function.
-Core.MethodInstance(mi_info::InferenceFrameInfo) = mi_info.mi
-Core.MethodInstance(t::InferenceTiming) = MethodInstance(t.mi_info)
-Core.MethodInstance(t::InferenceTimingNode) = MethodInstance(t.mi_timing)
+Core.MethodInstance(t::InferenceNode) = Core.Compiler.get_ci_mi(t.ci)
 
 Core.Method(x::InferenceNode) = MethodInstance(x).def::Method   # deliberately throw an error if this is a module
 
-Base.convert(::Type{InferenceTiming}, node::InferenceTimingNode) = node.mi_timing
-
 isROOT(mi::MethodInstance) = mi === Core.Compiler.Timings.ROOTmi
 isROOT(m::Method) = m === Core.Compiler.Timings.ROOTmi.def
-isROOT(mi_info::InferenceNode) = isROOT(MethodInstance(mi_info))
-isROOT(node::InferenceTimingNode) = isROOT(node.mi_timing)
+isROOT(node::InferenceNode) = isROOT(MethodInstance(node))
 
 getroot(node::InferenceTimingNode) = isdefined(node.parent, :parent) ? getroot(node.parent) : node
 
@@ -40,16 +46,18 @@ end
 lookups_key(ip) = ip
 lookups_key(ip::Ptr{Nothing}) = UInt(ip)
 
-# These should be in SnoopCompileCore, except that it promises not to specialize Base methods
-Base.show(io::IO, t::InferenceTiming) = (print(io, "InferenceTiming: "); _show(io, t))
-function _show(io::IO, t::InferenceTiming)
-    print(io, @sprintf("%8.6f", exclusive(t)), "/", @sprintf("%8.6f", inclusive(t)), " on ")
-    print(io, stripifi(t.mi_info))
+_showtiming(io, node) = print(io, @sprintf("%8.6f", exclusive(node)), "/", @sprintf("%8.6f", inclusive(node)), " on ")
+function Base.show(io::IO, node::InferenceTiming)
+    print(io, "InferenceTiming: ")
+    _showtiming(io, node)
+    show(io, MethodInstance(node))
 end
 
+# This should be in SnoopCompileCore, except that it promises not to specialize Base methods to avoid invalidating other code
 function Base.show(io::IO, node::InferenceTimingNode)
     print(io, "InferenceTimingNode: ")
-    _show(io, node.mi_timing)
+    _showtiming(io, node)
+    show(io, MethodInstance(node))
     print(io, " with ", string(length(node.children)), " direct children")
 end
 
@@ -130,7 +138,7 @@ end
 function flatten!(gettime::Union{typeof(exclusive),typeof(inclusive)}, out, node, tmin)
     time = gettime(node)
     if time >= tmin
-        push!(out, node.mi_timing)
+        push!(out, InferenceTiming(node))
     end
     for child in node.children
         flatten!(gettime, out, child, tmin)
@@ -364,11 +372,11 @@ function isprecompilable(mi::MethodInstance; excluded_modules=Set([Main::Module]
 end
 
 struct Precompiles
-    mi_info::InferenceFrameInfo                           # entrance point to inference (the "root")
+    ci::CodeInstance                                      # entrance point to inference (the "root")
     total_time::Float64                                   # total time for the root
     precompiles::Vector{Tuple{Float64,MethodInstance}}    # list of precompilable child MethodInstances with their times
 end
-Precompiles(node::InferenceTimingNode) = Precompiles(InferenceTiming(node).mi_info, inclusive(node), Tuple{Float64,MethodInstance}[])
+Precompiles(node::InferenceTimingNode) = Precompiles(node.ci, inclusive(node), Tuple{Float64,MethodInstance}[])
 
 Core.MethodInstance(pc::Precompiles) = MethodInstance(pc.mi_info)
 SnoopCompileCore.inclusive(pc::Precompiles) = pc.total_time
@@ -712,9 +720,9 @@ function Base.show(io::IO, itrig::InferenceTrigger)
         printstyled(io, sf.func; color=:red, bold=true)
         print(io, " (",  sf.file, ':', sf.line, ')')
         caller = itrig.callerframes[end].linfo
-        if isa(caller, MethodInstance)
+        if isa(caller, MethodInstance) || isa(caller, CodeInstance)
             length(itrig.callerframes) == 1 ? print(io, " with specialization ") : print(io, " inlined into ")
-            printstyled(io, stripmi(caller); color=:blue)
+            printstyled(io, stripmi(methodinstance(caller)); color=:blue)
             if length(itrig.callerframes) > 1
                 sf = itrig.callerframes[end]
                 print(io, " (",  sf.file, ':', sf.line, ')')
@@ -732,7 +740,7 @@ end
 
 Return the MethodInstance `mi` of the caller in the selected stackframe in `itrig`.
 """
-callerinstance(itrig::InferenceTrigger) = itrig.callerframes[end].linfo
+callerinstance(itrig::InferenceTrigger) = methodinstance(itrig.callerframes[end].linfo)
 
 function callerinstances(itrigs::AbstractVector{InferenceTrigger})
     callers = Set{MethodInstance}()
@@ -758,12 +766,20 @@ function next_julia_frame(bt, idx, Δ=1; methodinstanceonly::Bool=true, methodon
         sf = sfs[end]
         sf.from_c && continue
         mi = sf.linfo
-        methodinstanceonly && (isa(mi, Core.MethodInstance) || continue)
+        if methodinstanceonly
+            if isa(mi, CodeInstance)
+                mi = methodinstance(mi)
+            end
+            isa(mi, MethodInstance) || continue
+        end
         if isa(mi, MethodInstance)
             m = mi.def
             methodonly && (isa(m, Method) || continue)
             # Exclude frames that are in Core.Compiler
             isa(m, Method) && m.module === Core.Compiler && continue
+            if isa(m, Method) && m.name ∈ (:lock, :store_dispatch_backtrace)
+                continue
+            end
         end
         return sfs, idx
     end
@@ -815,7 +831,7 @@ Choose a call for analysis (q to quit):
 """
 function inference_triggers(tinf::InferenceTimingNode; exclude_toplevel::Bool=true)
     function first_julia_frame(bt)
-        ret = next_julia_frame(bt, 1)
+        ret = next_julia_frame(bt, 0)
         if ret === nothing
             return StackTraces.StackFrame[], 0
         end
@@ -824,7 +840,7 @@ function inference_triggers(tinf::InferenceTimingNode; exclude_toplevel::Bool=tr
 
     itrigs = map(tinf.children) do child
         bt = child.bt
-        bt === nothing && throw(ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference"))
+        bt === nothing && throw(ArgumentError("it seems you've supplied a child node, but backtraces are collected only at the entrance to inference: $child"))
         InferenceTrigger(child, first_julia_frame(bt)...)
     end
     if exclude_toplevel
@@ -924,7 +940,7 @@ function skiphigherorder(itrig::InferenceTrigger; exact::Bool=true)
     sfs, idx = itrig.callerframes, itrig.btidx
     while idx < length(itrig.node.bt)
         if !isempty(sfs)
-            callermi = sfs[end].linfo
+            callermi = methodinstance(sfs[end].linfo)
             if !hasparameter(callermi.specTypes, ft, exact)
                 return InferenceTrigger(itrig.node, sfs, idx)
             end
@@ -964,8 +980,8 @@ function diversity(itrigs)
     for itrig in itrigs
         push!(callees, MethodInstance(itrig.node))
         caller = itrig.callerframes[end].linfo
-        if isa(caller, MethodInstance)
-            push!(callers, caller)
+        if isa(caller, MethodInstance) || isa(caller, CodeInstance)
+            push!(callers, methodinstance(caller))
         else
             ncextra += 1
         end
@@ -1198,23 +1214,26 @@ filtermod(mod::Module, loctrigs::AbstractVector{LocationTriggers}) = filter(loct
     any(==(mod) ∘ callermodule, loctrig.itrigs)
 end
 
-function linetable_match(linetable::Vector{Core.LineInfoNode}, sffile::String, sffunc::String, sfline::Int)
+function linetable_match(linetable, sffile::String, sffunc::String, sfline::Int)
     idxs = Int[]
     for (idx, line) in enumerate(linetable)
-        (line.line == sfline && String(line.method) == sffunc) || continue
+        line = last(line)   # the linetable is a vector of vectors
+        (line.line == sfline && funcname(line) == sffunc) || continue
         # filename matching is a bit troublesome because of differences in naming of Base & stdlibs, defer it
+        # in case there is only one match
         push!(idxs, idx)
     end
     length(idxs) == 1 && return idxs
     # Look at the filename too
     delidxs = Int[]
     for (i, idx) in enumerate(idxs)
-        endswith(sffile, String(linetable[idx].file)) || push!(delidxs, i)
+        line = last(linetable[idx])
+        endswith(sffile, String(line.file)) || push!(delidxs, i)
     end
     deleteat!(idxs, delidxs)
     return idxs
 end
-linetable_match(linetable::Vector{Core.LineInfoNode}, sf::StackTraces.StackFrame) =
+linetable_match(linetable, sf::StackTraces.StackFrame) =
     linetable_match(linetable, String(sf.file)::String, String(sf.func)::String, Int(sf.line)::Int)
 
 ### suggestions
@@ -1456,7 +1475,7 @@ function suggest(itrig::InferenceTrigger)
             if itest !== nothing && itest > 1
                 push!(s.categories, FromTestCallee)
                 # It's not clear that the following is useful
-                tt = Base.unwrap_unionall(itrig.callerframes[end].linfo.specTypes)::DataType
+                tt = Base.unwrap_unionall(spectypes(itrig.callerframes[end].linfo))::DataType
                 cts = Base.code_typed_by_type(tt; debuginfo=:source)
                 if length(cts) == 1 && (cts[1][1]::CodeInfo).inlineable
                     push!(s.categories, CallerInlineable)
@@ -1469,11 +1488,11 @@ function suggest(itrig::InferenceTrigger)
         push!(s.categories, NoCaller)
         return s
     end
-    if any(frame -> frame.func === :invokelatest, itrig.callerframes)
+    if any(frame -> frame.func === :invokelatest, itrig.callerframes)  # this probably never triggers; invokelatest is now a builtin
         push!(s.categories, FromInvokeLatest)
     end
     sf = itrig.callerframes[end]
-    tt = Base.unwrap_unionall(sf.linfo.specTypes)::DataType
+    tt = Base.unwrap_unionall(spectypes(sf.linfo))::DataType
     cts = Base.code_typed_by_type(tt; debuginfo=:source)
     rtcallee = MethodInstance(itrig.node)
 
@@ -1486,14 +1505,13 @@ function suggest(itrig::InferenceTrigger)
         if hascorebox(ct)
             push!(s.categories, HasCoreBox)
         end
-        ltidxs = linetable_match(ct.linetable, itrig.callerframes[1])
-        stmtidxs = findall(∈(ltidxs), ct.codelocs)
+        stmtidxs = linetable_match(CodeTracking.linetable_scopes(ct, sf.linfo.def), itrig.callerframes[1])
         rtcalleename = isa(rtcallee.def, Method) ? (rtcallee.def::Method).name : nothing
         for stmtidx in stmtidxs
             stmt = ct.code[stmtidx]
             if isa(stmt, Expr)
                 if stmt.head === :invoke
-                    mi = stmt.args[1]::MethodInstance
+                    mi = (stmt.args[1]::CodeInstance).def
                     if mi == MethodInstance(itrig.node)
                         if mi.def.isva
                             push!(s.categories, InvokedCalleeVararg)
@@ -1548,6 +1566,9 @@ function suggest(itrig::InferenceTrigger)
                         push!(s.categories, CalleeVariable)
                     end
                     if isa(calleef, Function)
+                        if calleef === invokelatest
+                            push!(s.categories, FromInvokeLatest)
+                        end
                         nameof(calleef) == rtcalleename || continue
                         # if isa(argtyps, Core.Argument)
                         #     argtyps = unwrapconst(ct.slottypes[argtyps.n])
@@ -1688,7 +1709,7 @@ struct ClosureF
     ft
 end
 function Base.show(io::IO, cf::ClosureF)
-    lnns = [LineNumberNode(Int(m.line), m.file) for m in Base.MethodList(cf.ft.name.mt)]
+    lnns = [LineNumberNode(Int(m.line), m.file) for m in methods(cf.ft)]
     print(io, "closure ", cf.ft, " at ")
     if length(lnns) == 1
         print(io, lnns[1])
@@ -1771,27 +1792,33 @@ stripifi(args...) = strip_prefix(args..., "InferenceFrameInfo for ")
 ## Flamegraph creation
 
 """
-    flamegraph(tinf::InferenceTimingNode; tmin=0.0, excluded_modules=Set([Main]), mode=nothing)
+    flamegraph(tinf::InferenceTimingNode; include_llvm=true, tmin=0.0, excluded_modules=Set([Main]), mode=nothing)
 
-Convert the call tree of inference timings returned from `@snoop_inference` into a FlameGraph.
-Returns a FlameGraphs.FlameGraph structure that represents the timing trace recorded for
-type inference.
+Convert the call tree of inference timings returned from `@snoop_inference` into
+a FlameGraph. Returns a FlameGraphs.FlameGraph structure that represents the
+timing trace recorded for type inference and, if `include_llvm` is `true`, LLVM
+compilation.
 
 Frames that take less than `tmin` seconds of inclusive time will not be included
-in the resultant FlameGraph (meaning total time including it and all of its children).
-This can be helpful if you have a very big profile, to save on processing time.
+in the resultant FlameGraph (meaning total time including it and all of its
+children). This can be helpful if you have a very big profile, to save on
+processing time.
 
-Non-precompilable frames are marked in reddish colors. `excluded_modules` can be used to mark methods
-defined in modules to which you cannot or do not wish to add precompiles.
+Non-precompilable frames are marked in reddish colors. `excluded_modules` can be
+used to mark methods defined in modules to which you cannot or do not wish to
+add precompiles.
 
-`mode` controls how frames are named in tools like ProfileView.
-`nothing` uses the default of just the qualified function name, whereas
-supplying `mode=Dict(method => count)` counting the number of specializations of
-each method will cause the number of specializations to be included in the frame name.
+`mode` controls how frames are named in tools like ProfileView. `nothing` uses
+the default of just the qualified function name, whereas `mode=:spec` will print
+the full specialization of each MethodInstance. Supplying a pre-populated
+`mode=Dict(method => count)` will cause `count` to be included in the frame name
+of the corresponding `method`. This can be used, for example, to display the
+number of specializations of each method.
 
 # Example
 
-We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoop_inference` on a workload designed to yield reproducible results:
+We'll use [`SnoopCompile.flatten_demo`](@ref), which runs `@snoop_inference` on
+a workload designed to yield reproducible results:
 
 ```jldoctest flamegraph; setup=:(using SnoopCompile), filter=r"([0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|at.*typeinfer\\.jl:\\d+|0:\\d+|WARNING: replacing module FlattenDemo\\.\\n)"
 julia> tinf = SnoopCompile.flatten_demo()
@@ -1805,36 +1832,45 @@ Node(FlameGraphs.NodeData(ROOT() at typeinfer.jl:75, 0x00, 0:3334431))
 julia> ProfileView.view(fg);  # Display the FlameGraph in a package that supports it
 ```
 
-You should be able to reconcile the resulting flamegraph to `print_tree(tinf)` (see [`flatten`](@ref)).
+You should be able to reconcile the resulting flamegraph to `print_tree(tinf)`
+(see [`flatten`](@ref)).
 
-The empty horizontal periods in the flamegraph correspond to times when something other than inference is running.
-The total width of the flamegraph is set from the `ROOT` node.
+The empty horizontal periods in the flamegraph correspond to times when
+something other than inference is running. The total width of the flamegraph is
+set from the `ROOT` node.
 """
-function FlameGraphs.flamegraph(tinf::InferenceTimingNode; tmin = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
+function FlameGraphs.flamegraph(tinf::InferenceTimingNode; include_llvm::Bool=true, tmin = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
+    duration(node) = inclusive(node) + include_llvm * reinterpret(Float16, node.ci.time_compile)
+
     isROOT(tinf) && isempty(tinf.children) && @warn "Empty profile: no compilation was recorded."
+    ctimes = pushfirst!(cumsum(duration.(tinf.children)), 0)
     io = IOBuffer()
     # Compute a "root" frame for the top-level node, to cover the whole profile
-    node_data, _ = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=true)
+    node_data, _ = _flamegraph_frame(duration, io, tinf, 0, false, excluded_modules, mode; stop_secs=ctimes[end])
     root = Node(node_data)
     if !isROOT(tinf)
-        node_data, child_check_precompilable = _flamegraph_frame(io, tinf, tinf.start_time, true, excluded_modules, mode; toplevel=false)
+        node_data, child_check_precompilable = _flamegraph_frame(duration, io, tinf, 0, true, excluded_modules, mode)
         root = addchild(root, node_data)
     end
-    return _build_flamegraph!(root, io, tinf, tinf.start_time, tmin, true, excluded_modules, mode)
+    return _build_flamegraph!(duration, root, io, tinf, ctimes, tmin, true, excluded_modules, mode)
 end
-function _build_flamegraph!(root, io::IO, node::InferenceTimingNode, start_secs, tmin, check_precompilable, excluded_modules, mode)
-    for child in node.children
-        if inclusive(child) > tmin
-            node_data, child_check_precompilable = _flamegraph_frame(io, child, start_secs, check_precompilable, excluded_modules, mode; toplevel=false)
+function _build_flamegraph!(duration, root, io::IO, node::InferenceTimingNode, ctimes, tmin, check_precompilable, excluded_modules, mode)
+    start_secs = first(ctimes)
+    for (i, child) in pairs(node.children)
+        if duration(child) > tmin
+            node_data, child_check_precompilable = _flamegraph_frame(duration, io, child, ctimes[i], check_precompilable, excluded_modules, mode)
             node = addchild(root, node_data)
-            _build_flamegraph!(node, io, child, start_secs, tmin, child_check_precompilable, excluded_modules, mode)
+            if !isempty(child.children)
+                newtimes = pushfirst!(cumsum(duration.(child.children)), 0) .+ start_secs
+                _build_flamegraph!(duration, node, io, child, newtimes, tmin, child_check_precompilable, excluded_modules, mode)
+            end
         end
     end
     return root
 end
 
 # Create a profile frame for this node
-function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_precompilable::Bool, excluded_modules, mode; toplevel)
+function _flamegraph_frame(duration, io::IO, node::InferenceTimingNode, start_secs, check_precompilable::Bool, excluded_modules, mode; stop_secs=nothing)
     function func_name(mi::MethodInstance, ::Nothing)
         m = mi.def
         return isa(m, Method) ? string(m.module, '.', m.name) : string(m, '.', "thunk")
@@ -1850,20 +1886,17 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
         end
         return str
     end
-    function func_name(io::IO, mi_info::InferenceFrameInfo, mode)
+    function func_name(io::IO, node::InferenceTimingNode, mode)
         if mode === :slots
-            show(io, mi_info)
-            str = String(take!(io))
-            startswith(str, "InferenceFrameInfo for ") && (str = str[length("InferenceFrameInfo for ")+1:end])
-            return str
+            error("unsupported in Julia 1.12")
         elseif mode === :spec
-            return frame_name(io, mi_info)
+            return frame_name(io, MethodInstance(node))
         else
-            return func_name(MethodInstance(mi_info), mode)
+            return func_name(MethodInstance(node), mode)
         end
     end
 
-    mistr = Symbol(func_name(io, InferenceTiming(node).mi_info, mode))
+    mistr = Symbol(func_name(io, node, mode))
     mi = MethodInstance(node)
     m = mi.def
     sf = isa(m, Method) ? StackFrame(mistr, mi.def.file, mi.def.line, mi, false, false, UInt64(0x0)) :
@@ -1881,24 +1914,16 @@ function _flamegraph_frame(io::IO, node::InferenceTimingNode, start_secs, check_
     if hasconstprop(InferenceTiming(node))
         status |= FlameGraphs.gc_event
     end
-    start = node.start_time - start_secs
-    if toplevel
-        # Compute a range over the whole profile for the top node.
-        stop_secs = isROOT(node) ? max_end_time(node) : max_end_time(node, true)
-        range = round(Int, start*1e9) : round(Int, (stop_secs - start_secs)*1e9)
-    else
-        range = round(Int, start*1e9) : round(Int, (start + inclusive(node))*1e9)
+    if stop_secs === nothing
+        stop_secs = duration(node) + start_secs
     end
+    range = round(Int, start_secs*1e9) : round(Int, (stop_secs - start_secs)*1e9)
     return FlameGraphs.NodeData(sf, status, range), check_precompilable
 end
 
-hasconstprop(f::InferenceTiming) = hasconstprop(f.mi_info)
-hasconstprop(mi_info::Core.Compiler.Timings.InferenceFrameInfo) = any(isconstant, mi_info.slottypes)
+hasconstprop(node) = false    # FIXME
 isconstant(@nospecialize(t)) = isa(t, Core.Const) && !isa(t.val, Union{Type,Function})
 
-function frame_name(io::IO, mi_info::InferenceFrameInfo)
-    frame_name(io, mi_info.mi::MethodInstance)
-end
 function frame_name(io::IO, mi::MethodInstance)
     m = mi.def
     isa(m, Module) && return "thunk"
