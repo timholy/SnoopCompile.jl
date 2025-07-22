@@ -85,8 +85,8 @@ export read_snoop_llvm
 include("invalidations.jl")
 export uinvalidated, invalidation_trees, filtermod, findcaller
 
-# include("invalidation_and_inference.jl")
-# export precompile_blockers
+include("invalidation_and_inference.jl")
+export precompile_blockers
 
 # Write
 include("write.jl")

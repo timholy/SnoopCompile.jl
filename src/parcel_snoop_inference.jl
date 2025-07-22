@@ -1840,10 +1840,13 @@ something other than inference is running. The total width of the flamegraph is
 set from the `ROOT` node.
 """
 function FlameGraphs.flamegraph(tinf::InferenceTimingNode; include_llvm::Bool=true, tmin = 0.0, excluded_modules=Set([Main::Module]), mode=nothing)
-    duration(node) = inclusive(node) + include_llvm * reinterpret(Float16, node.ci.time_compile)
+    duration(node) = inclusive(node; include_llvm)
 
     isROOT(tinf) && isempty(tinf.children) && @warn "Empty profile: no compilation was recorded."
     ctimes = pushfirst!(cumsum(duration.(tinf.children)), 0)
+    if duration(tinf) > ctimes[end]
+        push!(ctimes, duration(tinf))
+    end
     io = IOBuffer()
     # Compute a "root" frame for the top-level node, to cover the whole profile
     node_data, _ = _flamegraph_frame(duration, io, tinf, 0, false, excluded_modules, mode; stop_secs=ctimes[end])

@@ -16,4 +16,6 @@ InvalidD = {path = "InvalidD"}
 InvalidE = {path = "InvalidE"}
 PkgC = {path = "PkgC"}
 PkgD = {path = "PkgD"}
-PrecompileTools = {path = "/home/tim/.julia/dev/PrecompileTools"}
+
+[compat]
+PrecompileTools = "1.3"

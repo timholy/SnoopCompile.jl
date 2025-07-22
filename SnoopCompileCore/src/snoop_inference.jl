@@ -162,9 +162,15 @@ methodinstance(ci::CodeInstance) = Core.Compiler.get_ci_mi(ci)
 Return the time spent inferring `ci` and its callees.
 If `include_llvm` is true, the LLVM compilation time is added as well.
 """
-inclusive(ci::CodeInstance; include_llvm::Bool=true) = reinterpret(Float16, ci.time_infer_total) +
-    include_llvm * reinterpret(Float16, ci.time_compile)
-inclusive(node::InferenceTimingNode; kwargs...) = inclusive(node.ci; kwargs...)
+inclusive(ci::CodeInstance; include_llvm::Bool=true) = Float64(reinterpret(Float16, ci.time_infer_total)) +
+    include_llvm * Float64(reinterpret(Float16, ci.time_compile))
+function inclusive(node::InferenceTimingNode; kwargs...)
+    t = inclusive(node.ci; kwargs...)
+    for child in node.children
+        t += inclusive(child; kwargs...)
+    end
+    return t
+end
 
 """
     exclusive(ci::InferenceTimingNode; include_llvm::Bool=true)
@@ -172,8 +178,8 @@ inclusive(node::InferenceTimingNode; kwargs...) = inclusive(node.ci; kwargs...)
 Return the time spent inferring `ci`, not including the time needed for any of its callees.
 If `include_llvm` is true, the LLVM compilation time is added.
 """
-exclusive(ci::CodeInstance; include_llvm::Bool=true) = reinterpret(Float16, ci.time_infer_self) +
-    include_llvm * reinterpret(Float16, ci.time_compile)
+exclusive(ci::CodeInstance; include_llvm::Bool=true) = Float64(reinterpret(Float16, ci.time_infer_self)) +
+    include_llvm * Float64(reinterpret(Float16, ci.time_compile))
 exclusive(node::InferenceTimingNode; kwargs...) = exclusive(node.ci; kwargs...)
 
 
