@@ -495,11 +495,12 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
                     matchess[idx] = matches
                 end
             elseif matches !== nothing
-                @assert matchess[idx] == matches
+                @assert Set(matches) == Set(matchess[idx])
             end
             idxt = get(nodeidx, target, nothing)
-            @assert idxt === nothing
-            idxt = addnode(target)
+            if idxt === nothing
+                idxt = addnode(target)
+            end
             addcaller!(calleridxss, idxt => idx)
         elseif tag == "verify_methods"
             caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
@@ -638,7 +639,7 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = [mtrees; etrees]
     else
         trees = mtrees
-        mindex = Dict(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
+        mindex = Dict{Union{Method,Binding},Int}(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
             methods = etree.methods
             if isa(methods, Vector{Method})
