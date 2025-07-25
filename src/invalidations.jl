@@ -448,6 +448,8 @@ function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     iscompact && print(io, ';')
 end
 
+Base.isempty(methinvs::MultiMethodInvalidations) = isempty(methinvs.backedges) && isempty(methinvs.mt_backedges)
+
 function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
     # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
     nodes = EdgeNodeType[]
@@ -493,22 +495,23 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
                     matchess[idx] = matches
                 end
             elseif matches !== nothing
-                @assert matchess[idx] == matches
+                @assert Set(matches) == Set(matchess[idx])
             end
             idxt = get(nodeidx, target, nothing)
-            @assert idxt === nothing
-            idxt = addnode(target)
+            if idxt === nothing
+                idxt = addnode(target)
+            end
             addcaller!(calleridxss, idxt => idx)
         elseif tag == "verify_methods"
             caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
             i += 3
-            idxt = get(nodeidx, caller, nothing)
-            if idxt === nothing
-                idxt = addnode(caller)
-            end
             idx = get(nodeidx, callee, nothing)
             if idx === nothing
                 idx = addnode(callee)
+            end
+            idxt = get(nodeidx, caller, nothing)
+            if idxt === nothing
+                idxt = addnode(caller)
             end
             @assert idxt >= idx
             idxt > idx && addcaller!(calleridxss, idxt => idx)
@@ -552,18 +555,26 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
         end
     end
 
-    mminvs = MultiMethodInvalidations[]
+    # If anything gets added to `mminv0`, it means the cause occurred outside observation with `@snoop_invalidations`
+    badarg = Method[]
+    mminv0 = MultiMethodInvalidations(badarg)
+
     treeindex = Dict{Union{Vector{Method},Binding},Int}()
+    mminvs = MultiMethodInvalidations[]
     for i in eachindex(nodes)
         if i ∉ iscaller
             node = nodes[i]
             arg = get(matchess, i, node)
             j = get(treeindex, arg, nothing)
             if j === nothing
+                if isa(arg, Binding) || (isa(arg, Vector{Method}) && !isempty(arg))
                 mminv = MultiMethodInvalidations(arg)
                 push!(mminvs, mminv)
                 j = length(mminvs)
                 treeindex[arg] = j
+                else
+                    mminv = mminv0
+                end
             else
                 mminv = mminvs[j]
             end
@@ -572,6 +583,7 @@ function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vec
             @assert !isassigned(calleridxss, i) || isempty(calleridxss[i])
         end
     end
+    isempty(mminv0) || push!(mminvs, mminv0)
     return mminvs
 end
 
@@ -627,7 +639,7 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = [mtrees; etrees]
     else
         trees = mtrees
-        mindex = Dict(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
+        mindex = Dict{Union{Method,Binding},Int}(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
             methods = etree.methods
             if isa(methods, Vector{Method})
