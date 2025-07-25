@@ -30,7 +30,7 @@ It then returns the results of
 See [`flatten`](@ref) for an example usage.
 """
 function flatten_demo()
-    eval(:(
+    mod = eval(:(
         module FlattenDemo
         struct MyType{T} x::T end
         extract(y::MyType) = y.x
@@ -46,7 +46,8 @@ function flatten_demo()
         end
     ))
     z = (1 + 1)*1 + 2*1 + 5
-    return @snoop_inference Base.invokelatest(FlattenDemo.packintype, 1)
+    packintype = invokelatest(getglobal, mod, :packintype)
+    return @snoop_inference Base.invokelatest(packintype, 1)
 end
 
 """

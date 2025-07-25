@@ -156,6 +156,9 @@ tree = trees[1]
 
 Each tree stems from a single *cause* described in the top line. For this tree, the cause was adding the new method `score(::Char)` in `BlackjackFacecards`.
 
+!!! note
+    A tree with no cause indicates that the cause occurred before you turned on snooping.
+
 Each *cause* is associated with one or more *victims* of invalidation, a list here named `mt_backedges`. Let's extract the final (and in this case, only) victim:
 
 ```@repl tutorial-invalidations
