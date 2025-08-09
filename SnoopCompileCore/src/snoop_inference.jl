@@ -2,24 +2,23 @@ export @snoop_inference
 
 const snoop_inference_lock = ReentrantLock()
 const newly_inferred = CodeInstance[]
+const inference_entrance_backtraces = []
 
 function start_tracking()
     iszero(snoop_inference_lock.reentrancy_cnt) || throw(ConcurrencyViolationError("already tracking inference (cannot nest `@snoop_inference` blocks)"))
     lock(snoop_inference_lock)
     empty!(newly_inferred)
+    empty!(inference_entrance_backtraces)
     ccall(:jl_set_newly_inferred, Cvoid, (Any,), newly_inferred)
-    # return ccall(:jl_log_dispatch_backtrace, Any, (Cint,), 1)
-    empty!(Base.dispatch_backtrace)
-    Core.Compiler.collect_dispatch_backtrace[] = true
+    ccall(:jl_set_inference_entrance_backtraces, Cvoid, (Any,), inference_entrance_backtraces)
     return nothing
 end
 
 function stop_tracking()
     Base.assert_havelock(snoop_inference_lock)
     ccall(:jl_set_newly_inferred, Cvoid, (Any,), nothing)
+    ccall(:jl_set_inference_entrance_backtraces, Cvoid, (Any,), nothing)
     unlock(snoop_inference_lock)
-    # ccall(:jl_log_dispatch_backtrace, Any, (Cint,), 0)
-    Core.Compiler.collect_dispatch_backtrace[] = false
     return nothing
 end
 
@@ -67,7 +66,7 @@ macro snoop_inference(cmd)
         finally
             $(SnoopCompileCore.stop_tracking)()
         end
-        $timingtree($(SnoopCompileCore.newly_inferred), copy(Base.dispatch_backtrace))
+        $timingtree($(SnoopCompileCore.newly_inferred), copy($(SnoopCompileCore.inference_entrance_backtraces)))
     end)
 end
 
@@ -103,7 +102,7 @@ function timingtree(cis, backtraces)
             end
         end
     end
-    # backtraces = Dict{MethodInstance,Any}(backtrace_log[i] => backtrace_log[i+1] for i in 1:2:length(backtrace_log))
+    backtraces = Dict{CodeInstance,Vector{Union{Ptr{Nothing}, Base.InterpreterIP}}}(ci => bt for (ci, bt) in backtraces)
     addchildren!(root, cis, backedges, miidx, backtraces)
     return root
 end
@@ -185,4 +184,4 @@ exclusive(node::InferenceTimingNode; kwargs...) = exclusive(node.ci; kwargs...)
 
 precompile(start_tracking, ())
 precompile(stop_tracking, ())
-precompile(timingtree, (Vector{CodeInstance},))
+precompile(timingtree, (Vector{CodeInstance}, Vector{Any}))
