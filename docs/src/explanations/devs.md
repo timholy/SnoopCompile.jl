@@ -7,7 +7,7 @@
 Julia itself handles (in)validation when you define (or delete) methods and load packages. Julia's internal machinery provides the option of recording these invalidation decisions to a log, which is just a `Vector{Any}`. Currently (as of Julia 1.12) there are two independent logs:
 
 - for method insertion and deletion (i.e., new methods invalidating old code), logging is handled in Julia's `src/gf.c`. You enable it with `logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), true)` and pass a final argument of `false` to turn it off.
-- for validating precompiled code during package loading (i.e., "new" code being invalidated by old methods), logging is handled in Julia's `base/staticdata.jl`. You enable it with `logedges = Base.StaticData.debug_method_invalidation(true)` and pass `false` to turn it off.
+- for validating precompiled code during package loading (i.e., "new" code being invalidated by old methods), logging is handled in Julia's `base/staticdata.jl`. You enable it with `logedges = SnoopCompile.ReinferUtils.debug_method_invalidation(true)` and pass `false` to turn it off.
 
 In both cases, the log will initially be empty, but subsequent activity (defining or deleting methods, or loading packages) may add entries.
 
