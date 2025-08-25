@@ -86,7 +86,7 @@ struct InferenceTimingNode
     end
 end
 
-function timingtree(cis, backtraces)
+function timingtree(cis, _backtraces::Vector{Any})
     root = InferenceTimingNode(Core.Compiler.Timings.ROOTmi.cache, nothing)
     # the cis are added in the order children-before-parents, we need to be able to reverse that
     # We index on MethodInstance rather than CodeInstance, because constprop can result in a distinct
@@ -102,7 +102,12 @@ function timingtree(cis, backtraces)
             end
         end
     end
-    backtraces = Dict{CodeInstance,Vector{Union{Ptr{Nothing}, Base.InterpreterIP}}}(ci => bt for (ci, bt) in backtraces)
+    backtraces = Dict{CodeInstance,Vector{Union{Ptr{Nothing}, Base.InterpreterIP}}}()
+    for i = 1:2:length(_backtraces)
+        ci, trace = _backtraces[i], _backtraces[i+1]
+        bt = Base._reformat_bt(trace[1], trace[2])
+        backtraces[ci] = bt
+    end
     addchildren!(root, cis, backedges, miidx, backtraces)
     return root
 end
