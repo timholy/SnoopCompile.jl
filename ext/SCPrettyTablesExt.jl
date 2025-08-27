@@ -37,10 +37,7 @@ function SnoopCompile.report_invalidations(io::IO = stdout;
     fileinfo = map(trees) do inv
         "$(process_filename(string(inv.method.file))):$(inv.method.line)"
     end
-    header = (
-        ["<file name>:<line number>", "Function Name", "Invalidations", "Invalidations %"],
-        ["", "", "", "(xᵢ/∑x)"],
-    )
+
     table_data = hcat(
         fileinfo,
         meth_name,
@@ -48,16 +45,44 @@ function SnoopCompile.report_invalidations(io::IO = stdout;
         n_invalidations_percent,
     )
 
-    PrettyTables.pretty_table(
-        io,
-        table_data;
-        header,
-        formatters = PrettyTables.ft_printf("%s", 2:2),
-        header_crayon = PrettyTables.crayon"yellow bold",
-        subheader_crayon = PrettyTables.crayon"green bold",
-        crop = :none,
-        alignment = [:l, :c, :c, :c],
-    )
+    @static if pkgversion(PrettyTables).major == 2
+        header = (
+            ["<file name>:<line number>", "Function Name", "Invalidations", "Invalidations %"],
+            ["", "", "", "(xᵢ/∑x)"],
+        )
+
+        PrettyTables.pretty_table(
+            io,
+            table_data;
+            header,
+            formatters = PrettyTables.ft_printf("%s", 2:2),
+            header_crayon = PrettyTables.crayon"yellow bold",
+            subheader_crayon = PrettyTables.crayon"green bold",
+            crop = :none,
+            alignment = [:l, :c, :c, :c],
+        )
+    else
+        column_labels = [
+            ["<file name>:<line number>", "Function Name", "Invalidations", "Invalidations %"],
+            ["", "", "", "(xᵢ/∑x)"],
+        ]
+
+        style = PrettyTables.TextTableStyle(
+            first_line_column_label = PrettyTables.crayon"yellow bold",
+            column_label = PrettyTables.crayon"green bold",
+        )
+
+        PrettyTables.pretty_table(
+            io,
+            table_data;
+            column_labels,
+            alignment = [:l, :c, :c, :c],
+            fit_table_in_display_horizontally = false,
+            fit_table_in_display_vertically = false,
+            formatters = [PrettyTables.fmt__printf("%s", [2])],
+            style
+        )
+    end
 end
 
 end
