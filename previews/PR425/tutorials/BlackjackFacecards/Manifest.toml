@@ -1,0 +1,42 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.11.6"
+manifest_format = "2.0"
+project_hash = "8204e17af609d95c94bd6c41491661051891ddc9"
+
+[[deps.Blackjack]]
+deps = ["PrecompileTools"]
+path = "/home/runner/work/SnoopCompile.jl/SnoopCompile.jl/docs/build/tutorials/Blackjack"
+uuid = "768ea9ec-3c11-4439-a78a-f0ab6dc5cf4a"
+version = "0.1.0"
+
+[[deps.Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+version = "1.11.0"
+
+[[deps.PrecompileTools]]
+deps = ["Preferences"]
+git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+version = "1.2.1"
+
+[[deps.Preferences]]
+deps = ["TOML"]
+git-tree-sha1 = "0f27480397253da18fe2c12a4ba4eb9eb208bf3d"
+uuid = "21216c6a-2e73-6563-6e65-726566657250"
+version = "1.5.0"
+
+[[deps.Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+version = "1.11.0"
+
+[[deps.TOML]]
+deps = ["Dates"]
+uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.3"
+
+[[deps.Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+version = "1.11.0"
