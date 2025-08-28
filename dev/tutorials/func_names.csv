@@ -12,7 +12,7 @@ julia_in_688	Tuple{typeof(Base.in), Tuple{Char, Char, Char}}
 julia_ntuple_692	Tuple{typeof(Base.ntuple), Base.Returns{Bool}, Base.Val{2}}
 julia_CartesianIndex_697	Tuple{Type{Base.IteratorsMD.CartesianIndex{N} where N}, Tuple{Int64, Int64}}
 julia__chkstride1_700	Tuple{typeof(LinearAlgebra._chkstride1), Bool}
-julia_==_704	Tuple{typeof(Base.:(==)), Char, Char}
+julia_==_704	Tuple{typeof(Base.:(var"==")), Char, Char}
 julia__any_tuple_709	Tuple{typeof(Base._any_tuple), Function, Bool}
 julia_<=_713	Tuple{typeof(Base.:(<=)), Char, Char}
 julia_in_720	Tuple{typeof(Base.in), Char, Tuple{Char, Char, Char}}
