@@ -46,7 +46,11 @@ jobs:
       # - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
+        with:
+          coverage: false    # FIXME: this is very sad, but coverage changes the snoop_inference.jl/Stale tests (as of Julia 1.13.0-DEV.1058)
       - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["cthulhu"], coverage=true)'
+      - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["jet"], coverage=true)'
+        continue-on-error: true   # JET test is non-fatal
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: src,SnoopCompileCore/src
