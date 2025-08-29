@@ -13,6 +13,12 @@ using Pkg
 
 using SnoopCompile.FlameGraphs.AbstractTrees  # For FlameGraphs tests
 
+# In case methods have been invalidated
+precompile(SnoopCompileCore.start_tracking, ())
+precompile(SnoopCompileCore.stop_tracking, ())
+precompile(SnoopCompileCore.timingtree, (Vector{Core.CodeInstance}, Vector{Any}))
+
+
 # Constant-prop works differently on different Julia versions.
 # This utility lets you strip frames that const-prop a number.
 hasconstpropnumber(f::SnoopCompile.InferenceTiming) = false # FIXME
