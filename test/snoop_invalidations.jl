@@ -259,25 +259,24 @@ end
     end
     trees = invalidation_trees(invalidations)
 
-    mtrees = filter(tree -> isa(tree.method, Method), trees)
-    tree = first(mtrees)
-    @test tree.reason == :inserting
-    @test tree.method.file == Symbol(@__FILE__)
+    # Method deletion
+    mtrees = filter(tree -> tree.reason === :deleting, trees)
+    tree = only(mtrees)
     @test isempty(tree.backedges)
-    sig, root = last(tree.mt_backedges)
+    sig, root = only(tree.mt_backedges)
     @test sig.parameters[1] === typeof(PkgC.nbits)
     @test sig.parameters[2] === Integer
-    @test root.mi == first(SnoopCompile.specializations(only(methods(PkgD.call_nbits))))
+    @test root.mi == only(SnoopCompile.specializations(only(methods(PkgD.call_nbits_integer))))
 
     btrees = filter(tree -> isa(tree.method, Core.Binding), trees)
     tree = only(filter(tree -> tree.method.globalref.name == :undefined_function, btrees))
     @test length(tree.mt_backedges) == 1
     tree = only(filter(tree -> tree.method.globalref.name == :someconst, btrees))
-    sig, root = only(tree.mt_backedges)
+    _, root = only(tree.mt_backedges)
     node = only(root.children)
     @test node.mi.def == only(methods(PkgD.uses_someconst))
     tree = only(filter(tree -> tree.method.globalref.name == :MyType, btrees))
-    sig, root = only(tree.mt_backedges)
+    _, root = only(tree.mt_backedges)
     node = only(root.children)
     @test node.mi.def == only(methods(PkgD.calls_mytype))
 

@@ -183,7 +183,7 @@ const BackedgeMT = Pair{Union{DataType,Binding},InstanceNode}  # sig=>root
 abstract type AbstractMethodInvalidations end
 
 struct MethodInvalidations <: AbstractMethodInvalidations
-    method::Union{Method, Binding}
+    method::Union{Method, Binding, Nothing}
     reason::Symbol   # :inserting, :deleting, or :rebinding
     mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
@@ -415,10 +415,11 @@ const EdgeNodeType = Union{DataType, Binding, MethodInstance, CodeInstance}
 
 struct MultiMethodInvalidations <: AbstractMethodInvalidations
     methods::Union{Binding,Vector{Method}}
+    reason::Symbol   # :inserting, :deleting, or :rebinding
     mt_backedges::Vector{BackedgeMT}
     backedges::Vector{InstanceNode}
 end
-MultiMethodInvalidations(methods = Method[]) = MultiMethodInvalidations(methods, BackedgeMT[], InstanceNode[])
+MultiMethodInvalidations(methods, reason) = MultiMethodInvalidations(methods, reason, BackedgeMT[], InstanceNode[])
 
 function Base.show(io::IO, methinvs::MultiMethodInvalidations)
     iscompact = get(io, :compact, false)::Bool
@@ -451,34 +452,11 @@ end
 Base.isempty(methinvs::MultiMethodInvalidations) = isempty(methinvs.backedges) && isempty(methinvs.mt_backedges)
 
 function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
-    # transiently we represent the graph as a flat list of nodes, a flat list of children indexes, and a Dict to look up the node index
-    nodes = EdgeNodeType[]
-    calleridxss = Vector{Int}[]
-    nodeidx = IdDict{EdgeNodeType,Int}()    # get the index within `nodes` for a given key
-    matchess = Dict{Int,Vector{Method}}()   # nodeidx => Method[...]
+    mminvs = MultiMethodInvalidations[]
+    mmibad = MultiMethodInvalidations(Method[], :unknown)
+    calleedict = Dict{Union{CodeInstance,MethodInstance},InstanceNode}()
 
-    function addnode(item)
-        push!(nodes, item)
-        k = length(nodes)
-        nodeidx[item] = k
-        return k
-    end
-
-    function addcaller!(listlist, (calleridx, calleeidx))
-        if length(listlist) < calleeidx
-            resize!(listlist, calleeidx)
-        end
-        # calleridxs = get!(Vector{Int}, listlist, calleeidx)   # why don't we have this??
-        calleridxs = if isassigned(listlist, calleeidx)
-            listlist[calleeidx]
-        else
-            listlist[calleeidx] = Int[]
-        end
-        push!(calleridxs, calleridx)
-        return calleridxs
-    end
-
-    i = 0
+    i, mmi = 0, nothing
     while i + 2 < length(list)
         tag = list[i+2]::String
         if tag == "method_globalref"
@@ -486,104 +464,47 @@ function invalidation_trees_logedges(list; exclude_corecompiler::Bool=true)
             i += 4
             error("implement me")
         elseif tag == "insert_backedges_callee"
-            edge, target, matches = list[i+1]::EdgeNodeType, list[i+3]::CodeInstance, list[i+4]::Union{Vector{Any},Nothing}
+            edge, target, matches = list[i+1]::EdgeNodeType, list[i+3]::CodeInstance, list[i+4]::Vector{Any}
             i += 4
-            idx = get(nodeidx, edge, nothing)
-            if idx === nothing
-                idx = addnode(edge)
-                if matches !== nothing
-                    matchess[idx] = matches
+            reason = !isempty(matches) ? :inserting :
+                     isa(edge, Binding) ? :rebinding : :deleting
+            matches = reason === :rebinding ? edge : convert(Vector{Method}, matches)
+            mmi = MultiMethodInvalidations(matches, reason)
+            push!(mminvs, mmi)
+            if edge isa Type || edge isa Binding
+                node = InstanceNode(target, 0)
+                calleedict[target] = node
+                push!(mmi.mt_backedges, edge=>node)
+            else
+                root = get(calleedict, edge, nothing)
+                if root === nothing
+                    root = InstanceNode(edge, 0)
+                    push!(mmi.backedges, root)
+                    calleedict[edge] = root
                 end
-            elseif matches !== nothing
-                @assert Set(matches) == Set(matchess[idx])
+                node = InstanceNode(target, root)
+                calleedict[target] = node
             end
-            idxt = get(nodeidx, target, nothing)
-            if idxt === nothing
-                idxt = addnode(target)
-            end
-            addcaller!(calleridxss, idxt => idx)
         elseif tag == "verify_methods"
             caller, callee = list[i+1]::CodeInstance, list[i+3]::CodeInstance
             i += 3
-            idx = get(nodeidx, callee, nothing)
-            if idx === nothing
-                idx = addnode(callee)
+            caller == callee && continue
+            node = get(calleedict, callee, nothing)
+            if node === nothing
+                node = InstanceNode(callee, 0)
+                push!(mmibad.backedges, node)
+                calleedict[callee] = node
             end
-            idxt = get(nodeidx, caller, nothing)
-            if idxt === nothing
-                idxt = addnode(caller)
-            end
-            @assert idxt >= idx
-            idxt > idx && addcaller!(calleridxss, idxt => idx)
+            node = InstanceNode(caller, node)
+            calleedict[caller] = node
         else
             error("tag ", tag, " unknown")
         end
     end
-    return mmi_trees!(nodes, calleridxss, matchess)
-end
-
-function mmi_trees!(nodes::AbstractVector{EdgeNodeType}, calleridxss::Vector{Vector{Int}}, matchess::AbstractDict{Int,Vector{Method}})
-    iscaller = BitSet()
-
-    function filltree!(mminvs::MultiMethodInvalidations, i::Int)
-        node = nodes[i]
-        calleridxs = calleridxss[i]
-        if isa(node, Union{DataType,Binding})
-            while !isempty(calleridxs)
-                j = pop!(calleridxs)
-                push!(iscaller, j)
-                root = InstanceNode(nodes[j], 0)
-                push!(mminvs.mt_backedges, node => root)
-                fillnode!(root, j)
-            end
-        else
-            root = InstanceNode(node, 0)
-            push!(mminvs.backedges, root)
-            fillnode!(root, i)
-        end
-        return mminvs
+    if !isempty(mmibad)
+        push!(mminvs, mmibad)
     end
-
-    function fillnode!(node::InstanceNode, k)
-        calleridxs = isassigned(calleridxss, k) ? calleridxss[k] : nothing
-        calleridxs === nothing && return
-        while !isempty(calleridxs)
-            j = pop!(calleridxs)
-            push!(iscaller, j)
-            child = InstanceNode(nodes[j], node)
-            fillnode!(child, j)
-        end
-    end
-
-    # If anything gets added to `mminv0`, it means the cause occurred outside observation with `@snoop_invalidations`
-    badarg = Method[]
-    mminv0 = MultiMethodInvalidations(badarg)
-
-    treeindex = Dict{Union{Vector{Method},Binding},Int}()
-    mminvs = MultiMethodInvalidations[]
-    for i in eachindex(nodes)
-        if i ∉ iscaller
-            node = nodes[i]
-            arg = get(matchess, i, node)
-            j = get(treeindex, arg, nothing)
-            if j === nothing
-                if isa(arg, Binding) || (isa(arg, Vector{Method}) && !isempty(arg))
-                mminv = MultiMethodInvalidations(arg)
-                push!(mminvs, mminv)
-                j = length(mminvs)
-                treeindex[arg] = j
-                else
-                    mminv = mminv0
-                end
-            else
-                mminv = mminvs[j]
-            end
-            filltree!(mminv, i)
-        else
-            @assert !isassigned(calleridxss, i) || isempty(calleridxss[i])
-        end
-    end
-    isempty(mminv0) || push!(mminvs, mminv0)
+    sort!(mminvs; by=countchildren)
     return mminvs
 end
 
@@ -641,6 +562,50 @@ function invalidation_trees(list::InvalidationLists; consolidate::Bool=true, kwa
         trees = mtrees
         mindex = Dict{Union{Method,Binding},Int}(tree.method => i for (i, tree) in enumerate(mtrees))  # map method to index in mtrees
         for etree in etrees
+            if etree.reason === :unknown
+                push!(trees, MethodInvalidations(
+                        nothing,
+                        :unknown,
+                        etree.mt_backedges,
+                        etree.backedges,
+                        MethodInstance[],  # mt_cache
+                        MethodInstance[]   # mt_disable
+                    ))
+                continue
+            end
+            if etree.reason === :deleting
+                @assert isempty(etree.backedges)  # should not have any backedges
+                # Determine whether any of the deleted methods cover this
+                covered = false
+                for (edge, node) in etree.mt_backedges
+                    for mtree in mtrees
+                        mtree.reason === :deleting || continue
+                        mtree.method.sig <: edge || continue
+                        # This edge is covered by the deleted method
+                        join_invalidations!(mtree.mt_backedges, edge => node)
+                        covered = true
+                    end
+                    covered && continue
+                    # Try to find a deleted method that's applicable
+                    # The challenge is we don't know any world information
+                    methodtable = @static isdefinedglobal(Core, :methodtable) ? Core.methodtable : Core.GlobalMethods
+                    methmatches = Method[]
+                    Base.visit(methodtable) do m
+                        if iszero(m.dispatch_status) && m.sig <: edge
+                            push!(methmatches, m)
+                        end
+                    end
+                    m = length(methmatches) == 1 ? first(methmatches) : nothing
+                    push!(trees, MethodInvalidations(
+                        m,
+                        :deleting,
+                        BackedgeMT[edge => node],
+                        InstanceNode[],  # backedges
+                        MethodInstance[],  # mt_cache
+                        MethodInstance[]   # mt_disable
+                    ))
+                end
+            end
             methods = etree.methods
             if isa(methods, Vector{Method})
                 for method in methods
