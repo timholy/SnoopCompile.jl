@@ -47,7 +47,6 @@ let known_type_cache = IdDict{Tuple{Module,Tuple{Vararg{Symbol}},Symbol},Bool}()
         kt = get(known_type_cache, key, nothing)
         if kt === nothing
             kt = startswith(fullname(mod), tpath) ||
-                 ccall(:jl_get_module_of_binding, Ptr{Cvoid}, (Any, Any), mod, firstname(tpath)) != C_NULL ||
                  (isdefined(mod, tn.name) && (T2 = getfield(mod, tn.name); isa(T2, Type) && Base.unwrap_unionall(T2) === T)) ||
                  (T <: Function && isdefined(mod, strippedname(tn)) && (f = getfield(mod, strippedname(tn)); typeof(f) === T))
             known_type_cache[key] = kt
@@ -250,3 +249,15 @@ function methods_with_generators(m::Module)
     end
     return meths
 end
+
+methodinstance(mi::MethodInstance) = mi
+methodinstance(ci::CodeInstance) = Core.Compiler.get_ci_mi(ci)
+
+spectypes(mi::MethodInstance) = mi.specTypes
+spectypes(ci::CodeInstance) = spectypes(methodinstance(ci))
+spectypes(_) = nothing
+
+funcname(line) = funcname(line.method)
+funcname(mi::MethodInstance) = funcname(mi.def)
+funcname(m::Method) = String(m.name)
+funcname(::Module) = nothing

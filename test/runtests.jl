@@ -3,6 +3,7 @@ using SnoopCompile
 
 if !isempty(ARGS)
     "cthulhu" ∈ ARGS && include("extensions/cthulhu.jl")
+    "jet" ∈ ARGS && include("extensions/jet.jl")
 else
     include("snoop_inference.jl")
     include("snoop_llvm.jl")

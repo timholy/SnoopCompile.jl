@@ -1,6 +1,6 @@
 module SnoopCompileCore
 
-using Core: MethodInstance, CodeInfo
+using Core: MethodInstance, CodeInstance, CodeInfo
 
 const ReinferUtils = isdefined(Base, :ReinferUtils) ? Base.ReinferUtils : Base.StaticData
 
