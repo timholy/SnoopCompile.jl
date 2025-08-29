@@ -36,12 +36,12 @@ macro snoop_invalidations(expr)
     exoff = Expr(:tryfinally,
         esc(expr),
         quote
-            Base.StaticData.debug_method_invalidation(false)
+            $ReinferUtils.debug_method_invalidation(false)
             ccall(:jl_debug_method_invalidation, Any, (Cint,), 0)
         end
     )
     return quote
-        local logedges = Base.StaticData.debug_method_invalidation(true)
+        local logedges = $ReinferUtils.debug_method_invalidation(true)
         local logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
         $exoff
         $InvalidationLists(logedges, logmeths)
