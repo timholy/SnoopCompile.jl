@@ -32,7 +32,7 @@ SCPyPlotExt = "PyPlot"
 
 [compat]
 AbstractTrees = "0.4"
-CodeTracking = "1.3.9"
+CodeTracking = "1.3.9, 2"
 Cthulhu = "2"
 FlameGraphs = "1"
 InteractiveUtils = "1"
