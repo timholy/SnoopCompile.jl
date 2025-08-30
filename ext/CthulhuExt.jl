@@ -1,8 +1,7 @@
 module CthulhuExt
-    import Cthulhu
+    using Cthulhu: Cthulhu
     using Core: MethodInstance
     using SnoopCompile: InstanceNode, TriggerNode, Suggested, InferenceTrigger, countchildren, callingframe, callerinstance
-
 
     # Originally from invalidations.jl
     Cthulhu.backedges(node::InstanceNode) = sort(node.children; by=countchildren, rev=true)
