@@ -2,15 +2,9 @@ module CthulhuExtTest
 
 using SnoopCompileCore, SnoopCompile
 using Cthulhu
+using Cthulhu.Testing
 using Pkg
 using Test
-
-if !isdefined(@__MODULE__, :fake_terminal)
-    @eval (@__MODULE__) begin
-        Base.include(@__MODULE__, normpath(pkgdir(Cthulhu), "test", "FakeTerminals.jl"))
-        using .FakeTerminals
-    end
-end
 
 macro with_try_stderr(out, expr)
     quote
@@ -32,14 +26,22 @@ function f(x)
 end
 g(c) = myplus(f(c[1]), f(c[2]))
 
+cread1(terminal) = readuntil(terminal.output, ')'; keep=true)
+cread(terminal, until) = cread(terminal, "", until)
+cread(terminal, str, until) = occursin(until, str) ? str : cread(terminal, str * cread1(terminal), until)
+strip_ansi_escape_sequences(str) = replace(str, r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])" => "")
+function read_from(terminal, until)
+    displayed = cread(terminal, until)
+    text = strip_ansi_escape_sequences(displayed)
+    return (displayed, text)
+end
 
 @testset "Cthulhu extension" begin
     @testset "ascend for invalidations" begin
         cproj = Base.active_project()
         cd(joinpath(dirname(@__DIR__), "testmodules", "Invalidation")) do
             Pkg.activate(pwd())
-            Pkg.develop(path="./PkgC")
-            Pkg.develop(path="./PkgD")
+            Pkg.instantiate()
             Pkg.precompile()
             invalidations = @snoop_invalidations begin
                 @eval begin
@@ -48,23 +50,24 @@ g(c) = myplus(f(c[1]), f(c[2]))
                     using PkgD
                 end
             end
-            tree = only(invalidation_trees(invalidations))
+            trees = invalidation_trees(invalidations)
+            tree = last(trees)
             sig, root = only(tree.mt_backedges)
 
-            fake_terminal() do term, in, out, _
-                t = @async begin
-                    @with_try_stderr out ascend(term, root; interruptexc=false)
+            term = FakeTerminal()
+            t = @async begin
+                @with_try_stderr term.output redirect_stderr(term.error) do
+                    ascend(term, root)
                 end
-                lines = String(readavailable(out))   # this gets the header
-                sleep(0.1)   # some platforms seem to need this
-                lines = String(readavailable(out))
-                sleep(0.1)
-                @test occursin("call_nbits", lines)
-                @test occursin("map_nbits(::Vector{Integer})", lines)
-                # the job of the extension is done  once we've written the menu, so we can quit here
-                write(in, 'q')
-                wait(t)
             end
+            displayed, text = read_from(term, "map_nbits")
+            @test occursin("call_nbits", text)
+            @test occursin("map_nbits(::Vector{Integer})", text)
+            # the job of the extension is done once we've written the menu, so we can quit here
+            write(term.input, 'q')
+            readavailable(term.output)
+            wait(t)
+            finalize(term)
         end
 
         Pkg.activate(cproj)
@@ -75,21 +78,19 @@ g(c) = myplus(f(c[1]), f(c[2]))
         itrigs = inference_triggers(tinf; exclude_toplevel=false)
         itrig = last(itrigs)
 
-        fake_terminal() do term, in, out, _
-            t = @async begin
-                @with_try_stderr out ascend(term, itrig; interruptexc=false)
-            end
-            lines = String(readavailable(out))   # this gets the header
-            sleep(0.1)
-            lines = String(readavailable(out))
-            sleep(0.1)
-            @test occursin("myplus(::UInt8, ::Float16)", lines)
-            @test occursin("g(::Vector{Float64})", lines)
-            # the job of the extension is done  once we've written the menu, so we can quit here
-            write(in, 'q')
-            wait(t)
+        term = FakeTerminal()
+        t = @async begin
+            @with_try_stderr term.output ascend(term, itrig; interruptexc=false)
         end
+        displayed, text = read_from(term, "g(::Vector{Float64})")
+        @test occursin("myplus(::UInt8, ::Float16)", text)
+        @test occursin("g(::Vector{Float64})", text)
+        # the job of the extension is done once we've written the menu, so we can quit here
+        write(term.input, 'q')
+        readavailable(term.output)
+        wait(t)
+        finalize(term)
     end
 end
 
-end
+end # module

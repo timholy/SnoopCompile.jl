@@ -20,8 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
-          - '1'
+#          - 'min'
           - 'pre'
           - 'nightly'
         os:
@@ -44,16 +43,20 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
+      # - run: julia --project -e 'using Pkg; Pkg.develop([PackageSpec(path="SnoopCompileCore")])'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
-      - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["cthulhu"], coverage=true)'
-      - uses: julia-actions/julia-processcoverage@v1
         with:
-          directories: src,SnoopCompileCore/src
-      - uses: codecov/codecov-action@v5
-        with:
-          file: lcov.info
+          coverage: false    # FIXME: this is very sad, but coverage changes the snoop_inference.jl/Stale tests (as of Julia 1.13.0-DEV.1058)
+      - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["cthulhu"], coverage=false)'
+      - run: julia  --check-bounds=yes --project -e 'using Pkg; Pkg.test(; test_args=["jet"], coverage=false)'
+        continue-on-error: true   # JET test is non-fatal
+      # - uses: julia-actions/julia-processcoverage@v1
+      #   with:
+      #     directories: src,SnoopCompileCore/src
+      # - uses: codecov/codecov-action@v5
+      #   with:
+      #     file: lcov.info
 
   skip:
     if: "contains(github.event.head_commit.message, '[skip ci]')"

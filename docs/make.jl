@@ -15,7 +15,7 @@ makedocs(
     pages = ["index.md",
              "Basic tutorials" => ["tutorials/invalidations.md", "tutorials/snoop_inference.md", "tutorials/snoop_llvm.md", "tutorials/pgdsgui.md", "tutorials/jet.md"],
              "Advanced tutorials" => ["tutorials/snoop_inference_analysis.md", "tutorials/snoop_inference_parcel.md"],
-             "Explanations" => ["explanations/tools.md", "explanations/gotchas.md", "explanations/fixing_inference.md"],
+             "Explanations" => ["explanations/tools.md", "explanations/gotchas.md", "explanations/fixing_inference.md", "explanations/invalidation_classes.md", "explanations/devs.md"],
              "reference.md",
     ]
 )

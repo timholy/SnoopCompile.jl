@@ -1,5 +1,10 @@
 export @snoop_invalidations
 
+struct InvalidationLists
+    logedges::Vector{Any}
+    logmeths::Vector{Any}
+end
+
 """
     invs = @snoop_invalidations expr
 
@@ -26,12 +31,19 @@ Method insertion results in the sequence
 The authoritative reference is Julia's own `src/gf.c` file.
 """
 macro snoop_invalidations(expr)
-    quote
-        local invs = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
-        Expr(:tryfinally,
-            $(esc(expr)),
+    # It's a little unclear why this is better than a quoted try/finally, but it seems to be
+    # Guessing it's a lack of a block around `expr`
+    exoff = Expr(:tryfinally,
+        esc(expr),
+        quote
+            $ReinferUtils.debug_method_invalidation(false)
             ccall(:jl_debug_method_invalidation, Any, (Cint,), 0)
-        )
-        invs
+        end
+    )
+    return quote
+        local logedges = $ReinferUtils.debug_method_invalidation(true)
+        local logmeths = ccall(:jl_debug_method_invalidation, Any, (Cint,), 1)
+        $exoff
+        $InvalidationLists(logedges, logmeths)
     end
 end

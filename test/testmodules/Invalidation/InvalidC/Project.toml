@@ -1,0 +1,7 @@
+name = "InvalidC"
+uuid = "ac24b6e5-9ce8-4da6-b046-32dfc5c72d9b"
+version = "0.1.0"
+authors = ["Tim Holy <tim.holy@gmail.com>"]
+
+[deps]
+InvalidA = "be40ca7b-3ee8-492f-a3f1-50c058e54caf"

@@ -30,7 +30,7 @@ It then returns the results of
 See [`flatten`](@ref) for an example usage.
 """
 function flatten_demo()
-    eval(:(
+    mod = eval(:(
         module FlattenDemo
         struct MyType{T} x::T end
         extract(y::MyType) = y.x
@@ -46,7 +46,8 @@ function flatten_demo()
         end
     ))
     z = (1 + 1)*1 + 2*1 + 5
-    return @snoop_inference Base.invokelatest(FlattenDemo.packintype, 1)
+    packintype = invokelatest(getglobal, mod, :packintype)
+    return @snoop_inference Base.invokelatest(packintype, 1)
 end
 
 """
@@ -81,7 +82,7 @@ This does not require any new inference for `calldouble2` or `calldouble1`, but 
 See [`inference_triggers`](@ref) to see what gets collected and returned.
 """
 function itrigs_demo()
-    eval(:(
+    mod = eval(:(
         module ItrigDemo
         @noinline double(x) = 2x
         @inline calldouble1(c) = double(c[1])
@@ -91,10 +92,11 @@ function itrigs_demo()
     ))
     # Call once to infer `calldouble2(::Vector{Vector{Any}})`, `calldouble1(::Vector{Any})`, `double(::Int)`
     cc = [Any[1]]
-    Base.invokelatest(ItrigDemo.calleach, [cc,cc])
+    f = invokelatest(getglobal, mod, :calleach)
+    Base.invokelatest(f, [cc,cc])
     # Now use UInt8 & Float64 elements to force inference on double, without forcing new inference on its callers
     cc1, cc2 = [Any[0x01]], [Any[1.0]]
-    return @snoop_inference Base.invokelatest(ItrigDemo.calleach, [cc1, cc2])
+    return @snoop_inference Base.invokelatest(f, [cc1, cc2])
 end
 
 """
@@ -137,7 +139,7 @@ which forces inference for `double(::Float64)`.
 See [`skiphigherorder`](@ref) for an example using this demo.
 """
 function itrigs_higherorder_demo()
-    eval(:(
+    mod = eval(:(
         module ItrigHigherOrderDemo
         double(x) = 2x
         @noinline function mymap!(f, dst, src)
@@ -150,10 +152,11 @@ function itrigs_higherorder_demo()
         callmymap(src) = mymap(double, src)
         end
     ))
+    f = invokelatest(getglobal, mod, :callmymap)
     # Call once to infer `callmymap(::Vector{Any})`, `mymap(::typeof(double), ::Vector{Any})`,
     #    `mymap!(::typeof(double), ::Vector{Any}, ::Vector{Any})` and `double(::Int)`
-    Base.invokelatest(ItrigHigherOrderDemo.callmymap, Any[1, 2])
+    Base.invokelatest(f, Any[1, 2])
     src = Any[1.0, 2.0]   # double not yet inferred for Float64
-    return @snoop_inference Base.invokelatest(ItrigHigherOrderDemo.callmymap, src)
+    return @snoop_inference Base.invokelatest(f, src)
 end
 
